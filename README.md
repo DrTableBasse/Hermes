@@ -1,0 +1,2 @@
+# Hermes
+Hermes discord bot
