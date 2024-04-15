@@ -1,7 +1,8 @@
 import type { ApplicationService } from '@adonisjs/core/types'
 import { Client, GatewayIntentBits } from 'discord.js'
 import env from '#start/env'
-import BotStarted from '#events/bot_started'
+import { InteractionCreated } from '#events/interaction_created'
+import { BotStarted } from '#events/bot_started'
 
 export default class DiscordProvider {
   constructor(protected app: ApplicationService) {}
@@ -27,19 +28,10 @@ export default class DiscordProvider {
   async start() {
     const client = await this.app.container.make('discord')
     client.on('ready', (clientEvent) => BotStarted.dispatch(clientEvent))
+    client.on('interactionCreate', async (interaction) =>
+      InteractionCreated.dispatch(interaction, client)
+    )
 
-    /* client.on('ready', () => {
-      console.log(`Logged in as ${client.user?.tag}!`)
-    })
-
-    client.on('interactionCreate', async (interaction) => {
-      if (!interaction.isChatInputCommand()) return
-
-      if (interaction.commandName === 'ping') {
-        await interaction.reply('Pong!')
-      }
-    })
-    client.login(env.get('TOKEN')) */
     client.login(env.get('TOKEN'))
   }
 

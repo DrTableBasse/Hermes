@@ -1,6 +1,6 @@
 import logger from '@adonisjs/core/services/logger'
-import BotStarted from '#events/bot_started'
 import { ApplicationCommandDataResolvable } from 'discord.js'
+import { BotStarted } from '#events/bot_started'
 
 // Todo: Temporary command list, will be extracted to a separate file with a better structure
 const COMMANDS: ApplicationCommandDataResolvable[] = [
