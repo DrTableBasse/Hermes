@@ -2,6 +2,10 @@
 node_modules
 build
 tmp
+venv
+.venv
+main.py
+__init__.py
 
 # Secrets
 .env
