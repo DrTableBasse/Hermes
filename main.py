@@ -163,6 +163,18 @@ async def on_message(message):
     # Ignore les messages du bot lui-même pour éviter des boucles infinies
     if message.author == bot.user:
         return
+    
+      # Vérifie si le bot a été mentionné
+    if bot.user.mentioned_in(message):
+        # Remplacez le chemin par l'endroit où votre vidéo est stockée
+        video_path = 'src/ping.mp4'  # Local path ou URL
+        
+        # Envoyer la vidéo
+        await message.reply(
+            "Arrête de me mentionner tocard ! Wouaf ! 🐶",
+            file=discord.File(video_path)  # Envoie la vidéo
+        )
+        return
 
     # Vérifie si la commande est dans le fichier list-commands.json
     commands_data = load_commands()
