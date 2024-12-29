@@ -23,3 +23,11 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+__pycache__
+
+# Misc
+.venv
+voice_data.db 
+config.py
+constants.py
+myenv

@@ -1,0 +1,16 @@
+{
+    "blague": true,
+    "confession": true,
+    "ddl": true,
+    "coinflip": true,
+    "check-warn": true,
+    "check-voice": true,
+    "clear": true,
+    "kick": true,
+    "mute": true,
+    "reglement": false,
+    "tempban": true,
+    "unmute": true,
+    "warn": true,
+    "test": false
+}

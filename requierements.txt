@@ -1,0 +1,12 @@
+discord.py
+discord-py-interactions
+discord-typings
+emoji
+youtube-dl
+blagues_api
+beautifulsoup4
+croniter
+requests
+setuptools
+bs4
+rich

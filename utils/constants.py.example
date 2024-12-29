@@ -1,0 +1,50 @@
+import os 
+
+#AUTHORIZED_ROLES = ["GroFlex", "Généraux saucisses"]
+LOG_CHANNEL_NAME = "all-logs"
+VOICE_LOG_CHANNEL_NAME = "🔗logs-vocal"
+
+download_directories = {
+    'Drames': '/home/jellyfin/dsk/jellyfin/Films-Triés/Drames',
+    'Action': '/home/jellyfin/dsk/jellyfin/Films-Triés/Action',
+    'Animé': '/home/jellyfin/dsk/jellyfin/Manga',
+    'SF': '/home/jellyfin/dsk/jellyfin/Films-Triés/SF',
+    'Comédie': '/home/jellyfin/dsk/jellyfin/Films-Triés/Comédie',
+    'Horreur': '/home/jellyfin/dsk/jellyfin/Films-Triés/Horreur',
+    'test':'/home/jellyfin/dsk/jellyfin/Films-Triés/test'
+}
+
+cog_directories = (
+    'fun', 
+    'moderation',
+    'system',
+)
+
+# cogs_names= (
+#     #partie fun
+#     "cogs.fun.blague",
+#     "cogs.fun.ddl",
+#     "cogs.fun.games",
+#     #partie modération
+#     "cogs.moderation.clear",
+#     "cogs.moderation.kick",
+#     "cogs.moderation.mute",
+#     "cogs.moderation.tempban",
+#     "cogs.moderation.tempmute",
+#     "cogs.moderation.unmute",
+#     #partie system
+#     "cogs.system.reload",
+#     "cogs.system.shutdown" 
+#     )
+
+
+# Charger les cogs
+def cogs_names():
+    result=[]
+    for directory in cog_directories:
+        cog_path = os.path.join(os.path.dirname(__file__), '../cogs', directory)
+        for filename in os.listdir(cog_path):
+            if filename.endswith('.py') and filename != '__init__.py':
+                result.append(f'cogs.{directory}.{filename[:-3]}')
+                #cog_name = f'cogs.{directory}.{filename[:-3]}'
+    return result
