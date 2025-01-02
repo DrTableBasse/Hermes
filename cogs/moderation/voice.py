@@ -28,7 +28,6 @@ class VoiceLoggingCog(commands.Cog):
         conn = self._get_db_connection()
         cursor = conn.cursor()
         new_total_time = 0
-        total_time_before_update = 0
 
         try:
             # Check if the user already exists
@@ -37,8 +36,7 @@ class VoiceLoggingCog(commands.Cog):
 
             if row:
                 # Update the existing user's total time
-                total_time_before_update = row[0]
-                new_total_time = total_time_before_update + time_spent
+                new_total_time = row[0] + time_spent
                 cursor.execute('UPDATE user_voice_data SET total_time = ? WHERE user_id = ?', (new_total_time, user_id))
                 debug_message = f'[DEBUG] Updated user {user_id} total time to {new_total_time} seconds.'
             else:
@@ -57,11 +55,10 @@ class VoiceLoggingCog(commands.Cog):
         # Log the debug message to the console
         print(debug_message)
 
-        # Optionally, send the debug message to a logging channel
+        # Send the debug message to a logging channel
         log_channel = discord.utils.get(self.bot.get_all_channels(), name='debug-log')  # Replace with your actual log channel name
         if log_channel:
             await log_channel.send(debug_message)
-
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
@@ -80,7 +77,10 @@ class VoiceLoggingCog(commands.Cog):
                 to_channel=after.channel, 
                 log_channel_name=VOICE_LOG_CHANNEL_NAME
             )
-            print(f"[DEBUG] User {member.id} joined {after.channel.name} at {join_time}")
+            #debug_message = f"[DEBUG] User {member.id} joined {after.channel.name} at {join_time}"
+            # print(debug_message)
+            # if log_channel:
+            #     await log_channel.send(debug_message)
 
         elif before.channel is not None and after.channel is None:
             # User left a voice channel
@@ -94,7 +94,10 @@ class VoiceLoggingCog(commands.Cog):
                 hours, remainder = divmod(duration_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
                 duration_str = f"{hours}h {minutes}m {seconds}s"
-                print(f"[DEBUG] Duration string: {duration_str}")
+                #debug_message = f"[DEBUG] Duration string: {duration_str}"
+                # print(debug_message)
+                # if log_channel:
+                #     await log_channel.send(debug_message)
             await log_voice_event(
                 member=member, 
                 action='a quitté le salon vocal', 
@@ -115,7 +118,10 @@ class VoiceLoggingCog(commands.Cog):
                 hours, remainder = divmod(duration_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
                 duration_str = f"{hours}h {minutes}m {seconds}s"
-                print(f"[DEBUG] User {member.id} moved from {before.channel.name} to {after.channel.name} after {duration_str}")
+                #debug_message = f"[DEBUG] User {member.id} moved from {before.channel.name} to {after.channel.name} after {duration_str}"
+                print(debug_message)
+                if log_channel:
+                    await log_channel.send(debug_message)
             await log_voice_event(
                 member=member, 
                 action=f'est passé de **{before.channel.name}** à **{after.channel.name}**', 
