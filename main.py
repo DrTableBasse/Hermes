@@ -4,8 +4,8 @@ from discord.ext import commands
 import os
 import sys
 import json
-from utils.constants import cogs_names, LOG_CHANNEL_ID  # Assurez-vous d'avoir l'ID du salon dans vos constants
-from utils.logging import log_command_usage
+from utils.constants import cogs_names, BOT_CHANNEL_START  # Assurez-vous d'avoir l'ID du salon dans vos constants
+# from utils.logging import log_command_usage
 from rich.console import Console
 from rich.table import Table
 
@@ -118,7 +118,7 @@ async def on_ready():
         return
 
     # Vérifie si le salon existe
-    channel = guild.get_channel(LOG_CHANNEL_ID)
+    channel = guild.get_channel(BOT_CHANNEL_START)
     if not channel:
         print('\033[91m[ERROR] \033[97mSalon spécifié non trouvé.\033[0m')
         return

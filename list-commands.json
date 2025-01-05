@@ -12,5 +12,6 @@
     "tempban": true,
     "unmute": true,
     "warn": true,
-    "test": false
+    "test": false,
+    "list_and_message_users": true
 }
