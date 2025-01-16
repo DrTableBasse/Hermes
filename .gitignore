@@ -31,7 +31,7 @@ __pycache__
 
 # Misc
 .venv
-voice_data.db 
+data.db 
 config.py
 constants.py
 myenv

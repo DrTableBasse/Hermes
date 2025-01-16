@@ -30,7 +30,7 @@ class CheckWarnCog(commands.Cog):
             return
 
         # Connect to the SQLite database
-        conn = sqlite3.connect('voice_data.db')
+        conn = sqlite3.connect('data.db')
         cursor = conn.cursor()
 
         # Retrieve the last three warns for the specified user

@@ -5,7 +5,7 @@ import os
 from utils.logging import log_voice_event  # Import the logging functions
 
 ROLE_NAME = 'Batman'  # Replace with the actual role name
-DB_PATH = 'voice_data.db'  # Path to your SQLite database
+DB_PATH = 'data.db'  # Path to your SQLite database
 
 class RoleAssignmentCog(commands.Cog):
     def __init__(self, bot):

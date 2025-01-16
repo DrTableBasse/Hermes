@@ -1,7 +1,7 @@
 import sqlite3
 
 def setup_database():
-    conn = sqlite3.connect('voice_data.db')
+    conn = sqlite3.connect('data.db')
     cursor = conn.cursor()
 
     # Create user_voice_data table if it does not exist

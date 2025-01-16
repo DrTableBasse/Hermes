@@ -7,7 +7,7 @@
     "check-voice": true,
     "clear": true,
     "kick": true,
-    "mute": true,
+    "mute": false,
     "reglement": false,
     "tempban": true,
     "unmute": true,
