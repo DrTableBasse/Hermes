@@ -8,6 +8,9 @@ from utils.constants import cogs_names, BOT_CHANNEL_START  # Assurez-vous d'avoi
 # from utils.logging import log_command_usage
 from rich.console import Console
 from rich.table import Table
+from cogs.fun.anime import send_articles
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 console = Console()
 
@@ -122,6 +125,10 @@ async def on_ready():
     if not channel:
         print('\033[91m[ERROR] \033[97mSalon spécifié non trouvé.\033[0m')
         return
+    
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(send_articles, "cron", hour=18, minute=0, kwargs={"bot": bot}) # Modifier l'heure ou le bot va request le site
+    scheduler.start()
 
     try:
         # Création de l'embed
