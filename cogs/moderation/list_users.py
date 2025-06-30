@@ -1,72 +1,52 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import json
-import os
 from utils.constants import LOG_CHANNEL_NAME
-from utils.logging import log_command_usage
+from utils.logging import log_command_usage, log_command
+from datetime import datetime
+from utils.command_manager import command_enabled
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ListAndMessageUsersCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.commands_file = 'list-commands.json'  # Fichier pour stocker les commandes existantes
-
-    async def add_command_to_json(self, command_name):
-        if os.path.exists(self.commands_file):
-            with open(self.commands_file, 'r') as f:
-                commands_data = json.load(f)
-        else:
-            commands_data = {}
-
-        if command_name not in commands_data:
-            commands_data[command_name] = True  # La commande est activée par défaut
-
-        with open(self.commands_file, 'w') as f:
-            json.dump(commands_data, f, indent=4)
-
-    async def check_command_disabled(self, command_name):
-        if os.path.exists(self.commands_file):
-            with open(self.commands_file, 'r') as f:
-                commands_data = json.load(f)
-            if command_name in commands_data and not commands_data[command_name]:
-                return True
-        return False
 
     @app_commands.command(
-        name="list_and_message_users",
-        description="Liste tous les utilisateurs (hors bots) et leur envoie un message personnalisé."
+        name="list-users",
+        description="Lister tous les utilisateurs du serveur avec leurs rôles"
     )
-    async def list_and_message_users(self, interaction: discord.Interaction, message: str):
-        if await self.check_command_disabled("list_and_message_users"):
-            await interaction.response.send_message("La commande `/list_and_message_users` est actuellement désactivée.", ephemeral=True)
-            return
-
+    @command_enabled(guild_specific=True)
+    async def list_users(self, interaction: discord.Interaction):
         try:
+            if not interaction.guild:
+                await interaction.response.send_message("Cette commande ne peut être utilisée que dans un serveur.", ephemeral=True)
+                return
             members = interaction.guild.members  # Récupère tous les membres du serveur
             filename = "ListeUtilisateurs.txt"
             with open(filename, "w", encoding="utf-8") as file:
                 for member in members:
                     if not member.bot:  # Vérifie si le membre n'est pas un bot
-                        # Envoie un message direct au membre
-                        try:
-                            await member.send(message)
-                            file.write(f"{member.name}#{member.discriminator} (ID: {member.id}) - Message envoyé avec succès\n")
-                        except Exception as e:
-                            file.write(f"{member.name}#{member.discriminator} (ID: {member.id}) - Échec de l'envoi : {e}\n")
+                        # Affiche les informations du membre
+                        roles = [role.name for role in member.roles if role.name != "@everyone"]
+                        file.write(f"{member.name}#{member.discriminator} (ID: {member.id}) - Rôles: {', '.join(roles) if roles else 'Aucun rôle'}\n")
 
             # Envoie le fichier avec les résultats
             await interaction.response.send_message(
-                "Liste des utilisateurs (hors bots) et état des messages envoyés :",
+                "Liste des utilisateurs (hors bots) avec leurs rôles :",
                 file=discord.File(filename)
             )
-            await log_command_usage(interaction, "list_and_message_users", log_channel_name=LOG_CHANNEL_NAME)
+            await log_command_usage(interaction, "list_users")
         except Exception as e:
-            await interaction.response.send_message(f"Une erreur est survenue : {e}")
-
-    async def setup(self):
-        await self.add_command_to_json("list_and_message_users")
+            logger.error(f"[list_users] Erreur lors de l'exécution: {e}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                else:
+                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+            except Exception as send_err:
+                logger.error(f"[list_users] Impossible d'envoyer le message d'erreur : {send_err}")
 
 async def setup(bot):
-    cog = ListAndMessageUsersCog(bot)
-    await cog.setup()
-    await bot.add_cog(cog)
+    await bot.add_cog(ListAndMessageUsersCog(bot))

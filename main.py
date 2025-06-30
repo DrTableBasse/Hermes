@@ -1,16 +1,48 @@
+"""
+Module principal d'Hermes Bot - Bot Discord multifonctionnel
+
+Ce module contient le point d'entrée principal du bot Discord Hermes.
+Il gère l'initialisation, la configuration, le chargement des cogs et
+le démarrage du bot avec toutes ses fonctionnalités.
+
+Fonctionnalités principales:
+- Initialisation et configuration du bot Discord
+- Chargement automatique des cogs (modules de commandes)
+- Gestion de la base de données PostgreSQL
+- Système de planification des tâches (scheduler)
+- Gestion des événements Discord (messages, mentions)
+- Synchronisation des commandes slash avec Discord
+- Validation de la configuration et des variables d'environnement
+
+Dépendances:
+- discord.py: API Discord
+- rich: Interface console colorée
+- apscheduler: Planification des tâches
+- dotenv: Gestion des variables d'environnement
+
+Auteur: Dr.TableBasse
+Version: 2.0
+"""
+
 import discord
 from discord import Embed, Colour
 from discord.ext import commands
 import os
 import sys
 import json
-from utils.constants import cogs_names, BOT_CHANNEL_START  # Assurez-vous d'avoir l'ID du salon dans vos constants
-# from utils.logging import log_command_usage
+import asyncio
+from utils.constants import cogs_names
+from utils.database import init_database, voice_manager, warn_manager
+from utils.command_manager import init_command_status_table
 from rich.console import Console
 from rich.table import Table
 from cogs.fun.anime import send_articles
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from config import validate_config, TOKEN_BLAGUE_API
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement
+load_dotenv()
 
 console = Console()
 
@@ -18,117 +50,113 @@ console = Console()
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'cogs')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
-# Importer la configuration
-from config import TOKEN, GUILD_ID
-
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents)
 
-# Charger la liste des commandes depuis le fichier JSON
-def load_commands():
-    try:
-        with open("list-commands.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-
-# Sauvegarder les commandes dans le fichier JSON
-def save_commands(commands_data):
-    with open("list-commands.json", "w") as f:
-        json.dump(commands_data, f, indent=4)
-
-# Charger les cogs avec affichage propre
 async def load_cogs():
+    """
+    Charge tous les cogs (modules de commandes) du bot.
+    
+    Cette fonction charge dynamiquement tous les cogs définis dans utils.constants
+    et affiche un tableau de statut pour chaque cog chargé.
+    
+    Returns:
+        None
+    """
     table = Table(title="Chargement des Cogs", show_lines=True)
 
     # Ajouter les colonnes
     table.add_column("Nom du Cog", justify="left", style="cyan", no_wrap=True)
     table.add_column("Statut", justify="center", style="green")
 
+    loaded_cogs = 0
+    total_cogs = len(cogs_names())
+
     for cog in cogs_names():
         try:
             await bot.load_extension(f'{cog}')
-            # Ajouter une ligne pour les cogs chargés avec succès
             table.add_row(cog, "[bold green]✅ Chargé")
-        except Exception:
-            # Ajouter une ligne pour les cogs échoués (si nécessaire)
-            table.add_row(cog, "[bold red]❌ Erreur")
+            loaded_cogs += 1
+        except Exception as e:
+            table.add_row(cog, f"[bold red]❌ Erreur: {str(e)[:30]}...")
+            console.print(f"[red]Erreur détaillée pour {cog}: {e}[/red]")
 
     # Afficher le tableau
     console.print(table)
-
-# Commande pour lister les commandes disponibles
-@bot.tree.command(name="list-command", description="Liste toutes les commandes disponibles.")
-async def list_commands(interaction: discord.Interaction):
-    commands_data = load_commands()
-
-    # Créer un embed pour afficher les commandes
-    embed = discord.Embed(title="Commandes disponibles", color=discord.Color.blue())
-    
-    # Ajouter les commandes et leurs statuts sous forme de champs dans l'embed
-    for command, status in commands_data.items():
-        status_text = "Activée ✅" if status else "Désactivée ❌"
-        
-        # Ajouter un champ pour le nom de la commande (inline=True pour être côte à côte)
-        embed.add_field(
-            name=f"/{command}", 
-            value=status_text,  # Afficher l'état de la commande dans le champ de la commande
-            inline=True
-        )
-
-    if not embed.fields:
-        await interaction.response.send_message("Aucune commande disponible.", ephemeral=True)
-        return
-
-    await interaction.response.send_message(embed=embed)
-
-# Commande pour activer une commande
-@bot.tree.command(name="enable-command", description="Activer une commande.")
-async def enable_command(interaction: discord.Interaction, command_name: str):
-    commands_data = load_commands()
-    
-    if command_name in commands_data and commands_data[command_name]:
-        await interaction.response.send_message(f"La commande /{command_name} est déjà activée.", ephemeral=True)
-        return
-    
-    commands_data[command_name] = True
-    save_commands(commands_data)
-    await interaction.response.send_message(f"La commande /{command_name} a été activée.", ephemeral=True)
-
-# Commande pour désactiver une commande
-@bot.tree.command(name="disable-command", description="Désactiver une commande.")
-async def disable_command(interaction: discord.Interaction, command_name: str):
-    commands_data = load_commands()
-    
-    if command_name in commands_data and not commands_data[command_name]:
-        await interaction.response.send_message(f"La commande /{command_name} est déjà désactivée.", ephemeral=True)
-        return
-    
-    commands_data[command_name] = False
-    save_commands(commands_data)
-    await interaction.response.send_message(f"La commande /{command_name} a été désactivée.", ephemeral=True)
-
-from discord import Embed, Colour
+    console.print(f"[green]📊 {loaded_cogs}/{total_cogs} cogs chargés avec succès[/green]")
 
 @bot.event
 async def on_ready():
-    print(f'\033[92m[INFO] \033[94mBot connecté en tant que {bot.user.name}\033[0m')  # Message d'info dans le terminal
+    """
+    Événement déclenché quand le bot se connecte avec succès à Discord.
+    
+    Cette fonction:
+    1. Valide la configuration du bot
+    2. Vérifie les variables d'environnement
+    3. Initialise la base de données
+    4. Configure le scheduler pour les tâches automatiques
+    5. Envoie un message de démarrage
+    6. Charge les cogs
+    7. Synchronise les commandes slash
+    
+    Returns:
+        None
+    """
+    console.print(f'[green]✅ Bot connecté en tant que {bot.user.name}[/green]')
+
+    # Vérifier la configuration
+    try:
+        validate_config()
+    except ValueError as e:
+        console.print(f'[red]❌ Erreur de configuration: {e}[/red]')
+        return
+
+    # Récupérer les variables d'environnement
+    GUILD_ID = os.getenv('GUILD_ID')
+    BOT_CHANNEL_START = os.getenv('BOT_CHANNEL_START')
+    
+    if not GUILD_ID:
+        console.print('[red]❌ Variable d\'environnement GUILD_ID manquante dans le fichier .env[/red]')
+        return
+    if not BOT_CHANNEL_START:
+        console.print('[red]❌ Variable d\'environnement BOT_CHANNEL_START manquante dans le fichier .env[/red]')
+        return
+        
+    GUILD_ID = int(GUILD_ID)
+    BOT_CHANNEL_START = int(BOT_CHANNEL_START)
 
     # Vérifie si le serveur existe
     guild = bot.get_guild(GUILD_ID)
     if not guild:
-        print('\033[91m[ERROR] \033[97mServeur non trouvé.\033[0m')
+        console.print('[red]❌ Serveur non trouvé.[/red]')
         return
 
     # Vérifie si le salon existe
     channel = guild.get_channel(BOT_CHANNEL_START)
     if not channel:
-        print('\033[91m[ERROR] \033[97mSalon spécifié non trouvé.\033[0m')
+        console.print(f'[red]❌ Salon spécifié non trouvé pour BOT_CHANNEL_START (valeur: {BOT_CHANNEL_START})[/red]')
         return
     
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(send_articles, "cron", hour=18, minute=0, kwargs={"bot": bot}) # Modifier l'heure ou le bot va request le site
-    scheduler.start()
+    # Initialiser la base de données
+    try:
+        await init_database()
+        console.print('[green]✅ Base de données initialisée[/green]')
+        
+        # Initialiser la table des statuts de commandes
+        await init_command_status_table()
+        console.print('[green]✅ Table des statuts de commandes initialisée[/green]')
+    except Exception as e:
+        console.print(f'[red]❌ Erreur d\'initialisation de la base de données: {e}[/red]')
+        return
+
+    # Configurer le scheduler
+    try:
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(send_articles, "interval", minutes=5, kwargs={"bot": bot})
+        scheduler.start()
+        console.print('[green]✅ Scheduler configuré[/green]')
+    except Exception as e:
+        console.print(f'[red]❌ Erreur de configuration du scheduler: {e}[/red]')
 
     try:
         # Création de l'embed
@@ -136,7 +164,7 @@ async def on_ready():
             title="Hermes au pied ! 🐾",
             description="Bark Bark ! Je suis prêt à servir ! 🐶\n"
                         "[Clique ici pour voir mon développeur ❤️](https://homepage.drtablebasse.fr)",
-            colour=Colour.blue()  # Bleu ciel
+            colour=Colour.blue()
         )
 
         # Ajout de la photo de profil du bot
@@ -145,60 +173,99 @@ async def on_ready():
 
         # Ajout des informations supplémentaires
         embed.add_field(name="Nom du Bot", value=f"{bot.user.name}", inline=False)
-        embed.add_field(name="Github du Bot",value=f"[Github](https://github.com/drtablebasse/Hermes)", inline=False)
+        embed.add_field(name="Github du Bot", value=f"[Github](https://github.com/drtablebasse/Hermes)", inline=False)
 
         # Ajout d'un footer
         embed.set_footer(text="Développé avec ❤️ par Dr.TableBasse")
 
         # Envoi de l'embed dans le salon
         await channel.send(embed=embed)
-        print(f'\033[92m[INFO] \033[94mMessage envoyé avec succès dans le salon {channel.name}\033[0m')
+        console.print(f'[green]✅ Message envoyé avec succès dans le salon {channel.name}[/green]')
     except Exception as e:
-        print(f'\033[91m[ERROR] \033[97mUne erreur est survenue lors de l\'envoi du message: {e}\033[0m')
+        console.print(f'[red]❌ Erreur lors de l\'envoi du message: {e}[/red]')
 
-
-    # await load_cogs()
+    # Charger les cogs
+    await load_cogs()
 
     # Synchronisation des commandes sur le serveur
-    bot.tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
-    await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
-    print("\033[92m[INFO] \033[94mCommandes synchronisées avec le serveur\033[0m")
+    try:
+        bot.tree.copy_global_to(guild=discord.Object(id=GUILD_ID))
+        await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
+        console.print("[green]✅ Commandes synchronisées avec le serveur[/green]")
+    except Exception as e:
+        console.print(f'[red]❌ Erreur de synchronisation des commandes: {e}[/red]')
 
-# Vérification avant l'exécution de la commande
+    with open('.env', 'r', encoding='utf-8') as f:
+        print('--- CONTENU .env ---')
+        print(f.read())
+        print('--------------------')
+    print('Valeur brute de COMMAND_LOG_CHANNEL_ID:', os.getenv('COMMAND_LOG_CHANNEL_ID'))
+
 @bot.event
 async def on_message(message):
+    """
+    Événement déclenché à chaque message reçu sur le serveur.
+    
+    Cette fonction gère:
+    - Les mentions du bot (réponse avec une vidéo)
+    - Le traitement des commandes normales
+    - La prévention des boucles infinies
+    
+    Args:
+        message: Objet message Discord reçu
+        
+    Returns:
+        None
+    """
     # Ignore les messages du bot lui-même pour éviter des boucles infinies
     if message.author == bot.user:
         return
     
-      # Vérifie si le bot a été mentionné
+    # Vérifie si le bot a été mentionné
     if bot.user.mentioned_in(message):
-        # Remplacez le chemin par l'endroit où votre vidéo est stockée
-        video_path = 'src/ping.mp4'  # Local path ou URL
-        
-        # Envoyer la vidéo
-        await message.reply(
-            "Arrête de me mentionner tocard ! Wouaf ! 🐶",
-            file=discord.File(video_path)  # Envoie la vidéo
-        )
-        return
-
-    # Vérifie si la commande est dans le fichier list-commands.json
-    commands_data = load_commands()
-    command_name = message.content.split()[0][1:]  # Récupère le nom de la commande
-    if command_name in commands_data and not commands_data[command_name]:
-        await message.reply(f"La commande /{command_name} est actuellement désactivée.", ephemeral=True)
+        try:
+            # Remplacez le chemin par l'endroit où votre vidéo est stockée
+            video_path = 'src/ping.mp4'
+            
+            # Vérifier si le fichier existe
+            if os.path.exists(video_path):
+                await message.reply(
+                    "Arrête de me mentionner tocard ! Wouaf ! 🐶",
+                    file=discord.File(video_path)
+                )
+            else:
+                await message.reply("Arrête de me mentionner tocard ! Wouaf ! 🐶")
+        except Exception as e:
+            console.print(f'[red]Erreur lors de l\'envoi de la vidéo: {e}[/red]')
+            await message.reply("Arrête de me mentionner tocard ! Wouaf ! 🐶")
         return
 
     # Assurez-vous que les autres commandes et événements fonctionnent correctement
     await bot.process_commands(message)
 
-# Charger les cogs et démarrer le bot
 async def main():
-    await load_cogs()
-    await bot.start(TOKEN)
+    """
+    Fonction principale d'initialisation et de démarrage du bot.
+    
+    Cette fonction:
+    1. Récupère le token Discord depuis les variables d'environnement
+    2. Valide la présence du token
+    3. Démarre le bot avec le token
+    
+    Returns:
+        None
+    """
+    try:
+        # Récupérer le token Discord depuis les variables d'environnement
+        TOKEN = os.getenv('DISCORD_TOKEN')
+        if not TOKEN:
+            console.print('[red]❌ Token Discord manquant dans les variables d\'environnement[/red]')
+            return
+            
+        await bot.start(TOKEN)
+    except Exception as e:
+        console.print(f'[red]❌ Erreur lors du démarrage du bot: {e}[/red]')
 
 # Exécuter le bot
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

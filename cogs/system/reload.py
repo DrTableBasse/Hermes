@@ -2,6 +2,12 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.constants import cogs_names
+from datetime import datetime
+from utils.command_manager import command_enabled
+from utils.logging import log_command
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ReloadCog(commands.Cog):
     def __init__(self, bot):
@@ -10,6 +16,7 @@ class ReloadCog(commands.Cog):
 
 
     @app_commands.command(name="reload", description="Recharge tous les cogs")
+    @command_enabled(guild_specific=True)
     async def reload(self, interaction: discord.Interaction):
 
         if not interaction.user.guild_permissions.administrator:
@@ -22,8 +29,14 @@ class ReloadCog(commands.Cog):
                 await self.bot.load_extension(f'{cog}')
                 #print(f'Reloaded {cog}')
             except Exception as e:
-                print(f'An error occurred while reloading {cog}: {e}')
-                await interaction.response.send_message(f"Une erreur est survenue lors du rechargement de {cog}: {e}", ephemeral=True)
+                logger.error(f"[reload] Erreur lors de l'exécution: {e}")
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message(f"Une erreur est survenue lors du rechargement de {cog}: {e}", ephemeral=True)
+                    else:
+                        await interaction.followup.send(f"Une erreur est survenue lors du rechargement de {cog}: {e}", ephemeral=True)
+                except Exception as send_err:
+                    logger.error(f"[reload] Impossible d'envoyer le message d'erreur : {send_err}")
 
         await interaction.response.send_message("Tous les cogs ont été rechargés.")
 

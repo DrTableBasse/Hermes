@@ -1,11 +1,15 @@
 import discord
+from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone
-import sqlite3
 import os
-from utils.constants import VOICE_LOG_CHANNEL_NAME
-from utils.logging import log_voice_event
-from utils.constants import DB_PATH
+from utils.constants import VOICE_LOG_CHANNEL_ID
+from utils.logging import log_voice_event, log_command
+from utils.database import voice_manager
+import logging
+from utils.command_manager import command_enabled
+
+logger = logging.getLogger(__name__)
 
 ROLE_NAME = 'Batman'  # Replace with the actual role name
 
@@ -13,122 +17,246 @@ class VoiceLoggingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.voice_state = {}  # Dictionary to keep track of members' join times
-        self.db_path = DB_PATH  # Path to the database file
-        self._print_db_path()  # Print the path to the database file for debugging
 
-    def _get_db_connection(self):
-        return sqlite3.connect(self.db_path)
-
-    def _print_db_path(self):
-        # Print the absolute path to the database file for debugging
-        abs_path = os.path.abspath(self.db_path)
-        print(f"[DEBUG] Database file path: {abs_path}")
-
-    async def _update_user_time(self, user_id, time_spent):
-        conn = self._get_db_connection()
-        cursor = conn.cursor()
-        new_total_time = 0
-
+    async def _update_user_time(self, user_id: int, time_spent: int):
+        """Met à jour le temps vocal d'un utilisateur de manière asynchrone"""
         try:
-            # Check if the user already exists
-            cursor.execute('SELECT total_time FROM user_voice_data WHERE user_id = ?', (user_id,))
-            row = cursor.fetchone()
-
-            if row:
-                # Update the existing user's total time
-                new_total_time = row[0] + time_spent
-                cursor.execute('UPDATE user_voice_data SET total_time = ? WHERE user_id = ?', (new_total_time, user_id))
-                debug_message = f'[DEBUG] Updated user {user_id} total time to {new_total_time} seconds.'
+            # Récupérer le nom d'utilisateur
+            user = await self.bot.fetch_user(user_id)
+            username = user.display_name or user.name
+            
+            # Utiliser le gestionnaire de base de données PostgreSQL
+            success = await voice_manager.update_user_voice_time(user_id, username, time_spent)
+            
+            if success:
+                logger.info(f'Temps vocal mis à jour pour {username} ({user_id}): +{time_spent}s')
             else:
-                # Insert a new user
-                username = (await self.bot.fetch_user(user_id)).name
-                new_total_time = time_spent
-                cursor.execute('INSERT INTO user_voice_data (user_id, username, total_time) VALUES (?, ?, ?)', (user_id, username, new_total_time))
-                debug_message = f'[DEBUG] Inserted new user {user_id} with time {time_spent} seconds.'
-
-            conn.commit()
-        except sqlite3.Error as e:
-            debug_message = f'[ERROR] SQLite error: {e}'
-        finally:
-            conn.close()
-
-        # Log the debug message to the console
-        print(debug_message)
-
-        # Send the debug message to a logging channel
-        log_channel = discord.utils.get(self.bot.get_all_channels(), name='debug-log')  # Replace with your actual log channel name
-        if log_channel:
-            await log_channel.send(debug_message)
+                logger.error(f'Échec de la mise à jour du temps vocal pour {user_id}')
+                
+        except discord.NotFound:
+            logger.warning(f'Utilisateur {user_id} non trouvé lors de la mise à jour du temps vocal')
+        except Exception as e:
+            logger.error(f'Erreur lors de la mise à jour du temps vocal pour {user_id}: {e}')
 
     @commands.Cog.listener()
-    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        log_channel = discord.utils.get(member.guild.text_channels, name=VOICE_LOG_CHANNEL_NAME)
-        if not log_channel:
-            print(f"[ERROR] Log channel '{VOICE_LOG_CHANNEL_NAME}' not found")
-            return
+    async def on_voice_state_update(self, member, before, after):
+        """Gère les événements de changement d'état vocal"""
+        try:
+            # Ignorer les bots
+            if member.bot:
+                return
 
-        if before.channel is None and after.channel is not None:
-            # User joined a voice channel
-            join_time = datetime.now(timezone.utc)
-            self.voice_state[member.id] = join_time
-            await log_voice_event(
-                member=member, 
-                action='a rejoint le salon vocal', 
-                to_channel=after.channel, 
-                log_channel_name=VOICE_LOG_CHANNEL_NAME
+            current_time = datetime.now(timezone.utc)
+            
+            # Membre rejoint un canal vocal
+            if before.channel is None and after.channel is not None:
+                self.voice_state[member.id] = current_time
+                logger.info(f'{member.display_name} a rejoint {after.channel.name}')
+                
+                # Log l'événement
+                await log_voice_event(
+                    self.bot,
+                    "voice_join",
+                    member.id,
+                    f"Rejoint {after.channel.name}",
+                    VOICE_LOG_CHANNEL_ID
+                )
+            
+            # Membre quitte un canal vocal
+            elif before.channel is not None and after.channel is None:
+                if member.id in self.voice_state:
+                    join_time = self.voice_state[member.id]
+                    time_spent = int((current_time - join_time).total_seconds())
+                    
+                    if time_spent > 0:
+                        await self._update_user_time(member.id, time_spent)
+                    
+                    del self.voice_state[member.id]
+                    logger.info(f'{member.display_name} a quitté {before.channel.name} (temps: {time_spent}s)')
+                    
+                    # Log l'événement
+                    await log_voice_event(
+                        self.bot,
+                        "voice_leave",
+                        member.id,
+                        f"Quitté {before.channel.name} (temps: {time_spent}s)",
+                        VOICE_LOG_CHANNEL_ID
+                    )
+            
+            # Membre change de canal vocal
+            elif before.channel is not None and after.channel is not None and before.channel != after.channel:
+                if member.id in self.voice_state:
+                    join_time = self.voice_state[member.id]
+                    time_spent = int((current_time - join_time).total_seconds())
+                    
+                    if time_spent > 0:
+                        await self._update_user_time(member.id, time_spent)
+                    
+                    # Mettre à jour le temps de connexion pour le nouveau canal
+                    self.voice_state[member.id] = current_time
+                    logger.info(f'{member.display_name} a changé de {before.channel.name} vers {after.channel.name} (temps précédent: {time_spent}s)')
+                    
+                    # Log l'événement
+                    await log_voice_event(
+                        self.bot,
+                        "voice_move",
+                        member.id,
+                        f"Déplacé de {before.channel.name} vers {after.channel.name}",
+                        VOICE_LOG_CHANNEL_ID
+                    )
+                    
+        except Exception as e:
+            logger.error(f'Erreur lors du traitement de l\'événement vocal: {e}')
+
+    @commands.command(name="voicetime")
+    async def voice_time(self, ctx, member: discord.Member = None):
+        """Affiche le temps vocal d'un utilisateur"""
+        try:
+            target_member = member or ctx.author
+            user_data = await voice_manager.get_user_voice_data(target_member.id)
+            
+            if not user_data:
+                await ctx.send(f"❌ Aucune donnée vocale trouvée pour {target_member.display_name}")
+                return
+            
+            total_seconds = user_data['total_time']
+            hours, remainder = divmod(total_seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            
+            embed = discord.Embed(
+                title=f"🎤 Temps Vocal - {target_member.display_name}",
+                color=discord.Color.blue()
             )
-            #debug_message = f"[DEBUG] User {member.id} joined {after.channel.name} at {join_time}"
-            # print(debug_message)
-            # if log_channel:
-            #     await log_channel.send(debug_message)
+            embed.add_field(
+                name="Temps Total",
+                value=f"{hours}h {minutes}m {seconds}s",
+                inline=False
+            )
+            embed.add_field(
+                name="Dernière activité",
+                value=user_data.get('last_seen', 'Inconnue'),
+                inline=True
+            )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f'Erreur dans la commande voice_time: {e}')
+            await ctx.send("❌ Une erreur s'est produite lors de la récupération des données vocales")
 
-        elif before.channel is not None and after.channel is None:
-            # User left a voice channel
-            leave_time = datetime.now(timezone.utc)
-            join_time = self.voice_state.pop(member.id, None)
-            duration_str = ""
-            if join_time:
-                duration = leave_time - join_time
-                duration_seconds = int(duration.total_seconds())
-                await self._update_user_time(member.id, duration_seconds)
-                hours, remainder = divmod(duration_seconds, 3600)
+    @commands.command(name="voicetop")
+    async def voice_top(self, ctx, limit: int = 10):
+        """Affiche le classement des utilisateurs par temps vocal"""
+        try:
+            if limit > 20:
+                limit = 20
+            elif limit < 1:
+                limit = 5
+            
+            top_users = await voice_manager.get_top_voice_users(limit)
+            
+            if not top_users:
+                await ctx.send("❌ Aucune donnée vocale disponible")
+                return
+            
+            embed = discord.Embed(
+                title="🏆 Classement Temps Vocal",
+                color=discord.Color.gold()
+            )
+            
+            for i, user_data in enumerate(top_users, 1):
+                total_seconds = user_data['total_time']
+                hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                duration_str = f"{hours}h {minutes}m {seconds}s"
-                #debug_message = f"[DEBUG] Duration string: {duration_str}"
-                # print(debug_message)
-                # if log_channel:
-                #     await log_channel.send(debug_message)
-            await log_voice_event(
-                member=member, 
-                action='a quitté le salon vocal', 
-                from_channel=before.channel, 
-                duration=duration_str, 
-                log_channel_name=VOICE_LOG_CHANNEL_NAME
-            )
+                
+                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                
+                embed.add_field(
+                    name=f"{medal} {user_data['username']}",
+                    value=f"{hours}h {minutes}m {seconds}s",
+                    inline=False
+                )
+            
+            await ctx.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f'Erreur dans la commande voice_top: {e}')
+            await ctx.send("❌ Une erreur s'est produite lors de la récupération du classement")
 
-        elif before.channel != after.channel:
-            # User moved from one voice channel to another
-            leave_time = datetime.now(timezone.utc)
-            join_time = self.voice_state.pop(member.id, None)
-            duration_str = ""
-            if join_time:
-                duration = leave_time - join_time
-                duration_seconds = int(duration.total_seconds())
-                await self._update_user_time(member.id, duration_seconds)
-                hours, remainder = divmod(duration_seconds, 3600)
+    @app_commands.command(name="voice", description="Gérer les salons vocaux")
+    @command_enabled(guild_specific=True)
+    async def voice(self, interaction: discord.Interaction, action: str, user: discord.Member = None):
+        try:
+            if action.lower() == "time":
+                if user is None:
+                    user = interaction.user
+                
+                user_data = await voice_manager.get_user_voice_data(user.id)
+                
+                if not user_data:
+                    await interaction.response.send_message(f"❌ Aucune donnée vocale trouvée pour {user.display_name}", ephemeral=True)
+                    return
+                
+                total_seconds = user_data['total_time']
+                hours, remainder = divmod(total_seconds, 3600)
                 minutes, seconds = divmod(remainder, 60)
-                duration_str = f"{hours}h {minutes}m {seconds}s"
-                #debug_message = f"[DEBUG] User {member.id} moved from {before.channel.name} to {after.channel.name} after {duration_str}"
-                print(debug_message)
-                if log_channel:
-                    await log_channel.send(debug_message)
-            await log_voice_event(
-                member=member, 
-                action=f'est passé de **{before.channel.name}** à **{after.channel.name}**', 
-                duration=duration_str, 
-                log_channel_name=VOICE_LOG_CHANNEL_NAME
-            )
-            self.voice_state[member.id] = datetime.now(timezone.utc)
+                
+                embed = discord.Embed(
+                    title=f"🎤 Temps Vocal - {user.display_name}",
+                    color=discord.Color.blue()
+                )
+                embed.add_field(
+                    name="Temps Total",
+                    value=f"{hours}h {minutes}m {seconds}s",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Dernière activité",
+                    value=user_data.get('last_seen', 'Inconnue'),
+                    inline=True
+                )
+                
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                
+            elif action.lower() == "top":
+                top_users = await voice_manager.get_top_voice_users(10)
+                
+                if not top_users:
+                    await interaction.response.send_message("❌ Aucune donnée vocale disponible", ephemeral=True)
+                    return
+                
+                embed = discord.Embed(
+                    title="🏆 Classement Temps Vocal",
+                    color=discord.Color.gold()
+                )
+                
+                for i, user_data in enumerate(top_users, 1):
+                    total_seconds = user_data['total_time']
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    
+                    medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+                    
+                    embed.add_field(
+                        name=f"{medal} {user_data['username']}",
+                        value=f"{hours}h {minutes}m {seconds}s",
+                        inline=False
+                    )
+                
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                
+            else:
+                await interaction.response.send_message("❌ Action non reconnue. Utilisez 'time' ou 'top'.", ephemeral=True)
+                
+        except Exception as e:
+            logger.error(f'Erreur dans la commande voice: {e}')
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("❌ Une erreur s'est produite lors de la récupération des données vocales", ephemeral=True)
+                else:
+                    await interaction.followup.send("❌ Une erreur s'est produite lors de la récupération des données vocales", ephemeral=True)
+            except Exception as send_err:
+                logger.error(f"[voice] Impossible d'envoyer le message d'erreur : {send_err}")
 
 async def setup(bot):
     await bot.add_cog(VoiceLoggingCog(bot))

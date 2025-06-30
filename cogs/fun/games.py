@@ -2,42 +2,39 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import random
-from utils.constants import LOG_CHANNEL_NAME
-from utils.logging import log_command_usage
-import json
+from utils.command_manager import CommandStatusManager, command_enabled
+from utils.logging import log_command
+import logging
+
+logger = logging.getLogger("fun_commands")
 
 class GamesCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def is_command_enabled(self, command_name: str):
-        # Charger la liste des commandes depuis list-commands.json
-        try:
-            with open("list-commands.json", "r") as f:
-                commands_data = json.load(f)
-            return commands_data.get(command_name, False)  # Retourne True si activée, False sinon
-        except FileNotFoundError:
-            return False
-
     @app_commands.command(name="coinflip", description="Faire un pile ou face")
+    @command_enabled(guild_specific=True)
+    @log_command()
     async def coinflip(self, interaction: discord.Interaction):
-        # Vérifier si la commande est activée
-        if not await self.is_command_enabled("coinflip"):
-            await interaction.response.send_message("La commande /coinflip est actuellement désactivée.", ephemeral=True)
+        command_name = interaction.command.name
+        is_enabled = await CommandStatusManager.get_command_status(command_name, guild_id=interaction.guild_id, use_cache=False)
+        logger.info(f"[{command_name}] Appel de la commande. Statut: {'activée' if is_enabled else 'désactivée'}")
+        if not is_enabled:
+            logger.warning(f"[{command_name}] Commande désactivée, accès refusé à {interaction.user} (id={interaction.user.id})")
+            await interaction.response.send_message(
+                f"❌ La commande `/{command_name}` est actuellement désactivée.",
+                ephemeral=True
+            )
             return
         
-        # Log de la commande
-        await log_command_usage(
-            interaction=interaction,
-            command_name="coinflip",
-            member=interaction.user,
-            reason="Faire un pile ou face",
-            log_channel_name=LOG_CHANNEL_NAME
-        )
-
-        # Effectuer le tirage
-        result = 'pile' if random.randint(0, 1) == 0 else 'face'
-        await interaction.response.send_message(f"🪙 Le résultat est {result} !")
+        try:
+            # (Log automatique géré par command_logger.py)
+            # Effectuer le tirage
+            result = 'pile' if random.randint(0, 1) == 0 else 'face'
+            await interaction.response.send_message(f"🪙 Le résultat est {result} !")
+        except Exception as e:
+            logger.error(f"[{command_name}] Erreur lors de l'exécution: {e}")
+            await interaction.response.send_message(f"❌ Erreur lors de l'exécution: {str(e)}", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(GamesCog(bot))

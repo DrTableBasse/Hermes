@@ -1,8 +1,13 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.constants import LOG_CHANNEL_NAME
-from utils.logging import log_command_usage
+from utils.constants import LOG_CHANNEL_ID
+from utils.logging import log_command_usage, log_command
+from datetime import datetime
+from utils.command_manager import command_enabled
+import logging
+
+logger = logging.getLogger(__name__)
 
 class UnmuteCog(commands.Cog):
     def __init__(self, bot):
@@ -25,9 +30,16 @@ class UnmuteCog(commands.Cog):
             # Retirer le rôle "mute" du membre
             await member.remove_roles(muted_role, reason=reason)
             await interaction.response.send_message(f'{member.mention} a été unmute.')
-            await log_command_usage(interaction, "unmute", member=member, reason=reason, log_channel_name=LOG_CHANNEL_NAME)
+            await log_command_usage(interaction, "unmute", member=member, reason=reason, log_channel_id=LOG_CHANNEL_ID)
         except Exception as e:
-            await interaction.response.send_message(f"Une erreur est survenue : {e}")
+            logger.error(f"[unmute] Erreur lors de l'exécution: {e}")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                else:
+                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+            except Exception as send_err:
+                logger.error(f"[unmute] Impossible d'envoyer le message d'erreur : {send_err}")
 
 async def setup(bot):
     await bot.add_cog(UnmuteCog(bot))
