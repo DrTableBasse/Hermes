@@ -31,6 +31,12 @@ import os
 import sys
 import json
 import asyncio
+
+# Ajouter le répertoire courant au chemin d'importation AVANT les imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+# Maintenant on peut importer les modules utils et cogs
 from utils.constants import cogs_names
 from utils.database import init_database, voice_manager, warn_manager
 from utils.command_manager import init_command_status_table
@@ -45,10 +51,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 console = Console()
-
-# Ajoute le répertoire Hermes au chemin d'importation
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'cogs')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'utils')))
 
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='/', intents=intents)
