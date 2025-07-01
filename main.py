@@ -36,15 +36,31 @@ import asyncio
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
-# Maintenant on peut importer les modules utils et cogs
-from utils.constants import cogs_names
-from utils.database import init_database, voice_manager, warn_manager
-from utils.command_manager import init_command_status_table
+# Importer les modules avec gestion d'erreur
+try:
+    from utils.constants import cogs_names
+    from utils.database import init_database, voice_manager, warn_manager
+    from utils.command_manager import init_command_status_table
+    from cogs.fun.anime import send_articles
+    from config import validate_config, TOKEN_BLAGUE_API
+except ImportError as e:
+    print(f"❌ Erreur d'importation: {e}")
+    print(f"📁 Répertoire courant: {current_dir}")
+    print(f"📁 Contenu du répertoire:")
+    for item in os.listdir(current_dir):
+        print(f"   - {item}")
+    print(f"📁 Contenu du dossier utils:")
+    utils_dir = os.path.join(current_dir, 'utils')
+    if os.path.exists(utils_dir):
+        for item in os.listdir(utils_dir):
+            print(f"   - {item}")
+    else:
+        print("   ❌ Dossier utils non trouvé!")
+    sys.exit(1)
+
 from rich.console import Console
 from rich.table import Table
-from cogs.fun.anime import send_articles
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from config import validate_config, TOKEN_BLAGUE_API
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
