@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 import os
 from utils.logging import log_voice_event
 from utils.database import voice_manager
-from utils.constants import ROLE_BATMAN, VOICE_HOURS_FOR_ROLE
+from config import ROLE_BATMAN, VOICE_HOURS_FOR_ROLE
 from discord import app_commands
 from datetime import datetime
 from utils.command_manager import command_enabled

@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime, timezone
 import os
-from utils.constants import VOICE_LOG_CHANNEL_ID
+from config import VOICE_LOG_CHANNEL_ID
 from utils.logging import log_voice_event, log_command
 from utils.database import voice_manager
 import logging
@@ -257,6 +257,61 @@ class VoiceLoggingCog(commands.Cog):
                     await interaction.followup.send("❌ Une erreur s'est produite lors de la récupération des données vocales", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[voice] Impossible d'envoyer le message d'erreur : {send_err}")
+
+    @app_commands.command(name="voice-leaderboard", description="Affiche le classement des 10 utilisateurs ayant passé le plus de temps en vocal.")
+    async def voice_leaderboard(self, interaction: discord.Interaction):
+        """Affiche le classement général des utilisateurs les plus actifs en vocal"""
+        try:
+            top_users = await voice_manager.get_top_voice_users(10)
+            if not top_users:
+                embed = discord.Embed(
+                    title="🏆 Classement Temps Vocal",
+                    description="Aucune donnée disponible pour le moment.",
+                    color=discord.Color.orange()
+                )
+                await interaction.response.send_message(embed=embed)
+                return
+
+            embed = discord.Embed(
+                title="🏆 Classement Temps Vocal",
+                description="Top 10 des utilisateurs ayant passé le plus de temps en vocal :",
+                color=discord.Color.purple()
+            )
+
+            for i, user_data in enumerate(top_users, 1):
+                user_id = user_data['user_id']
+                username = user_data.get('username', f"Utilisateur {user_id}")
+                total_seconds = user_data['total_time']
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                user = interaction.guild.get_member(user_id)
+                user_mention = user.mention if user else f"<@{user_id}>"
+                user_name = user.display_name if user else username
+                # Emoji podium
+                if i == 1:
+                    emoji = "🥇"
+                elif i == 2:
+                    emoji = "🥈"
+                elif i == 3:
+                    emoji = "🥉"
+                else:
+                    emoji = f"**{i}.**"
+                embed.add_field(
+                    name=f"{emoji} {user_name}",
+                    value=f"{user_mention}\n**{hours}h {minutes}m {seconds}s**",
+                    inline=False
+                )
+            if interaction.guild.icon:
+                embed.set_thumbnail(url=interaction.guild.icon.url)
+            embed.set_footer(text=f"Demandé par {interaction.user.display_name}")
+            embed.timestamp = discord.utils.utcnow()
+            await interaction.response.send_message(embed=embed)
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération du leaderboard vocal : {e}")
+            await interaction.response.send_message(
+                "❌ Une erreur est survenue lors de la récupération du classement.",
+                ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(VoiceLoggingCog(bot))

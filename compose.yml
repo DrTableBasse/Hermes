@@ -1,0 +1,47 @@
+# Configuration PostgreSQL pour SaucisseLand
+# Base de données unifiée pour le site web et le bot Discord
+
+services:
+
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    container_name: saucisseland-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: saucisseland
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: saucisseland2024
+      # Utilisateur pour le site web
+      POSTGRES_WEBSITE_USER: saucisseland_web
+      POSTGRES_WEBSITE_PASSWORD: web_password_2024
+      # Utilisateur pour le bot Discord
+      POSTGRES_BOT_USER: hermes_bot
+      POSTGRES_BOT_PASSWORD: bot_password_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d saucisseland"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  adminer:
+    image: adminer:latest
+    restart: unless-stopped
+    container_name: saucisseland-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: pepa-linha-dark
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local

@@ -41,7 +41,6 @@ try:
     from utils.constants import cogs_names
     from utils.database import init_database, voice_manager, warn_manager
     from utils.command_manager import init_command_status_table
-    from cogs.fun.anime import send_articles
     from config import validate_config, TOKEN_BLAGUE_API
 except ImportError as e:
     print(f"❌ Erreur d'importation: {e}")
@@ -60,7 +59,6 @@ except ImportError as e:
 
 from rich.console import Console
 from rich.table import Table
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from dotenv import load_dotenv
 
 # Charger les variables d'environnement
@@ -167,14 +165,7 @@ async def on_ready():
         console.print(f'[red]❌ Erreur d\'initialisation de la base de données: {e}[/red]')
         return
 
-    # Configurer le scheduler
-    try:
-        scheduler = AsyncIOScheduler()
-        scheduler.add_job(send_articles, "interval", minutes=5, kwargs={"bot": bot})
-        scheduler.start()
-        console.print('[green]✅ Scheduler configuré[/green]')
-    except Exception as e:
-        console.print(f'[red]❌ Erreur de configuration du scheduler: {e}[/red]')
+
 
     try:
         # Création de l'embed

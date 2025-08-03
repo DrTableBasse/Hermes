@@ -120,17 +120,19 @@ class DatabaseManager:
         if not self._pool:
             await self.initialize()
         
+        # À ce point, self._pool ne peut pas être None
+        assert self._pool is not None
+        
         conn = None
         try:
             conn = await self._pool.acquire()
             yield conn
         except Exception as e:
             logger.error(f"Erreur de base de données: {e}")
-            if conn:
-                await conn.rollback()
+            # Note: asyncpg gère automatiquement les rollbacks en cas d'erreur
             raise
         finally:
-            if conn:
+            if conn and self._pool:
                 await self._pool.release(conn)
     
     async def execute_query(self, query: str, *args) -> Optional[List[Dict[str, Any]]]:
@@ -397,13 +399,35 @@ class UserMessageStatsManager:
         Returns:
             None
         """
-        query = """
-        INSERT INTO user_message_stats (user_id, channel_id, message_count) 
-        VALUES ($1, $2, 1) 
-        ON CONFLICT (user_id, channel_id) 
-        DO UPDATE SET message_count = user_message_stats.message_count + 1
-        """
-        await self.db.execute_update(query, user_id, channel_id)
+        try:
+            # D'abord, s'assurer que l'utilisateur existe dans user_voice_data
+            # Si ce n'est pas le cas, le créer avec un nom d'utilisateur temporaire
+            async with self.db.get_connection() as conn:
+                # Vérifier si l'utilisateur existe
+                user_exists = await conn.fetchval(
+                    "SELECT 1 FROM user_voice_data WHERE user_id = $1", 
+                    user_id
+                )
+                
+                if not user_exists:
+                    # Créer l'utilisateur avec un nom temporaire
+                    await conn.execute(
+                        "INSERT INTO user_voice_data (user_id, username) VALUES ($1, $2)",
+                        user_id, f"User_{user_id}"
+                    )
+                    logger.info(f"Utilisateur {user_id} créé automatiquement dans user_voice_data")
+                
+                # Maintenant incrémenter le compteur de messages
+                await conn.execute("""
+                    INSERT INTO user_message_stats (user_id, channel_id, message_count) 
+                    VALUES ($1, $2, 1) 
+                    ON CONFLICT (user_id, channel_id) 
+                    DO UPDATE SET message_count = user_message_stats.message_count + 1
+                """, user_id, channel_id)
+                
+        except Exception as e:
+            logger.error(f"Erreur lors de l'incrémentation du compteur de messages: {e}")
+            raise
     
     async def get_total_messages(self, user_id: int) -> int:
         """
@@ -458,6 +482,25 @@ class UserMessageStatsManager:
         LIMIT $1
         """
         return await self.db.execute_query(query, limit) or []
+    
+    async def update_username(self, user_id: int, username: str):
+        """
+        Met à jour le nom d'utilisateur dans user_voice_data.
+        
+        Args:
+            user_id (int): ID de l'utilisateur
+            username (str): Nouveau nom d'utilisateur
+            
+        Returns:
+            None
+        """
+        try:
+            query = "UPDATE user_voice_data SET username = $1 WHERE user_id = $2"
+            await self.db.execute_update(query, username, user_id)
+            logger.info(f"Nom d'utilisateur mis à jour pour {user_id}: {username}")
+        except Exception as e:
+            logger.error(f"Erreur lors de la mise à jour du nom d'utilisateur: {e}")
+            raise
 
 # Instances globales
 db_manager = DatabaseManager()
@@ -533,3 +576,33 @@ async def init_database():
     """
     await setup_database()
     logger.info("🚀 Gestionnaire de base de données PostgreSQL prêt") 
+
+async def get_channel_message_stats(limit: int = 10) -> List[Dict[str, Any]]:
+    """
+    Récupère les statistiques des canaux les plus actifs.
+    
+    Args:
+        limit (int): Nombre maximum de canaux à retourner
+        
+    Returns:
+        List[Dict[str, Any]]: Liste des canaux avec leurs statistiques
+    """
+    try:
+        db_manager = DatabaseManager()
+        await db_manager.initialize()
+        
+        query = """
+            SELECT channel_id, message_count
+            FROM channel_message_stats
+            ORDER BY message_count DESC
+            LIMIT $1
+        """
+        
+        results = await db_manager.execute_query(query, limit)
+        await db_manager.close()
+        
+        return results if results else []
+        
+    except Exception as e:
+        logger.error(f"❌ Erreur lors de la récupération des stats des canaux: {e}")
+        return [] 

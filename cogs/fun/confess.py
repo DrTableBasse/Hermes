@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.constants import CONFESSION_CHANNEL_ID
+from config import CONFESSION_CHANNEL_ID
 from utils.logging import log_confession, log_command
 from utils.command_manager import CommandStatusManager, command_enabled
 import logging

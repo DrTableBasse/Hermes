@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import Embed, Colour
-from utils.constants import LOG_CHANNEL_ID, WELCOME_CHANNEL_ID
+from config import LOG_CHANNEL_ID, WELCOME_CHANNEL_ID
 from utils.database import user_message_stats_manager
 from discord import app_commands
 import logging
@@ -15,6 +15,7 @@ class MemberLogs(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """Gère l'événement lorsqu'un membre rejoint le serveur."""
+        print(f"DEBUG: {member} a rejoint le serveur !")
         guild = member.guild
         welcome_channel = guild.get_channel(WELCOME_CHANNEL_ID)
         log_channel = guild.get_channel(LOG_CHANNEL_ID)
@@ -47,6 +48,7 @@ class MemberLogs(commands.Cog):
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         """Gère l'événement lorsqu'un membre quitte le serveur."""
+        print(f"DEBUG: {member} a quitté le serveur !")
         guild = member.guild
         welcome_channel = guild.get_channel(WELCOME_CHANNEL_ID)
         log_channel = guild.get_channel(LOG_CHANNEL_ID)
@@ -81,7 +83,15 @@ class MemberLogs(commands.Cog):
         if message.author.bot:
             return
         try:
+            # Incrémenter le compteur de messages
             await user_message_stats_manager.increment_message_count(message.author.id, message.channel.id)
+            
+            # Mettre à jour le nom d'utilisateur si nécessaire
+            try:
+                await user_message_stats_manager.update_username(message.author.id, message.author.display_name)
+            except Exception as e:
+                logger.warning(f"Impossible de mettre à jour le nom d'utilisateur pour {message.author.id}: {e}")
+                
         except Exception as e:
             logger.error(f"Erreur lors de l'incrémentation du compteur de messages : {e}")
 
@@ -207,6 +217,68 @@ class MemberLogs(commands.Cog):
             logger.error(f"Erreur lors de la récupération du leaderboard : {e}")
             await interaction.response.send_message(
                 "❌ Une erreur est survenue lors de la récupération du classement.",
+                ephemeral=True
+            )
+
+    @app_commands.command(name="channel-leaderboard", description="Affiche le classement des 10 canaux les plus actifs du serveur.")
+    async def channel_leaderboard(self, interaction: discord.Interaction):
+        """Affiche le classement des canaux les plus actifs"""
+        try:
+            # Récupérer les stats des canaux depuis la base
+            from utils.database import get_channel_message_stats
+            
+            top_channels = await get_channel_message_stats(limit=10)
+            
+            if not top_channels:
+                embed = discord.Embed(
+                    title="📺 Classement des Canaux",
+                    description="Aucune donnée disponible pour le moment.",
+                    color=discord.Color.orange()
+                )
+                await interaction.response.send_message(embed=embed)
+                return
+            
+            embed = discord.Embed(
+                title="📺 Classement des Canaux",
+                description="Top 10 des canaux les plus actifs du serveur :",
+                color=discord.Color.blue()
+            )
+            
+            for i, entry in enumerate(top_channels, 1):
+                channel_id = entry['channel_id']
+                message_count = entry['message_count']
+                
+                # Récupérer le canal
+                channel = interaction.guild.get_channel(channel_id)
+                channel_name = channel.name if channel else f"Canal {channel_id}"
+                channel_mention = channel.mention if channel else f"<#{channel_id}>"
+                
+                # Emoji pour le podium
+                if i == 1:
+                    emoji = "🥇"
+                elif i == 2:
+                    emoji = "🥈"
+                elif i == 3:
+                    emoji = "🥉"
+                else:
+                    emoji = f"**{i}.**"
+                
+                embed.add_field(
+                    name=f"{emoji} #{channel_name}",
+                    value=f"{channel_mention}\n**{message_count:,}** messages",
+                    inline=False
+                )
+            
+            embed.set_thumbnail(url=interaction.guild.icon.url if interaction.guild.icon else None)
+            embed.set_footer(text=f"Demandé par {interaction.user.name}")
+            embed.timestamp = discord.utils.utcnow()
+            
+            await interaction.response.send_message(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération du leaderboard des canaux : {e}")
+            await interaction.response.send_message(
+                "❌ Une erreur est survenue lors de la récupération du classement des canaux.",
                 ephemeral=True
             )
 

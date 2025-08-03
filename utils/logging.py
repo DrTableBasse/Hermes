@@ -16,7 +16,6 @@ import discord
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from utils.constants import get_env_var
 import functools
 import weakref
 

@@ -2,8 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import asyncio
-from utils.constants import LOG_CHANNEL_ID
-from utils.constants import AUTHORIZED_ROLES
+from config import LOG_CHANNEL_ID, AUTHORIZED_ROLES
 from utils.logging import log_command_usage, log_command
 from datetime import datetime, timedelta
 from utils.command_manager import command_enabled

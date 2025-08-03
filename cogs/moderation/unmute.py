@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from utils.constants import LOG_CHANNEL_ID
+from config import LOG_CHANNEL_ID
 from utils.logging import log_command_usage, log_command
 from datetime import datetime
 from utils.command_manager import command_enabled

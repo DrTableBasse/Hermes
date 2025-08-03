@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 import json
 import os
-from utils.constants import LOG_CHANNEL_ID
+from config import LOG_CHANNEL_ID
 from utils.logging import log_command_disabled_attempt, log_command
 from blagues_api import BlaguesAPI
 from utils.command_manager import command_enabled
