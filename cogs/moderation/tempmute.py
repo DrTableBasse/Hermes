@@ -42,12 +42,12 @@ class TempMuteCog(commands.Cog):
             # Enregistrer l'utilisation de la commande
             await log_command_usage(interaction, "tempmute", member=user, reason=reason, log_channel_id=LOG_CHANNEL_ID)
         except Exception as e:
-            logger.error(f"[tempmute] Erreur lors de l'exécution: {e}")
+            logger.error(f"[tempmute] Erreur lors de l'exécution de la commande tempmute")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"Une erreur est survenue lors du tempmute de l'utilisateur", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.followup.send(f"Une erreur est survenue lors du tempmute de l'utilisateur", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[tempmute] Impossible d'envoyer le message d'erreur : {send_err}")
 

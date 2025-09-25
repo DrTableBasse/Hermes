@@ -16,7 +16,7 @@ class ClearCog(commands.Cog):
         # Vérifier que l'utilisateur est bien un membre du serveur
         if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.manage_messages:
             await interaction.response.send_message("Vous n'avez pas les permissions nécessaires pour utiliser cette commande.", ephemeral=True)
-            return
+            return  # Ajout de return pour clarifier le flow
 
         # Vérifier que le salon est bien un salon textuel
         if not isinstance(interaction.channel, discord.TextChannel):
@@ -61,12 +61,12 @@ class ClearCog(commands.Cog):
             if e.status == 400:
                 await interaction.followup.send("❌ Impossible de supprimer certains messages (trop anciens ou déjà supprimés).", ephemeral=True)
             else:
-                await interaction.followup.send(f"❌ Erreur HTTP lors de la suppression : {e}", ephemeral=True)
+                await interaction.followup.send(f"❌ Erreur HTTP lors de la suppression des messages", ephemeral=True)
         except Exception as e:
             try:
-                await interaction.followup.send(f"❌ Une erreur est survenue : {e}", ephemeral=True)
+                await interaction.followup.send(f"❌ Une erreur est survenue lors de la suppression des messages", ephemeral=True)
             except:
-                print(f"Erreur dans la commande clear: {e}")
+                print(f"Erreur dans la commande clear")
 
 async def setup(bot):
     await bot.add_cog(ClearCog(bot))

@@ -32,12 +32,12 @@ class UnmuteCog(commands.Cog):
             await interaction.response.send_message(f'{member.mention} a été unmute.')
             await log_command_usage(interaction, "unmute", member=member, reason=reason, log_channel_id=LOG_CHANNEL_ID)
         except Exception as e:
-            logger.error(f"[unmute] Erreur lors de l'exécution: {e}")
+            logger.error(f"[unmute] Erreur lors de l'exécution de la commande unmute")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"Une erreur est survenue lors de l'unmute de l'utilisateur", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.followup.send(f"Une erreur est survenue lors de l'unmute de l'utilisateur", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[unmute] Impossible d'envoyer le message d'erreur : {send_err}")
 

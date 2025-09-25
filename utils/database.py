@@ -41,11 +41,11 @@ logger = logging.getLogger(__name__)
 
 # Configuration PostgreSQL
 POSTGRES_CONFIG = {
-    'host': os.getenv('PG_HOST', 'localhost'),
-    'port': int(os.getenv('PG_PORT', 5432)),
-    'database': os.getenv('PG_DB', 'saucisseland'),
-    'user': os.getenv('PG_USER', 'hermes_bot'),
-    'password': os.getenv('PG_PASSWORD', 'bot_password_2024')
+    'host': os.getenv('PG_HOST'),
+    'port': int(os.getenv('PG_PORT')),
+    'database': os.getenv('PG_DB'),
+    'user': os.getenv('PG_USER'),
+    'password': os.getenv('PG_PASSWORD')
 }
 
 class DatabaseManager:

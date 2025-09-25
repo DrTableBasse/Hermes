@@ -36,7 +36,7 @@ class VoiceLoggingCog(commands.Cog):
         except discord.NotFound:
             logger.warning(f'Utilisateur {user_id} non trouvé lors de la mise à jour du temps vocal')
         except Exception as e:
-            logger.error(f'Erreur lors de la mise à jour du temps vocal pour {user_id}: {e}')
+            logger.error(f'Erreur lors de la mise à jour du temps vocal pour {user_id}')
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -106,7 +106,7 @@ class VoiceLoggingCog(commands.Cog):
                     )
                     
         except Exception as e:
-            logger.error(f'Erreur lors du traitement de l\'événement vocal: {e}')
+            logger.error(f'Erreur lors du traitement de l\'événement vocal')
 
     @commands.command(name="voicetime")
     async def voice_time(self, ctx, member: discord.Member = None):
@@ -141,7 +141,7 @@ class VoiceLoggingCog(commands.Cog):
             await ctx.send(embed=embed)
             
         except Exception as e:
-            logger.error(f'Erreur dans la commande voice_time: {e}')
+            logger.error(f'Erreur dans la commande voice_time')
             await ctx.send("❌ Une erreur s'est produite lors de la récupération des données vocales")
 
     @commands.command(name="voicetop")
@@ -180,7 +180,7 @@ class VoiceLoggingCog(commands.Cog):
             await ctx.send(embed=embed)
             
         except Exception as e:
-            logger.error(f'Erreur dans la commande voice_top: {e}')
+            logger.error(f'Erreur dans la commande voice_top')
             await ctx.send("❌ Une erreur s'est produite lors de la récupération du classement")
 
     @app_commands.command(name="voice", description="Gérer les salons vocaux")
@@ -249,7 +249,7 @@ class VoiceLoggingCog(commands.Cog):
                 await interaction.response.send_message("❌ Action non reconnue. Utilisez 'time' ou 'top'.", ephemeral=True)
                 
         except Exception as e:
-            logger.error(f'Erreur dans la commande voice: {e}')
+            logger.error(f'Erreur dans la commande voice')
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message("❌ Une erreur s'est produite lors de la récupération des données vocales", ephemeral=True)
@@ -307,7 +307,7 @@ class VoiceLoggingCog(commands.Cog):
             embed.timestamp = discord.utils.utcnow()
             await interaction.response.send_message(embed=embed)
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération du leaderboard vocal : {e}")
+            logger.error(f"Erreur lors de la récupération du leaderboard vocal")
             await interaction.response.send_message(
                 "❌ Une erreur est survenue lors de la récupération du classement.",
                 ephemeral=True

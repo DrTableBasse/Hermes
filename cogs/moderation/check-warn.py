@@ -53,12 +53,12 @@ class CheckWarnCog(commands.Cog):
             await interaction.response.send_message(embed=embed)
 
         except Exception as e:
-            logger.error(f"[check-warn] Erreur lors de l'exécution: {e}")
+            logger.error(f"[check-warn] Erreur lors de l'exécution de la commande check-warn")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"[ERROR] Une erreur est survenue lors de la récupération des avertissements : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"[ERROR] Une erreur est survenue lors de la récupération des avertissements pour la commande check-warn", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"[ERROR] Une erreur est survenue lors de la récupération des avertissements : {e}", ephemeral=True)
+                    await interaction.followup.send(f"[ERROR] Une erreur est survenue lors de la récupération des avertissements pour la commande check-warn", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[check-warn] Impossible d'envoyer le message d'erreur : {send_err}")
 

@@ -40,12 +40,12 @@ class MuteCog(commands.Cog):
             await interaction.response.send_message(f'{user.mention} a été muté pour la raison: {reason if reason else "Aucune raison spécifiée."}')
             await log_command_usage(interaction, "mute", member=user, reason=reason, log_channel_id=LOG_CHANNEL_ID)
         except Exception as e:
-            logger.error(f"[mute] Erreur lors de l'exécution: {e}")
+            logger.error(f"[mute] Erreur lors de l'exécution de la commande mute")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"Une erreur est survenue lors du mute de l'utilisateur", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.followup.send(f"Une erreur est survenue lors du mute de l'utilisateur", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[mute] Impossible d'envoyer le message d'erreur : {send_err}")
 

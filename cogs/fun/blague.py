@@ -46,9 +46,9 @@ class BlaguesCog(commands.Cog):
             # Envoi d'un message d'erreur en cas d'exception
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"Une erreur est survenue lors de l'envoi de la blague", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"Une erreur est survenue : {e}", ephemeral=True)
+                    await interaction.followup.send(f"Une erreur est survenue lors de l'envoi de la blague", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[blague] Impossible d'envoyer le message d'erreur : {send_err}")
 

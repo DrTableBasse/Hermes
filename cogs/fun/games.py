@@ -33,8 +33,8 @@ class GamesCog(commands.Cog):
             result = 'pile' if random.randint(0, 1) == 0 else 'face'
             await interaction.response.send_message(f"🪙 Le résultat est {result} !")
         except Exception as e:
-            logger.error(f"[{command_name}] Erreur lors de l'exécution: {e}")
-            await interaction.response.send_message(f"❌ Erreur lors de l'exécution: {str(e)}", ephemeral=True)
+            logger.error(f"[{command_name}] Erreur lors de l'exécution de la commande coinflip")
+            await interaction.response.send_message(f"❌ Erreur lors de l'exécution de la commande coinflip", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(GamesCog(bot))

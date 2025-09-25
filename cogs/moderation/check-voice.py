@@ -46,12 +46,12 @@ class CheckVoiceCog(commands.Cog):
                 await interaction.response.send_message("Aucune donnée trouvée pour votre ID utilisateur.\nLe bot fonctionne de la façon suivante :\n- Quand c'est la première fois que vous vous connectez, il faut déco-reco du vocal.\n- Refaire la commande `/check-voice`")
 
         except Exception as e:
-            logger.error(f"[check-voice] Erreur lors de l'exécution: {e}")
+            logger.error(f"[check-voice] Erreur lors de l'exécution de la commande check-voice")
             try:
                 if not interaction.response.is_done():
-                    await interaction.response.send_message(f"[ERROR] Une erreur est survenue lors de la récupération des données : {e}", ephemeral=True)
+                    await interaction.response.send_message(f"[ERROR] Une erreur est survenue lors de la récupération des données pour la commande check-voice", ephemeral=True)
                 else:
-                    await interaction.followup.send(f"[ERROR] Une erreur est survenue lors de la récupération des données : {e}", ephemeral=True)
+                    await interaction.followup.send(f"[ERROR] Une erreur est survenue lors de la récupération des données pour la commande check-voice", ephemeral=True)
             except Exception as send_err:
                 logger.error(f"[check-voice] Impossible d'envoyer le message d'erreur : {send_err}")
 

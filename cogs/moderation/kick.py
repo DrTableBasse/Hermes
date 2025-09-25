@@ -79,13 +79,13 @@ class KickCog(commands.Cog):
             logger.info(f'Utilisateur {user.display_name} expulsé par {interaction.user.display_name} pour: {reason}')
             
         except Exception as e:
-            logger.error(f'Erreur dans la commande kick: {e}')
+            logger.error(f'Erreur dans la commande kick')
             # Vérifier si l'interaction n'a pas déjà été répondue
             if not interaction.response.is_done():
-                await interaction.response.send_message(f"❌ Une erreur s'est produite : {e}", ephemeral=True)
+                await interaction.response.send_message(f"❌ Une erreur s'est produite lors de l'expulsion de l'utilisateur", ephemeral=True)
             else:
                 # Utiliser followup si l'interaction a déjà été répondue
-                await interaction.followup.send(f"❌ Une erreur s'est produite : {e}", ephemeral=True)
+                await interaction.followup.send(f"❌ Une erreur s'est produite lors de l'expulsion de l'utilisateur", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(KickCog(bot))

@@ -22,7 +22,7 @@ load_dotenv()
 
 # Configuration
 TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD_ID = int(os.getenv('GUILD_ID', '1269968763252637706'))
+GUILD_ID = int(os.getenv('GUILD_ID'))
 
 # Catégories à exclure
 EXCLUDED_CATEGORIES = [
@@ -32,10 +32,10 @@ EXCLUDED_CATEGORIES = [
 ]
 
 # Configuration PostgreSQL
-PG_HOST = os.getenv('PG_HOST', 'localhost')
-PG_USER = os.getenv('PG_USER', 'hermes_bot')
-PG_DB = os.getenv('PG_DB', 'saucisseland')
-PG_PASSWORD = os.getenv('PG_PASSWORD', 'bot_password_2024')
+PG_HOST = os.getenv('PG_HOST')
+PG_USER = os.getenv('PG_USER')
+PG_DB = os.getenv('PG_DB')
+PG_PASSWORD = os.getenv('PG_PASSWORD')
 
 # Logging
 logging.basicConfig(level=logging.INFO)
