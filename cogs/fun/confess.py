@@ -83,20 +83,54 @@ class ConfessionCog(commands.Cog):
                 )
                 return
             
-            # Déterminer l'ID du salon depuis les variables d'environnement si disponible
-            env_confession_id = os.getenv('CONFESSION_CHANNEL_ID')
-            log_channel_id = None
-            if env_confession_id:
-                cleaned = env_confession_id.split('#')[0].split()[0].strip()
-                if cleaned.isdigit():
-                    log_channel_id = int(cleaned)
+            # Déterminer l'ID du salon de confessions (fallback vers l'ID fourni si non présent dans .env)
+            env_confession_id = os.getenv('CONFESSION_CHANNEL_ID') or '799258120895070208'
+            confession_channel_id = None
+            cleaned = env_confession_id.split('#')[0].split()[0].strip() if env_confession_id else None
+            if cleaned and cleaned.isdigit():
+                confession_channel_id = int(cleaned)
 
-            # Log métier : si log_channel_id est None, log_confession appliquera ses fallbacks (.env CONFESSION_LOG_CHANNEL_ID puis LOG_CHANNEL_ID)
-            await log_confession(interaction.user, cleaned_message, log_channel_id=log_channel_id)
+            # Récupérer le salon et envoyer la confession anonymisée
+            guild = interaction.guild
+            if not guild or not confession_channel_id:
+                await interaction.response.send_message(
+                    "❌ Configuration invalide du salon de confession.",
+                    ephemeral=True
+                )
+                return
+
+            channel = guild.get_channel(confession_channel_id)
+            if channel is None:
+                try:
+                    channel = await self.bot.fetch_channel(confession_channel_id)
+                except Exception:
+                    channel = None
+
+            if channel is None:
+                await interaction.response.send_message(
+                    "❌ Salon de confession introuvable.",
+                    ephemeral=True
+                )
+                return
+
+            embed = discord.Embed(
+                title="Confession anonyme",
+                description=cleaned_message,
+                color=discord.Color.purple()
+            )
+            await channel.send(embed=embed)
+
+            # Confirmer à l'utilisateur (éphemère)
             await interaction.response.send_message(
                 "✅ Votre confession a bien été envoyée anonymement !",
                 ephemeral=True
             )
+
+            # Log métier séparé (utilise CONFESSION_LOG_CHANNEL_ID ou LOG_CHANNEL_ID via fallback interne)
+            try:
+                await log_confession(interaction.user, cleaned_message, log_channel_id=None)
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"[{command_name}] Erreur lors de l'envoi de la confession anonyme")
             await interaction.response.send_message(
