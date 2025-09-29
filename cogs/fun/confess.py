@@ -1,10 +1,10 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from config import CONFESSION_CHANNEL_ID
 from utils.logging import log_confession, log_command
 from utils.command_manager import CommandStatusManager, command_enabled
 import logging
+import os
 import re
 
 logger = logging.getLogger("fun_commands")
@@ -83,8 +83,16 @@ class ConfessionCog(commands.Cog):
                 )
                 return
             
-            # Log métier : log_confession (utile pour garder la trace des confessions)
-            await log_confession(interaction.user, cleaned_message, log_channel_id=CONFESSION_CHANNEL_ID)
+            # Déterminer l'ID du salon depuis les variables d'environnement si disponible
+            env_confession_id = os.getenv('CONFESSION_CHANNEL_ID')
+            log_channel_id = None
+            if env_confession_id:
+                cleaned = env_confession_id.split('#')[0].split()[0].strip()
+                if cleaned.isdigit():
+                    log_channel_id = int(cleaned)
+
+            # Log métier : si log_channel_id est None, log_confession appliquera ses fallbacks (.env CONFESSION_LOG_CHANNEL_ID puis LOG_CHANNEL_ID)
+            await log_confession(interaction.user, cleaned_message, log_channel_id=log_channel_id)
             await interaction.response.send_message(
                 "✅ Votre confession a bien été envoyée anonymement !",
                 ephemeral=True
