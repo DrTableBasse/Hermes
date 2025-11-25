@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import Embed, Colour
 from config import LOG_CHANNEL_ID, WELCOME_CHANNEL_ID
-from utils.database import user_message_stats_manager
+from utils.database import user_message_stats_manager, voice_manager
 from discord import app_commands
 import logging
 
@@ -16,6 +16,17 @@ class MemberLogs(commands.Cog):
     async def on_member_join(self, member: discord.Member):
         """Gère l'événement lorsqu'un membre rejoint le serveur."""
         print(f"DEBUG: {member} a rejoint le serveur !")
+        
+        # Synchroniser le membre dans la base de données
+        try:
+            await voice_manager.sync_member(
+                user_id=member.id,
+                username=member.name,
+                nickname=member.display_name if member.display_name != member.name else None
+            )
+        except Exception as e:
+            logger.warning(f"Impossible de synchroniser le membre {member.id}: {e}")
+        
         guild = member.guild
         welcome_channel = guild.get_channel(WELCOME_CHANNEL_ID)
         log_channel = guild.get_channel(LOG_CHANNEL_ID)
@@ -44,6 +55,21 @@ class MemberLogs(commands.Cog):
             log_embed.set_thumbnail(url=member.avatar.url if member.avatar else member.default_avatar.url)
             log_embed.set_footer(text=f"ID: {member.id}")
             await log_channel.send(embed=log_embed)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Gère l'événement lorsqu'un membre est mis à jour (changement de pseudo, etc.)."""
+        # Synchroniser si le username ou nickname a changé
+        if before.name != after.name or before.display_name != after.display_name:
+            try:
+                await voice_manager.sync_member(
+                    user_id=after.id,
+                    username=after.name,
+                    nickname=after.display_name if after.display_name != after.name else None
+                )
+                logger.debug(f"Membre mis à jour: {after.name} ({after.id})")
+            except Exception as e:
+                logger.warning(f"Impossible de mettre à jour le membre {after.id}: {e}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -217,6 +243,48 @@ class MemberLogs(commands.Cog):
             logger.error(f"Erreur lors de la récupération du leaderboard : {e}")
             await interaction.response.send_message(
                 "❌ Une erreur est survenue lors de la récupération du classement.",
+                ephemeral=True
+            )
+    
+    @app_commands.command(name="sync-members", description="Synchronise tous les membres du serveur dans la base de données.")
+    async def sync_members(self, interaction: discord.Interaction):
+        """Synchronise tous les membres du serveur dans la base de données"""
+        await interaction.response.defer(ephemeral=True)
+        
+        try:
+            guild = interaction.guild
+            # Charger tous les membres (même ceux hors ligne) avec chunk
+            await guild.chunk(cache=True)
+            synced = 0
+            failed = 0
+            
+            # Itérer sur tous les membres maintenant chargés
+            for member in guild.members:
+                if not member.bot:
+                    try:
+                        nickname = member.display_name if member.display_name != member.name else None
+                        await voice_manager.sync_member(member.id, member.name, nickname)
+                        synced += 1
+                    except Exception as e:
+                        logger.warning(f"Erreur lors de la synchronisation de {member.id}: {e}")
+                        failed += 1
+            
+            embed = Embed(
+                title="✅ Synchronisation terminée",
+                description=f"Synchronisation des membres du serveur terminée.",
+                color=Colour.green()
+            )
+            embed.add_field(name="✅ Synchronisés", value=f"{synced} membres", inline=True)
+            if failed > 0:
+                embed.add_field(name="❌ Échecs", value=f"{failed} membres", inline=True)
+                embed.color = Colour.orange()
+            
+            await interaction.followup.send(embed=embed)
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la synchronisation des membres: {e}")
+            await interaction.followup.send(
+                "❌ Une erreur est survenue lors de la synchronisation.",
                 ephemeral=True
             )
 

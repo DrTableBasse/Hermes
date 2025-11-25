@@ -21,7 +21,7 @@ services:
       POSTGRES_BOT_PASSWORD: bot_password_2024
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql
+      - ./init-postgres.sql/init.sql:/docker-entrypoint-initdb.d/init-postgres.sql
     shm_size: 256mb
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d saucisseland"]

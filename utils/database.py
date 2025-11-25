@@ -40,13 +40,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration PostgreSQL
-POSTGRES_CONFIG = {
-    'host': os.getenv('PG_HOST'),
-    'port': int(os.getenv('PG_PORT')),
-    'database': os.getenv('PG_DB'),
-    'user': os.getenv('PG_USER'),
-    'password': os.getenv('PG_PASSWORD')
-}
+def get_postgres_config():
+    """Récupère la configuration PostgreSQL depuis les variables d'environnement"""
+    pg_port = os.getenv('PG_PORT', '5432')
+    try:
+        port = int(pg_port) if pg_port else 5432
+    except (ValueError, TypeError):
+        port = 5432
+    
+    return {
+        'host': os.getenv('PG_HOST', 'localhost'),
+        'port': port,
+        'database': os.getenv('PG_DB', ''),
+        'user': os.getenv('PG_USER', ''),
+        'password': os.getenv('PG_PASSWORD', '')
+    }
+
+POSTGRES_CONFIG = get_postgres_config()
 
 class DatabaseManager:
     """
@@ -71,6 +81,7 @@ class DatabaseManager:
         """
         self._pool = None
         self._lock = asyncio.Lock()
+        self._pool_loop = None  # Stocker la boucle d'événements du pool
         
     async def initialize(self):
         """
@@ -86,7 +97,18 @@ class DatabaseManager:
             None
         """
         try:
-            self._pool = await asyncpg.create_pool(**POSTGRES_CONFIG, min_size=2, max_size=10)
+            config = get_postgres_config()
+            # Vérifier que les variables obligatoires sont définies
+            if not config['database'] or not config['user']:
+                raise ValueError(
+                    "Variables PostgreSQL manquantes: PG_DB et PG_USER doivent être définis dans le fichier .env"
+                )
+            self._pool = await asyncpg.create_pool(**config, min_size=2, max_size=10)
+            # Stocker la boucle d'événements actuelle
+            try:
+                self._pool_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self._pool_loop = None
             logger.info("✅ Pool de connexions PostgreSQL initialisé")
         except Exception as e:
             logger.error(f"❌ Erreur lors de l'initialisation du pool PostgreSQL: {e}")
@@ -117,8 +139,27 @@ class DatabaseManager:
         Raises:
             Exception: En cas d'erreur de connexion ou de requête
         """
-        if not self._pool:
-            await self.initialize()
+        # Vérifier si le pool existe et est dans la bonne boucle d'événements
+        try:
+            current_loop = asyncio.get_running_loop()
+            
+            # Si le pool n'existe pas ou est dans une autre boucle, le recréer
+            if not self._pool or (self._pool_loop and self._pool_loop != current_loop):
+                async with self._lock:
+                    # Double vérification après avoir acquis le lock
+                    if not self._pool or (self._pool_loop and self._pool_loop != current_loop):
+                        if self._pool:
+                            try:
+                                await self._pool.close()
+                            except Exception:
+                                pass
+                            self._pool = None
+                            self._pool_loop = None
+                        await self.initialize()
+        except RuntimeError:
+            # Pas de boucle d'événements en cours, initialiser normalement
+            if not self._pool:
+                await self.initialize()
         
         # À ce point, self._pool ne peut pas être None
         assert self._pool is not None
@@ -133,7 +174,10 @@ class DatabaseManager:
             raise
         finally:
             if conn and self._pool:
-                await self._pool.release(conn)
+                try:
+                    await self._pool.release(conn)
+                except Exception as e:
+                    logger.error(f"Erreur lors de la libération de la connexion: {e}")
     
     async def execute_query(self, query: str, *args) -> Optional[List[Dict[str, Any]]]:
         """
@@ -284,12 +328,84 @@ class VoiceDataManager:
         
         Args:
             limit (int): Nombre maximum d'utilisateurs à retourner
-            
+        
         Returns:
             List[Dict[str, Any]]: Liste des utilisateurs triés par temps vocal
         """
         query = "SELECT * FROM user_voice_data ORDER BY total_time DESC LIMIT $1"
         return await self.db.execute_query(query, limit) or []
+    
+    async def sync_member(self, user_id: int, username: str, nickname: str = None):
+        """
+        Synchronise un membre Discord dans user_voice_data.
+        
+        Args:
+            user_id (int): ID Discord de l'utilisateur
+            username (str): Nom d'utilisateur Discord
+            nickname (str, optional): Pseudo sur le serveur (nickname)
+        
+        Returns:
+            bool: True si la synchronisation a réussi
+        """
+        try:
+            # Vérifier si l'utilisateur existe
+            existing_user = await self.get_user_voice_data(user_id)
+            
+            if existing_user:
+                # Mettre à jour
+                query = """
+                    UPDATE user_voice_data 
+                    SET username = $1, nickname = $2, updated_at = CURRENT_TIMESTAMP 
+                    WHERE user_id = $3
+                """
+                await self.db.execute_update(query, username, nickname, user_id)
+            else:
+                # Créer un nouvel utilisateur
+                query = """
+                    INSERT INTO user_voice_data (user_id, username, nickname) 
+                    VALUES ($1, $2, $3)
+                """
+                await self.db.execute_update(query, user_id, username, nickname)
+            
+            logger.debug(f"Membre synchronisé: {username} ({user_id}) - nickname: {nickname}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la synchronisation du membre {user_id}: {e}")
+            return False
+    
+    async def find_user_by_username_or_nickname(self, search_term: str) -> Optional[Dict[str, Any]]:
+        """
+        Recherche un utilisateur par username ou nickname dans la base de données.
+        
+        Args:
+            search_term (str): Pseudo ou username à rechercher
+        
+        Returns:
+            Optional[Dict[str, Any]]: Données de l'utilisateur trouvé ou None
+        """
+        try:
+            search_term_lower = search_term.strip().lower()
+            query = """
+                SELECT * FROM user_voice_data 
+                WHERE LOWER(username) = $1 
+                   OR LOWER(nickname) = $1
+                   OR LOWER(username) LIKE $2
+                   OR LOWER(nickname) LIKE $2
+                ORDER BY 
+                    CASE 
+                        WHEN LOWER(username) = $1 THEN 1
+                        WHEN LOWER(nickname) = $1 THEN 2
+                        WHEN LOWER(username) LIKE $2 THEN 3
+                        WHEN LOWER(nickname) LIKE $2 THEN 4
+                    END
+                LIMIT 1
+            """
+            results = await self.db.execute_query(query, search_term_lower, f"{search_term_lower}%")
+            return results[0] if results else None
+        except Exception as e:
+            logger.error(f"Erreur lors de la recherche d'utilisateur: {e}")
+            return None
 
 class WarnManager:
     """
@@ -490,7 +606,7 @@ class UserMessageStatsManager:
         Args:
             user_id (int): ID de l'utilisateur
             username (str): Nouveau nom d'utilisateur
-            
+        
         Returns:
             None
         """
@@ -527,11 +643,35 @@ async def setup_database():
                 CREATE TABLE IF NOT EXISTS user_voice_data (
                     user_id BIGINT PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
+                    nickname VARCHAR(255),
                     total_time INTEGER DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # Ajouter la colonne nickname si elle n'existe pas (migration)
+            try:
+                await conn.execute("""
+                    ALTER TABLE user_voice_data 
+                    ADD COLUMN IF NOT EXISTS nickname VARCHAR(255)
+                """)
+            except Exception as e:
+                # La colonne existe peut-être déjà, ignorer l'erreur
+                logger.debug(f"Colonne nickname: {e}")
+            
+            # Créer un index pour la recherche rapide par username et nickname
+            try:
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_voice_username 
+                    ON user_voice_data(username)
+                """)
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_voice_nickname 
+                    ON user_voice_data(nickname)
+                """)
+            except Exception as e:
+                logger.debug(f"Index déjà existants: {e}")
             
             # Créer la table warn
             await conn.execute("""

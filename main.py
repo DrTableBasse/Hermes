@@ -31,6 +31,7 @@ import os
 import sys
 import json
 import asyncio
+import threading
 
 # Ajouter le répertoire courant au chemin d'importation AVANT les imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -114,12 +115,21 @@ async def on_ready():
     5. Envoie un message de démarrage
     6. Charge les cogs
     7. Synchronise les commandes slash
+    8. Configure l'instance du bot pour l'API
     
     Returns:
         None
     """
     console.print(f'[green]✅ Bot connecté en tant que {bot.user.name}[/green]')
 
+    # Configurer l'instance du bot pour l'API
+    try:
+        from api import set_bot_instance
+        set_bot_instance(bot)
+        console.print('[green]✅ Instance du bot configurée pour l\'API[/green]')
+    except Exception as e:
+        console.print(f'[yellow]⚠️ Impossible de configurer l\'API: {e}[/yellow]')
+    
     # Vérifier la configuration
     try:
         validate_config()
@@ -164,6 +174,26 @@ async def on_ready():
     except Exception as e:
         console.print(f'[red]❌ Erreur d\'initialisation de la base de données: {e}[/red]')
         return
+    
+    # Synchroniser tous les membres du serveur dans la base de données (APRÈS l'initialisation)
+    try:
+        from utils.database import voice_manager
+        if GUILD_ID:
+            guild = bot.get_guild(int(GUILD_ID))
+            if guild:
+                console.print(f'[cyan]🔄 Synchronisation des membres du serveur {guild.name}...[/cyan]')
+                # Charger tous les membres (même ceux hors ligne) avec chunk
+                await guild.chunk(cache=True)
+                synced = 0
+                # Itérer sur tous les membres maintenant chargés
+                for member in guild.members:
+                    if not member.bot:
+                        nickname = member.display_name if member.display_name != member.name else None
+                        await voice_manager.sync_member(member.id, member.name, nickname)
+                        synced += 1
+                console.print(f'[green]✅ {synced} membres synchronisés dans la base de données[/green]')
+    except Exception as e:
+        console.print(f'[yellow]⚠️ Erreur lors de la synchronisation des membres: {e}[/yellow]')
 
 
 
@@ -252,6 +282,15 @@ async def on_message(message):
     # Assurez-vous que les autres commandes et événements fonctionnent correctement
     await bot.process_commands(message)
 
+def start_api():
+    """Démarre le serveur API dans un thread séparé"""
+    try:
+        from api import set_bot_instance, run_api
+        set_bot_instance(bot)
+        run_api()
+    except Exception as e:
+        console.print(f'[red]❌ Erreur lors du démarrage de l\'API: {e}[/red]')
+
 async def main():
     """
     Fonction principale d'initialisation et de démarrage du bot.
@@ -260,11 +299,17 @@ async def main():
     1. Récupère le token Discord depuis les variables d'environnement
     2. Valide la présence du token
     3. Démarre le bot avec le token
+    4. Démarre l'API web en parallèle
     
     Returns:
         None
     """
     try:
+        # Démarrer l'API dans un thread séparé
+        api_thread = threading.Thread(target=start_api, daemon=True)
+        api_thread.start()
+        console.print('[green]✅ API web démarrée[/green]')
+        
         # Récupérer le token Discord depuis les variables d'environnement
         TOKEN = os.getenv('DISCORD_TOKEN')
         if not TOKEN:
