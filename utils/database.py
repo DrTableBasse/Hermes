@@ -437,21 +437,43 @@ class WarnManager:
             bool: True si l'avertissement a été ajouté avec succès, False sinon
         """
         try:
+            logger.info(f"Tentative d'ajout d'un warn pour user_id={user_id} (type: {type(user_id)}), reason={reason}")
+            
             # S'assurer que l'utilisateur existe dans user_voice_data
-            await self.db.execute_update(
-                "INSERT INTO user_voice_data (user_id, username) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
-                user_id, f"User_{user_id}"
-            )
+            try:
+                await self.db.execute_update(
+                    "INSERT INTO user_voice_data (user_id, username) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+                    user_id, f"User_{user_id}"
+                )
+                logger.info(f"Utilisateur {user_id} créé/mis à jour dans user_voice_data")
+            except Exception as e:
+                logger.warning(f"Erreur lors de la création de l'utilisateur dans user_voice_data: {e}")
+                # Continuer quand même, peut-être que l'utilisateur existe déjà
             
-            # Ajouter l'avertissement
-            query = "INSERT INTO warn (user_id, reason, create_time, moderator_id) VALUES ($1, $2, $3, $4)"
-            await self.db.execute_update(query, user_id, reason, int(datetime.now(timezone.utc).timestamp()), moderator_id)
+            # Ajouter l'avertissement avec RETURNING pour obtenir l'ID
+            create_time = int(datetime.now(timezone.utc).timestamp())
+            query = "INSERT INTO warn (user_id, reason, create_time, moderator_id) VALUES ($1, $2, $3, $4) RETURNING id"
+            result = await self.db.execute_query(query, user_id, reason, create_time, moderator_id)
             
-            logger.info(f"Avertissement ajouté pour l'utilisateur {user_id}: {reason}")
-            return True
+            if result and len(result) > 0:
+                warn_id = result[0].get('id')
+                logger.info(f"✅ Avertissement ajouté avec succès: id={warn_id}, user_id={user_id}, reason={reason}")
+                
+                # Vérifier immédiatement que le warn est bien dans la base
+                verify_query = "SELECT * FROM warn WHERE id = $1"
+                verify_result = await self.db.execute_query(verify_query, warn_id)
+                if verify_result:
+                    logger.info(f"✅ Vérification: warn {warn_id} trouvé dans la base: user_id={verify_result[0].get('user_id')}, reason={verify_result[0].get('reason')}")
+                else:
+                    logger.error(f"❌ Vérification échouée: warn {warn_id} non trouvé dans la base")
+                
+                return True
+            else:
+                logger.error(f"❌ Aucun résultat retourné par l'INSERT (result={result})")
+                return False
             
         except Exception as e:
-            logger.error(f"Erreur lors de l'ajout de l'avertissement: {e}")
+            logger.error(f"❌ Erreur lors de l'ajout de l'avertissement: {e}", exc_info=True)
             return False
     
     async def get_user_warns(self, user_id: int) -> List[Dict[str, Any]]:
@@ -464,14 +486,86 @@ class WarnManager:
         Returns:
             List[Dict[str, Any]]: Liste des avertissements de l'utilisateur
         """
-        query = """
-        SELECT w.*, u.username 
-        FROM warn w 
-        JOIN user_voice_data u ON w.user_id = u.user_id 
-        WHERE w.user_id = $1 
-        ORDER BY w.create_time DESC
+        try:
+            logger.info(f"get_user_warns appelé pour user_id={user_id} (type: {type(user_id)})")
+            
+            # D'abord, vérifier directement dans la table warn (sans JOIN)
+            query_direct = "SELECT * FROM warn WHERE user_id = $1 ORDER BY create_time DESC"
+            warns_direct = await self.db.execute_query(query_direct, user_id) or []
+            logger.info(f"✅ Requête directe: {len(warns_direct)} warns trouvés pour user_id={user_id}")
+            
+            if warns_direct:
+                logger.info(f"Premier warn direct: id={warns_direct[0].get('id')}, reason={warns_direct[0].get('reason')}")
+                # Ajouter 'Unknown' comme username par défaut
+                for warn in warns_direct:
+                    if 'username' not in warn:
+                        warn['username'] = 'Unknown'
+                return warns_direct
+            
+            # Si aucun warn trouvé, essayer avec cast BIGINT
+            logger.info(f"Aucun warn trouvé avec requête directe, essai avec cast BIGINT...")
+            query_bigint = "SELECT * FROM warn WHERE user_id = $1::BIGINT ORDER BY create_time DESC"
+            warns_bigint = await self.db.execute_query(query_bigint, user_id) or []
+            logger.info(f"Requête avec cast BIGINT: {len(warns_bigint)} warns trouvés")
+            
+            if warns_bigint:
+                for warn in warns_bigint:
+                    if 'username' not in warn:
+                        warn['username'] = 'Unknown'
+                return warns_bigint
+            
+            # Vérifier tous les warns pour debug
+            all_warns_query = "SELECT user_id, COUNT(*) as count FROM warn GROUP BY user_id LIMIT 10"
+            all_warns = await self.db.execute_query(all_warns_query)
+            if all_warns:
+                logger.info(f"Tous les user_id dans warn (échantillon): {[dict(row) for row in all_warns]}")
+            
+            logger.warning(f"❌ Aucun warn trouvé pour user_id={user_id}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur dans get_user_warns pour user_id={user_id}: {e}", exc_info=True)
+            return []
+    
+    async def fix_user_id_in_warns(self, old_user_id: int, new_user_id: int) -> int:
         """
-        return await self.db.execute_query(query, user_id) or []
+        Corrige les IDs utilisateur dans les warns (utile pour corriger les erreurs d'ID).
+        
+        Args:
+            old_user_id: Ancien ID utilisateur (incorrect)
+            new_user_id: Nouvel ID utilisateur (correct)
+            
+        Returns:
+            int: Nombre de warns corrigés
+        """
+        try:
+            logger.info(f"Correction des warns: {old_user_id} -> {new_user_id}")
+            
+            # Compter les warns avant la mise à jour
+            count_before_query = "SELECT COUNT(*) as count FROM warn WHERE user_id = $1"
+            result_before = await self.db.execute_query(count_before_query, old_user_id)
+            count_before = result_before[0]['count'] if result_before else 0
+            
+            logger.info(f"Warns à corriger: {count_before}")
+            
+            if count_before == 0:
+                logger.warning(f"Aucun warn trouvé avec l'ancien ID {old_user_id}")
+                return 0
+            
+            # Effectuer la mise à jour
+            query = "UPDATE warn SET user_id = $1 WHERE user_id = $2"
+            await self.db.execute_update(query, new_user_id, old_user_id)
+            
+            # Vérifier combien ont été mis à jour en comptant ceux qui restent avec l'ancien ID
+            result_after = await self.db.execute_query(count_before_query, old_user_id)
+            count_after = result_after[0]['count'] if result_after else 0
+            updated_count = count_before - count_after
+            
+            logger.info(f"✅ {updated_count} warn(s) corrigé(s) de {old_user_id} vers {new_user_id}")
+            return updated_count
+        except Exception as e:
+            logger.error(f"Erreur lors de la correction des warns: {e}", exc_info=True)
+            return 0
     
     async def get_warn_count(self, user_id: int) -> int:
         """
@@ -483,9 +577,116 @@ class WarnManager:
         Returns:
             int: Nombre d'avertissements de l'utilisateur
         """
-        query = "SELECT COUNT(*) as count FROM warn WHERE user_id = $1"
-        result = await self.db.execute_query(query, user_id)
-        return result[0]['count'] if result else 0
+        try:
+            # Vérifier d'abord avec une requête de test
+            test_query = "SELECT COUNT(*) as count FROM warn WHERE user_id = $1::BIGINT"
+            result = await self.db.execute_query(test_query, user_id)
+            count = result[0]['count'] if result else 0
+            logger.info(f"get_warn_count pour user_id={user_id} (type: {type(user_id)}): {count} warns")
+            
+            # Vérifier aussi avec une requête sans cast
+            query = "SELECT COUNT(*) as count FROM warn WHERE user_id = $1"
+            result2 = await self.db.execute_query(query, user_id)
+            count2 = result2[0]['count'] if result2 else 0
+            logger.info(f"get_warn_count (sans cast) pour user_id={user_id}: {count2} warns")
+            
+            # Vérifier tous les warns pour debug
+            all_warns_query = "SELECT user_id, COUNT(*) as count FROM warn GROUP BY user_id"
+            all_warns = await self.db.execute_query(all_warns_query)
+            if all_warns:
+                logger.info(f"Tous les warns dans la base: {all_warns}")
+            
+            return count
+        except Exception as e:
+            logger.error(f"Erreur dans get_warn_count pour user_id={user_id}: {e}", exc_info=True)
+            return 0
+    
+    async def delete_warn(self, warn_id: int) -> bool:
+        """
+        Supprime un avertissement par son ID.
+        
+        Args:
+            warn_id (int): ID de l'avertissement à supprimer
+            
+        Returns:
+            bool: True si l'avertissement a été supprimé avec succès, False sinon
+        """
+        try:
+            query = "DELETE FROM warn WHERE id = $1"
+            await self.db.execute_update(query, warn_id)
+            logger.info(f"Avertissement {warn_id} supprimé")
+            return True
+        except Exception as e:
+            logger.error(f"Erreur lors de la suppression de l'avertissement {warn_id}: {e}")
+            return False
+    
+    async def get_warn_by_id(self, warn_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Récupère un avertissement par son ID.
+        
+        Args:
+            warn_id (int): ID de l'avertissement
+            
+        Returns:
+            Optional[Dict[str, Any]]: L'avertissement ou None s'il n'existe pas
+        """
+        try:
+            query = """
+            SELECT w.*, COALESCE(u.username, 'Unknown') as username 
+            FROM warn w 
+            LEFT JOIN user_voice_data u ON w.user_id = u.user_id 
+            WHERE w.id = $1
+            """
+            result = await self.db.execute_query(query, warn_id)
+            return result[0] if result else None
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération de l'avertissement {warn_id}: {e}")
+            return None
+    
+    async def update_warn_reason(self, warn_id: int, new_reason: str) -> bool:
+        """
+        Met à jour la raison d'un avertissement.
+        
+        Args:
+            warn_id (int): ID de l'avertissement
+            new_reason (str): Nouvelle raison
+            
+        Returns:
+            bool: True si la mise à jour a réussi, False sinon
+        """
+        try:
+            query = "UPDATE warn SET reason = $1 WHERE id = $2"
+            await self.db.execute_update(query, new_reason, warn_id)
+            logger.info(f"Raison de l'avertissement {warn_id} mise à jour")
+            return True
+        except Exception as e:
+            logger.error(f"Erreur lors de la mise à jour de l'avertissement {warn_id}: {e}")
+            return False
+    
+    async def delete_multiple_warns(self, warn_ids: List[int]) -> int:
+        """
+        Supprime plusieurs avertissements en une fois.
+        
+        Args:
+            warn_ids (List[int]): Liste des IDs d'avertissements à supprimer
+            
+        Returns:
+            int: Nombre d'avertissements supprimés
+        """
+        if not warn_ids:
+            return 0
+        
+        try:
+            # Utiliser une requête avec IN pour supprimer plusieurs warns
+            placeholders = ','.join([f'${i+1}' for i in range(len(warn_ids))])
+            query = f"DELETE FROM warn WHERE id IN ({placeholders})"
+            await self.db.execute_update(query, *warn_ids)
+            deleted_count = len(warn_ids)
+            logger.info(f"{deleted_count} avertissement(s) supprimé(s): {warn_ids}")
+            return deleted_count
+        except Exception as e:
+            logger.error(f"Erreur lors de la suppression multiple d'avertissements: {e}")
+            return 0
 
 class UserMessageStatsManager:
     """
