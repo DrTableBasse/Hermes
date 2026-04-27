@@ -1,0 +1,96 @@
+{
+  "nav": {
+    "home": "Accueil",
+    "articles": "Articles",
+    "leaderboard": "Classement",
+    "profile": "Profil",
+    "admin": "Administration",
+    "login": "Connexion",
+    "logout": "Déconnexion"
+  },
+  "home": {
+    "hero_title": "Bienvenue sur Hermes",
+    "hero_subtitle": "Le hub de la communauté — stats, articles, et gestion du serveur Discord.",
+    "join_discord": "Rejoindre le Discord",
+    "latest_articles": "Derniers articles",
+    "view_all": "Voir tous les articles",
+    "top_members": "Top membres",
+    "login_with_discord": "Connexion avec Discord"
+  },
+  "profile": {
+    "title": "Mon profil",
+    "stats": "Statistiques",
+    "messages": "Messages envoyés",
+    "voice_hours": "Heures en vocal",
+    "warnings": "Avertissements",
+    "msg_rank": "Classement messages",
+    "voice_rank": "Classement vocal",
+    "achievements": "Succès",
+    "no_achievements": "Aucun succès débloqué pour le moment.",
+    "unlocked_at": "Débloqué le"
+  },
+  "leaderboard": {
+    "title": "Classement",
+    "messages_tab": "Messages",
+    "voice_tab": "Vocal",
+    "rank": "Rang",
+    "member": "Membre",
+    "score": "Score"
+  },
+  "articles": {
+    "title": "Articles",
+    "new_article": "Nouvel article",
+    "by": "Par",
+    "read_more": "Lire la suite",
+    "no_articles": "Aucun article publié pour le moment.",
+    "filter_by_tag": "Filtrer par tag"
+  },
+  "editor": {
+    "title_placeholder": "Titre de l'article",
+    "content_placeholder": "Rédigez votre article en Markdown...",
+    "cover_url": "URL de l'image de couverture (optionnel)",
+    "tags": "Tags",
+    "publish": "Publier",
+    "save_draft": "Sauvegarder le brouillon",
+    "upload_image": "Insérer une image",
+    "preview": "Prévisualiser"
+  },
+  "admin": {
+    "title": "Panel d'administration",
+    "server_stats": "Statistiques du serveur",
+    "members": "Membres",
+    "total_messages": "Total messages",
+    "total_warns": "Total avertissements",
+    "total_articles": "Articles publiés",
+    "commands": "Gestion des commandes",
+    "command": "Commande",
+    "status": "Statut",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "moderation": "Modération",
+    "kick_user": "Expulser",
+    "ban_user": "Bannir",
+    "timeout_user": "Timeout",
+    "warn_user": "Avertir",
+    "user_id": "ID Utilisateur",
+    "reason": "Raison",
+    "duration": "Durée (minutes)",
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "action_success": "Action effectuée avec succès.",
+    "action_error": "Erreur lors de l'action."
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "save": "Sauvegarder",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "close": "Fermer",
+    "search": "Rechercher",
+    "no_data": "Aucune donnée disponible"
+  }
+}

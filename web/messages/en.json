@@ -1,0 +1,96 @@
+{
+  "nav": {
+    "home": "Home",
+    "articles": "Articles",
+    "leaderboard": "Leaderboard",
+    "profile": "Profile",
+    "admin": "Admin",
+    "login": "Sign in",
+    "logout": "Sign out"
+  },
+  "home": {
+    "hero_title": "Welcome to Hermes",
+    "hero_subtitle": "The community hub — stats, articles, and Discord server management.",
+    "join_discord": "Join Discord",
+    "latest_articles": "Latest articles",
+    "view_all": "View all articles",
+    "top_members": "Top members",
+    "login_with_discord": "Sign in with Discord"
+  },
+  "profile": {
+    "title": "My profile",
+    "stats": "Statistics",
+    "messages": "Messages sent",
+    "voice_hours": "Hours in voice",
+    "warnings": "Warnings",
+    "msg_rank": "Messages ranking",
+    "voice_rank": "Voice ranking",
+    "achievements": "Achievements",
+    "no_achievements": "No achievements unlocked yet.",
+    "unlocked_at": "Unlocked on"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "messages_tab": "Messages",
+    "voice_tab": "Voice",
+    "rank": "Rank",
+    "member": "Member",
+    "score": "Score"
+  },
+  "articles": {
+    "title": "Articles",
+    "new_article": "New article",
+    "by": "By",
+    "read_more": "Read more",
+    "no_articles": "No articles published yet.",
+    "filter_by_tag": "Filter by tag"
+  },
+  "editor": {
+    "title_placeholder": "Article title",
+    "content_placeholder": "Write your article in Markdown...",
+    "cover_url": "Cover image URL (optional)",
+    "tags": "Tags",
+    "publish": "Publish",
+    "save_draft": "Save draft",
+    "upload_image": "Insert image",
+    "preview": "Preview"
+  },
+  "admin": {
+    "title": "Admin panel",
+    "server_stats": "Server statistics",
+    "members": "Members",
+    "total_messages": "Total messages",
+    "total_warns": "Total warnings",
+    "total_articles": "Published articles",
+    "commands": "Command management",
+    "command": "Command",
+    "status": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "moderation": "Moderation",
+    "kick_user": "Kick",
+    "ban_user": "Ban",
+    "timeout_user": "Timeout",
+    "warn_user": "Warn",
+    "user_id": "User ID",
+    "reason": "Reason",
+    "duration": "Duration (minutes)",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "action_success": "Action completed successfully.",
+    "action_error": "Error performing action."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "back": "Back",
+    "close": "Close",
+    "search": "Search",
+    "no_data": "No data available"
+  }
+}
