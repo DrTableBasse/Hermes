@@ -12,6 +12,8 @@ __init__.py
 .env.local
 .env.production.local
 .env.development.local
+ClaudeTokenAuthentik
+*.token
 
 # Frontend assets compiled code
 public/assets
@@ -31,8 +33,11 @@ __pycache__
 
 # Misc
 .venv
-data.db 
+data.db
 config.py
 constants.py
 myenv
 ListeUtilisateurs.txt
+
+# Claude Code internal
+.claude/

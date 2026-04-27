@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background:   224 71% 4%;
+    --foreground:   213 31% 91%;
+    --card:         224 71% 6%;
+    --card-foreground: 213 31% 91%;
+    --primary:      210 40% 98%;
+    --primary-foreground: 222.2 47.4% 1.2%;
+    --secondary:    222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+    --muted:        223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent:       216 34% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive:  0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border:       216 34% 17%;
+    --input:        216 34% 17%;
+    --ring:         263.4 70% 50.4%;
+    --radius:       0.5rem;
+
+    /* Discord blurple */
+    --discord: 235 85.6% 64.7%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
+}
+
+/* Markdown styles */
+.prose-hermes h1 { @apply text-3xl font-bold mb-4 mt-8 text-foreground; }
+.prose-hermes h2 { @apply text-2xl font-semibold mb-3 mt-6 text-foreground; }
+.prose-hermes h3 { @apply text-xl font-semibold mb-2 mt-5 text-foreground; }
+.prose-hermes p  { @apply mb-4 leading-7 text-foreground/90; }
+.prose-hermes a  { @apply text-blue-400 hover:underline; }
+.prose-hermes code { @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono; }
+.prose-hermes pre { @apply bg-muted rounded-lg p-4 overflow-x-auto mb-4; }
+.prose-hermes pre code { @apply bg-transparent p-0; }
+.prose-hermes ul { @apply list-disc list-inside mb-4 space-y-1; }
+.prose-hermes ol { @apply list-decimal list-inside mb-4 space-y-1; }
+.prose-hermes blockquote { @apply border-l-4 border-primary/40 pl-4 italic text-muted-foreground my-4; }
+.prose-hermes img { @apply rounded-lg max-w-full my-4; }
