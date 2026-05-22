@@ -4,7 +4,6 @@ import logging
 import discord
 from discord.ext import commands
 from utils.embed_style import hermes_embed, Colors
-from utils.logging import log_role_event
 
 logger = logging.getLogger(__name__)
 BUMP_CHANNEL_ID     = int(os.getenv('BUMP_CHANNEL_ID', '1068608173310754886'))
@@ -110,7 +109,7 @@ class BumpTrackerCog(commands.Cog):
                 try:
                     await member.add_roles(role, reason=f"Bumper Fou — {new_count} bumps")
                     role_just_given = True
-                    await log_role_event(self.bot, member, role, "ajouté")
+                    logger.info("BumpTracker: rôle '%s' attribué à %s", BUMP_ROLE_NAME, bumper_id)
                 except Exception as e:
                     logger.warning("BumpTracker: impossible d'ajouter le rôle à %s: %s", bumper_id, e)
 
