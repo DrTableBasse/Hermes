@@ -103,7 +103,7 @@ export interface User {
 }
 export interface UserStats {
   user:    { user_id: number; username: string; nickname: string | null; discord_avatar: string | null; last_seen: string }
-  stats:   { total_messages: number; voice_hours: number; warn_count: number; msg_rank: number; voice_rank: number; xp_total: number; current_level: number; current_streak: number; bump_count: number; bump_rank: number }
+  stats:   { total_messages: number; voice_hours: number; warn_count: number; msg_rank: number; voice_rank: number; xp_total: number; current_level: number; current_streak: number; max_streak: number; xp_multiplier: number; bump_count: number; bump_rank: number }
   achievements: Achievement[]
 }
 export interface Achievement { id: number; name: string; description: string; icon: string; points: number; unlocked_at: string }

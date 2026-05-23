@@ -66,6 +66,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
             { label: t('voice_hours'), value: `${voiceH}h ${voiceM}m`,              icon: '🎤', sub: `#${stats.voice_rank}` },
             { label: t('warnings'),    value: stats.warn_count.toString(),           icon: stats.warn_count === 0 ? '✅' : '⚠️', sub: stats.warn_count === 0 ? 'Clean' : 'Actifs' },
             { label: t('bumps'),       value: (stats.bump_count ?? 0).toLocaleString(), icon: '📣', sub: `#${stats.bump_rank ?? '—'}` },
+            {
+              label: 'Streak vocal',
+              value: stats.current_streak > 0 ? `${stats.current_streak}j` : '—',
+              icon: stats.current_streak >= 14 ? '🔥🔥🔥' : stats.current_streak >= 7 ? '🔥🔥' : stats.current_streak >= 1 ? '🔥' : '❄️',
+              sub: stats.current_streak >= 1 ? `×${stats.xp_multiplier?.toFixed(1) ?? '1.0'} XP · record ${stats.max_streak ?? 0}j` : 'Rejoins un vocal !',
+            },
           ].map(({ label, value, icon, sub }) => (
             <div key={label} className="stat-card">
               <div className="text-3xl mb-2">{icon}</div>

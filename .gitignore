@@ -12,8 +12,6 @@ __init__.py
 .env.local
 .env.production.local
 .env.development.local
-ClaudeTokenAuthentik
-*.token
 
 # Frontend assets compiled code
 public/assets
@@ -39,5 +37,15 @@ constants.py
 myenv
 ListeUtilisateurs.txt
 
-# Claude Code internal
+# SQL dumps
+*.sql.gz
+saucisseland_*.sql
+
+# Claude memory
 .claude/
+
+# One-time scripts
+setup_wiki.py
+
+# Next.js build cache
+web/tsconfig.tsbuildinfo

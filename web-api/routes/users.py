@@ -156,11 +156,10 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
     streak_data = await db.fetchrow("SELECT * FROM user_streaks WHERE user_id = $1", user_id)
     msg_streak_data = await db.fetchrow("SELECT * FROM user_message_streaks WHERE user_id = $1", user_id)
 
-    current_streak = 0
-    if streak_data and streak_data.get('current_streak'):
-        current_streak = max(current_streak, int(streak_data['current_streak']))
-    if msg_streak_data and msg_streak_data.get('current_streak'):
-        current_streak = max(current_streak, int(msg_streak_data['current_streak']))
+    voice_streak = int(streak_data['current_streak']) if streak_data and streak_data.get('current_streak') else 0
+    voice_max    = int(streak_data['max_streak'])     if streak_data and streak_data.get('max_streak')     else 0
+    xp_multi     = float(streak_data['xp_multiplier']) if streak_data and streak_data.get('xp_multiplier') else 1.0
+    current_streak = voice_streak
 
     msg_rank = await db.fetchval("""
         SELECT COUNT(*) + 1 FROM (
@@ -209,6 +208,8 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
             "xp_total":       int(xp_data['total_xp']) if xp_data else 0,
             "current_level":  int(xp_data['current_level']) if xp_data else 0,
             "current_streak": current_streak,
+            "max_streak":     voice_max,
+            "xp_multiplier":  xp_multi,
             "bump_count":     int(bump_count),
             "bump_rank":      int(bump_rank),
         },
