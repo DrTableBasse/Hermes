@@ -1,24 +1,52 @@
 from typing import Optional
-from fastapi import Cookie, HTTPException, Request
-from auth import decode_jwt
+from fastapi import Cookie, HTTPException
+import database as db
+
+_SESSION_QUERY = """
+    SELECT u."discordId", u."isAdmin", u."isRedacteur"
+    FROM session s
+    JOIN "user" u ON u.id = s."userId"
+    WHERE s.token = $1 AND s."expiresAt" > NOW()
+"""
 
 
-def get_current_user(token: Optional[str] = Cookie(None, alias="hermes_token")) -> dict:
-    if not token:
+async def _fetch_session(session_token: str) -> Optional[dict]:
+    row = await db.fetchrow(_SESSION_QUERY, session_token)
+    if not row:
+        return None
+    return {
+        "sub":          row["discordId"],
+        "is_admin":     row["isAdmin"],
+        "is_redacteur": row["isRedacteur"],
+    }
+
+
+async def get_current_user(
+    session_token: Optional[str] = Cookie(None, alias="better-auth.session_token"),
+) -> dict:
+    if not session_token:
         raise HTTPException(status_code=401, detail="Non authentifié")
-    payload = decode_jwt(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Token invalide ou expiré")
-    return payload
+    user = await _fetch_session(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Session invalide ou expirée")
+    return user
 
 
-def require_admin(user: dict = None) -> dict:
-    if not user or not user.get('is_admin'):
+async def get_optional_user(
+    session_token: Optional[str] = Cookie(None, alias="better-auth.session_token"),
+) -> Optional[dict]:
+    if not session_token:
+        return None
+    return await _fetch_session(session_token)
+
+
+def require_admin(user: dict) -> dict:
+    if not user or not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Rôle Administration requis")
     return user
 
 
-def require_redacteur(user: dict = None) -> dict:
-    if not user or not (user.get('is_redacteur') or user.get('is_admin')):
+def require_redacteur(user: dict) -> dict:
+    if not user or not (user.get("is_redacteur") or user.get("is_admin")):
         raise HTTPException(status_code=403, detail="Rôle rédacteur requis")
     return user

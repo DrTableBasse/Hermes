@@ -2,7 +2,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from slugify import slugify
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_admin, require_redacteur
 import database as db
 
 router = APIRouter(prefix="/tags", tags=["tags"])
@@ -26,7 +26,7 @@ async def list_tags():
 
 @router.post("", status_code=201)
 async def create_tag(body: TagCreate, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_redacteur(user)
     slug = slugify(body.name)
     tag_id = await db.fetchval(
         "INSERT INTO tags (name, slug, color) VALUES ($1, $2, $3) RETURNING id",
@@ -37,7 +37,7 @@ async def create_tag(body: TagCreate, user: dict = Depends(get_current_user)):
 
 @router.put("/{tag_id}")
 async def update_tag(tag_id: int, body: TagUpdate, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_redacteur(user)
     tag = await db.fetchrow("SELECT * FROM tags WHERE id = $1", tag_id)
     if not tag:
         raise HTTPException(status_code=404, detail="Tag introuvable")
@@ -55,5 +55,5 @@ async def update_tag(tag_id: int, body: TagUpdate, user: dict = Depends(get_curr
 
 @router.delete("/{tag_id}", status_code=204)
 async def delete_tag(tag_id: int, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_redacteur(user)
     await db.execute("DELETE FROM tags WHERE id = $1", tag_id)
