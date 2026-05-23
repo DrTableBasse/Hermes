@@ -1,9 +1,14 @@
+import logging
+import os
+
 import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.command_manager import command_enabled
 from utils.logging import log_command
-import os
+from utils.embed_style import hermes_embed, Colors
+
+logger = logging.getLogger(__name__)
 
 
 class BlagueCog(commands.Cog):
@@ -19,12 +24,18 @@ class BlagueCog(commands.Cog):
             from blagues_api import BlaguesAPI
             api = BlaguesAPI(os.getenv('BLAGUES_API_TOKEN', ''))
             joke = await api.random()
-            embed = discord.Embed(title="😄 Blague du jour", color=discord.Color.yellow())
-            embed.add_field(name="Question", value=joke.joke,   inline=False)
-            embed.add_field(name="Réponse",  value=f"||{joke.answer}||", inline=False)
+            embed = hermes_embed(
+                title="😄  Blague du jour",
+                description=f"**{joke.joke}**\n\n||{joke.answer}||",
+                color=Colors.YELLOW,
+            )
             await interaction.followup.send(embed=embed)
-        except Exception:
-            await interaction.followup.send("❌ Impossible de récupérer une blague.", ephemeral=True)
+        except Exception as e:
+            logger.error(f"[blague] {e}", exc_info=True)
+            await interaction.followup.send(
+                embed=hermes_embed(description="❌ Impossible de récupérer une blague.", color=Colors.RED),
+                ephemeral=True,
+            )
 
 
 async def setup(bot):

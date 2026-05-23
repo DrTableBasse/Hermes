@@ -7,6 +7,7 @@ from utils.embed_style import hermes_embed, Colors
 
 logger = logging.getLogger(__name__)
 BUMP_CHANNEL_ID     = int(os.getenv('BUMP_CHANNEL_ID', '1068608173310754886'))
+BUMP_LOG_CHANNEL_ID = int(os.getenv('BUMP_LOG_CHANNEL_ID', '777124592552116234'))
 DISBOARD_ID         = 302050872383242240
 BUMP_ROLE_NAME      = os.getenv('BUMP_ROLE_NAME', 'Bumper Fou')
 BUMP_ROLE_THRESHOLD = int(os.getenv('BUMP_ROLE_THRESHOLD', '20'))
@@ -93,7 +94,7 @@ class BumpTrackerCog(commands.Cog):
         # Increment bump count and related systems
         try:
             await bump_manager.increment(bumper_id)
-            await quest_manager.update_progress(bumper_id, 'bumps', 1)
+            completed_quests = await quest_manager.update_progress(bumper_id, 'bumps', 1)
             await xp_manager.add_xp(bumper_id, xp_manager.XP_BUMP)
         except Exception as e:
             logger.error("BumpTracker: incrément bump %s échoué: %s", bumper_id, e)
@@ -128,9 +129,20 @@ class BumpTrackerCog(commands.Cog):
             embed.add_field(name="🎊 Rôle obtenu", value=f"**{BUMP_ROLE_NAME}** attribué !", inline=False)
         embed.set_footer(text=f"Message DISBOARD ID : {message.id}")
         try:
-            await message.channel.send(embed=embed)
+            log_channel = message.guild.get_channel(BUMP_LOG_CHANNEL_ID)
+            if log_channel:
+                await log_channel.send(embed=embed)
+            else:
+                logger.warning("BumpTracker: canal log %s introuvable", BUMP_LOG_CHANNEL_ID)
         except Exception as e:
             logger.warning("BumpTracker: envoi embed échoué: %s", e)
+
+        # Quest notifications
+        if completed_quests:
+            quest_cog = self.bot.get_cog('WeeklyQuestsCog')
+            if quest_cog:
+                for q in completed_quests:
+                    await quest_cog.notify(bumper_id, q)
 
         # Achievements
         try:

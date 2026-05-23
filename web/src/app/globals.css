@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,17 +25,64 @@
     --ring:         263.4 70% 50.4%;
     --radius:       0.5rem;
 
-    /* Discord blurple */
     --discord: 235 85.6% 64.7%;
+    --gold: 37 90% 55%;
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
   }
 }
 
 @layer base {
   * { @apply border-border; }
-  body { @apply bg-background text-foreground antialiased; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
 }
 
-/* Markdown styles */
+/* ── Utility classes ──────────────────────────────────────────── */
+
+.glass-card {
+  @apply border border-border/60 rounded-2xl bg-card/80 backdrop-blur-sm;
+}
+
+.glass-card-hover {
+  @apply glass-card transition-all duration-300;
+}
+
+.glass-card-hover:hover {
+  @apply border-primary/30 shadow-lg shadow-primary/5;
+  transform: translateY(-2px);
+}
+
+.stat-card {
+  @apply glass-card p-5 text-center relative overflow-hidden;
+}
+
+.stat-card::before {
+  content: '';
+  @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+  background: radial-gradient(circle at 50% 0%, hsl(var(--primary) / 0.06), transparent 70%);
+}
+
+.stat-card:hover::before {
+  @apply opacity-100;
+}
+
+.glow-text {
+  text-shadow: 0 0 40px hsl(var(--primary) / 0.3);
+}
+
+.gradient-gold {
+  @apply bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 bg-clip-text text-transparent;
+}
+
+.gradient-hero {
+  @apply bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent;
+}
+
+/* ── Markdown styles ──────────────────────────────────────────── */
+
 .prose-hermes h1 { @apply text-3xl font-bold mb-4 mt-8 text-foreground; }
 .prose-hermes h2 { @apply text-2xl font-semibold mb-3 mt-6 text-foreground; }
 .prose-hermes h3 { @apply text-xl font-semibold mb-2 mt-5 text-foreground; }
@@ -46,3 +95,30 @@
 .prose-hermes ol { @apply list-decimal list-inside mb-4 space-y-1; }
 .prose-hermes blockquote { @apply border-l-4 border-primary/40 pl-4 italic text-muted-foreground my-4; }
 .prose-hermes img { @apply rounded-lg max-w-full my-4; }
+
+/* ── Animations ───────────────────────────────────────────────── */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px hsl(var(--gold) / 0.2); }
+  50%      { box-shadow: 0 0 30px hsl(var(--gold) / 0.4); }
+}
+
+.medal-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { @apply bg-background; }
+::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/40; }

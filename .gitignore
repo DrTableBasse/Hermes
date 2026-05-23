@@ -47,5 +47,8 @@ saucisseland_*.sql
 # One-time scripts
 setup_wiki.py
 
+# Fichier compose redondant (compose.yml fait référence)
+docker-compose.yml
+
 # Next.js build cache
 web/tsconfig.tsbuildinfo
