@@ -1,10 +1,11 @@
 """Notifie les utilisateurs via DM et attribue un rôle quand un achievement est débloqué."""
+import asyncio
 import logging
 import os
 from datetime import datetime
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from utils.database import db_manager, notification_manager
 from utils.embed_style import Colors, FOOTER_TEXT
@@ -35,6 +36,59 @@ def _tier(points: int) -> tuple[int, str]:
 class AchievementsNotifier(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._backfill_done = False
+        self.backfill_roles.start()
+
+    def cog_unload(self):
+        self.backfill_roles.cancel()
+
+    @tasks.loop(count=1)
+    async def backfill_roles(self):
+        """Attribue silencieusement les rôles achievements à tous les membres qui les ont déjà."""
+        await self.bot.wait_until_ready()
+        guild = self.bot.get_guild(GUILD_ID)
+        if not guild:
+            logger.warning("Backfill achievements : guild introuvable")
+            return
+
+        rows = await db_manager.fetch("""
+            SELECT ua.user_id, a.name, a.icon, a.points
+            FROM user_achievements ua
+            JOIN achievements a ON a.id = ua.achievement_id
+        """)
+        if not rows:
+            return
+
+        # Pré-créer tous les rôles distincts d'abord
+        role_cache: dict[str, discord.Role | None] = {}
+        seen = set()
+        for r in rows:
+            key = f"{r['icon'] or '🏆'} {r['name']}"
+            if key not in seen:
+                seen.add(key)
+                _, tier_label = _tier(r['points'])
+                color = _TIER_ROLE_COLORS.get(tier_label, discord.Color(Colors.GREY))
+                role_cache[key] = await self._ensure_role(guild, key, color)
+                await asyncio.sleep(0.3)  # respect rate limits
+
+        assigned = 0
+        for r in rows:
+            role_name = f"{r['icon'] or '🏆'} {r['name']}"
+            role = role_cache.get(role_name)
+            if not role:
+                continue
+            member = guild.get_member(r['user_id'])
+            if member and role not in member.roles:
+                try:
+                    await member.add_roles(role, reason="Backfill achievements")
+                    assigned += 1
+                    await asyncio.sleep(0.1)
+                except discord.Forbidden:
+                    pass
+                except discord.HTTPException:
+                    await asyncio.sleep(1)
+
+        logger.info(f"Backfill achievements terminé : {assigned} rôles attribués sur {len(rows)} entrées")
 
     async def _ensure_role(self, guild: discord.Guild, role_name: str, color: discord.Color) -> discord.Role | None:
         """Retourne le rôle existant ou le crée."""
