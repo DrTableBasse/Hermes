@@ -102,13 +102,21 @@ class MyCog(commands.Cog):
 
 ## Bot — Database Layer (`bot/utils/database.py`)
 
-Global `asyncpg` pool shared across the process. Three manager singletons are initialized at import time:
+Global `asyncpg` pool shared across the process. Manager singletons initialized at import time:
 
 | Manager | Purpose |
 |---|---|
 | `voice_manager` | Voice time tracking, member sync |
 | `warn_manager` | Moderation warnings |
 | `message_stats_manager` | Per-channel message counts |
+| `xp_manager` | XP, levels, leaderboard |
+| `streak_manager` | Voice + message streaks |
+| `quest_manager` | Weekly quests, progress, claim |
+| `notification_manager` | In-app notifications |
+| `command_stats_manager` | Per-user command usage counts |
+| `bump_manager` | DISBOARD bump tracking |
+| `invite_manager` | Invite tracking |
+| `achievement_manager` | Achievement unlock & check |
 
 **Rules:**
 - Always `await` queries; never block the event loop
@@ -162,6 +170,78 @@ Create a `.env` file at the repo root (used by Docker Compose and local runs).
 | `ADMIN_ROLE_NAME` | | Role name for admin commands (default: `Administration`) |
 | `AUTHORIZED_ROLES` | | Comma-separated moderation roles |
 | `BLAGUES_API_TOKEN` | | Joke API |
+
+---
+
+## Bot — Cog Inventory
+
+### `bot/cogs/gamification/`
+| File | Commands |
+|---|---|
+| `xp.py` | `/level`, `/leaderboard-xp` |
+| `streaks.py` | `/streak` |
+| `weekly_quests.py` | `/quests`, `/quest-claim` |
+| `stats.py` | `/stats` — stats complètes avec rangs |
+| `classement.py` | `/classement` — leaderboard unifié 8 catégories (xp/vocal/messages/bumps/invitations/streaks/achievements/global) |
+
+### `bot/cogs/utilities/`
+| File | Commands |
+|---|---|
+| `info_commands.py` | `/profile`, `/top-today`, `/compare` |
+| `anime.py` | `/check_articles` |
+
+### `bot/cogs/moderation/`
+| File | Commands |
+|---|---|
+| `warn.py` | `/warn`, `/warns`, `/delwarn` |
+| `kick.py` | `/kick` |
+| `tempban.py` | `/tempban` |
+| `tempmute.py` | `/tempmute` |
+| `clear.py` | `/clear` |
+| `audit.py` | `/audit` — profil d'audit admin (éphémère) |
+| `automod.py` | Automod passif |
+| `voice.py` | Tracking vocal passif |
+
+### `bot/cogs/system/`
+| File | Role |
+|---|---|
+| `achievements_notifier.py` | DM + rôle auto-créé/attribué au débloquage ; backfill one-shot au démarrage |
+| `bump_tracker.py` | Détection bump DISBOARD |
+| `invite_tracker.py` | Tracking invitations |
+| `command_management.py` | `/enable-command`, `/disable-command`, `/commands-status` |
+
+### `bot/cogs/fun/`
+| File | Commands |
+|---|---|
+| `blague.py` | `/blague` |
+| `confess.py` | `/confess` |
+
+---
+
+## Achievement Roles
+
+When an achievement is unlocked (`AchievementsNotifier.notify`):
+1. Role name = `{icon} {achievement_name}`
+2. Role color = tier (Légendaire=gold, Épique=blue, Rare=orange, Commun=grey)
+3. Role is created if it doesn't exist (requires bot **Gérer les rôles** permission, bot role above achievement roles)
+4. Role is assigned to the member
+5. DM sent with embed mentioning the role obtained
+
+A one-shot `@tasks.loop(count=1)` task `backfill_roles` runs after `wait_until_ready()` to retroactively assign roles to all existing achievement holders in the DB.
+
+---
+
+## Wiki Setup
+
+`setup_wiki.py` (root) — one-shot script to create/populate the Discord forum wiki.
+- Finds or creates a `#wiki` forum channel in `CATEGORY_ID = 776919447310565416`
+- Creates 4 posts (threads), each with multiple styled embeds:
+  - 📖 Commandes du bot
+  - ⚡ Système XP & Niveaux
+  - 🔥 Quêtes & Streaks
+  - 🏆 Achievements & Rôles
+- Run with: `python setup_wiki.py` (uses `.env` for token/guild)
+- Safe to re-run — won't recreate the forum if `#wiki` already exists, but will add new threads
 
 ---
 
