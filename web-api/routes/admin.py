@@ -398,12 +398,20 @@ async def deploy_weekly_quests(body: DeployQuestsBody, user: dict = Depends(get_
     week_start = today - timedelta(days=today.weekday())
     week_end   = week_start + timedelta(days=6)
 
-    templates = await db.fetch(
-        "SELECT * FROM quest_templates WHERE is_enabled = TRUE ORDER BY RANDOM() LIMIT $1",
-        min(max(body.count, 1), 20),
-    )
+    # At most 2 per quest_type to ensure category diversity
+    templates = await db.fetch("""
+        SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY quest_type ORDER BY RANDOM()) AS rn
+            FROM quest_templates WHERE is_enabled = TRUE
+        ) t WHERE rn <= 2
+        ORDER BY RANDOM()
+        LIMIT $1
+    """, min(max(body.count, 1), 20))
     if not templates:
         raise HTTPException(status_code=400, detail="Aucun template de quête activé")
+
+    # Deactivate all current active quests before deploying new ones
+    await db.execute("UPDATE weekly_quests SET is_active = FALSE WHERE is_active = TRUE")
 
     deployed = 0
     for t in templates:
