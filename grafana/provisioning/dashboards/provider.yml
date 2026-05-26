@@ -1,7 +1,11 @@
 apiVersion: 1
 providers:
   - name: Hermes
+    orgId: 1
     type: file
     folder: Hermes
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
     options:
       path: /var/lib/grafana/dashboards
