@@ -1,5 +1,6 @@
-"""Periodic refresh of Prometheus metrics gauges."""
+"""Rafraîchissement périodique des métriques Prometheus."""
 import logging
+import os
 from discord.ext import commands, tasks
 import metrics as bot_metrics
 
@@ -14,15 +15,19 @@ class MetricsUpdaterCog(commands.Cog):
     def cog_unload(self):
         self.refresh_metrics.cancel()
 
+    def _guild(self):
+        return self.bot.get_guild(int(os.getenv('GUILD_ID', '0')))
+
     @tasks.loop(seconds=60)
     async def refresh_metrics(self):
         bot_metrics.bot_ready.set(1 if self.bot.is_ready() else 0)
-        await bot_metrics.refresh()
+        await bot_metrics.refresh(guild=self._guild())
 
     @refresh_metrics.before_loop
     async def before_refresh(self):
         await self.bot.wait_until_ready()
-        await bot_metrics.refresh()
+        bot_metrics.bot_ready.set(1)
+        await bot_metrics.refresh(guild=self._guild())
         logger.info("Prometheus metrics initialized")
 
 
