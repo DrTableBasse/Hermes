@@ -495,7 +495,10 @@ async def get_analytics(user: dict = Depends(get_current_user)):
         int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp())
     )
     quests_done_7d    = await db.fetchval(
-        "SELECT COUNT(*) FROM user_quest_progress WHERE completed = TRUE AND completed_at >= NOW() - INTERVAL '7 days'"
+        """SELECT COUNT(*) FROM user_quest_progress uqp
+           JOIN weekly_quests q ON q.id = uqp.quest_id
+           WHERE uqp.completed = TRUE
+             AND q.week_start >= CURRENT_DATE - INTERVAL '7 days'"""
     )
 
     return {

@@ -402,7 +402,7 @@ class QuestManager:
             if row and row['progress_value'] >= q['target_value']:
                 result = await self.db.execute("""
                     UPDATE user_quest_progress
-                    SET completed = TRUE
+                    SET completed = TRUE, completed_at = NOW()
                     WHERE user_id = $1 AND quest_id = $2 AND completed = FALSE
                 """, user_id, q['id'])
                 if result != 'UPDATE 0':
