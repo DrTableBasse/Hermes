@@ -239,3 +239,18 @@ export async function fetchActiveQuests(): Promise<Result<ActiveQuest[]>> {
 export async function deployWeeklyQuests(count: number): Promise<Result<{ deployed: number; week_start: string; week_end: string }>> {
   return apiFetch('/admin/quests/deploy', 'POST', { count })
 }
+
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+
+export interface AnalyticsData {
+  actions_14d: Array<{ date: string; label: string; warn: number; kick: number; ban: number; timeout: number }>
+  level_distribution: Array<{ level_range: string; count: number }>
+  quest_completion: Array<{ title: string; participants: number; completed: number; rate: number }>
+  top_xp_weekly: Array<{ username: string; weekly_xp: number }>
+  summary: { active_members: number; total_messages: number; warns_30d: number; quests_done_7d: number }
+}
+
+export async function fetchAnalytics(): Promise<Result<AnalyticsData>> {
+  return apiFetch<AnalyticsData>('/admin/analytics')
+}

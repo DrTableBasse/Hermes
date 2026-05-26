@@ -416,3 +416,111 @@ async def deploy_weekly_quests(body: DeployQuestsBody, user: dict = Depends(get_
 
     await _log('quest_deploy', int(user['sub']), details={"count": deployed, "week_start": str(week_start)})
     return {"deployed": deployed, "week_start": str(week_start), "week_end": str(week_end)}
+
+
+# ── Analytics dashboard ───────────────────────────────────────────────────────
+
+@router.get("/analytics")
+async def get_analytics(user: dict = Depends(get_current_user)):
+    require_admin(user)
+    from datetime import datetime, timedelta, timezone
+    from collections import defaultdict
+
+    # Admin actions last 14 days, grouped by day + action type
+    action_rows = await db.fetch("""
+        SELECT
+            DATE(created_at AT TIME ZONE 'UTC') AS day,
+            action_type,
+            COUNT(*) AS cnt
+        FROM admin_logs
+        WHERE created_at >= NOW() - INTERVAL '14 days'
+          AND action_type IN ('warn', 'kick', 'ban', 'timeout')
+        GROUP BY 1, 2
+        ORDER BY 1
+    """)
+
+    today = datetime.now(timezone.utc).date()
+    days = [(today - timedelta(days=i)).isoformat() for i in range(13, -1, -1)]
+    by_day: dict = defaultdict(lambda: {"warn": 0, "kick": 0, "ban": 0, "timeout": 0})
+    for r in action_rows:
+        d = r["day"].isoformat() if hasattr(r["day"], "isoformat") else str(r["day"])
+        by_day[d][r["action_type"]] = int(r["cnt"])
+    actions_14d = [{"date": d, "label": d[5:], **by_day[d]} for d in days]
+
+    # Level distribution
+    level_dist = await db.fetch("""
+        SELECT
+            CASE
+                WHEN current_level BETWEEN 1 AND 5   THEN '1-5'
+                WHEN current_level BETWEEN 6 AND 10  THEN '6-10'
+                WHEN current_level BETWEEN 11 AND 20 THEN '11-20'
+                WHEN current_level BETWEEN 21 AND 50 THEN '21-50'
+                ELSE '50+'
+            END AS level_range,
+            COUNT(*) AS count,
+            MIN(current_level) AS sort_key
+        FROM user_xp
+        GROUP BY 1
+        ORDER BY 3
+    """)
+
+    # Quest completion for current active week
+    quest_rows = await db.fetch("""
+        SELECT
+            q.title, q.icon,
+            COUNT(uqp.user_id)                                 AS participants,
+            COUNT(uqp.user_id) FILTER (WHERE uqp.completed)   AS completed
+        FROM weekly_quests q
+        LEFT JOIN user_quest_progress uqp ON q.id = uqp.quest_id
+        WHERE q.is_active = TRUE
+        GROUP BY q.id, q.title, q.icon
+        ORDER BY q.id
+    """)
+
+    # Top 5 by XP this week
+    top_xp = await db.fetch("""
+        SELECT COALESCE(u.nickname, u.username) AS username, x.weekly_xp
+        FROM user_xp x
+        JOIN user_voice_data u ON x.user_id = u.user_id
+        WHERE u.is_member = TRUE AND x.weekly_xp > 0
+        ORDER BY x.weekly_xp DESC
+        LIMIT 5
+    """)
+
+    # Summary KPIs
+    active_members    = await db.fetchval("SELECT COUNT(*) FROM user_voice_data WHERE is_member = TRUE")
+    total_messages    = await db.fetchval("SELECT COALESCE(SUM(message_count), 0) FROM user_message_stats")
+    warns_30d         = await db.fetchval(
+        "SELECT COUNT(*) FROM warn WHERE create_time >= $1",
+        int((datetime.now(timezone.utc) - timedelta(days=30)).timestamp())
+    )
+    quests_done_7d    = await db.fetchval(
+        "SELECT COUNT(*) FROM user_quest_progress WHERE completed = TRUE AND completed_at >= NOW() - INTERVAL '7 days'"
+    )
+
+    return {
+        "actions_14d": actions_14d,
+        "level_distribution": [
+            {"level_range": r["level_range"], "count": int(r["count"])}
+            for r in level_dist
+        ],
+        "quest_completion": [
+            {
+                "title":        f"{r['icon']} {r['title']}",
+                "participants": int(r["participants"]),
+                "completed":    int(r["completed"]),
+                "rate":         round(int(r["completed"]) / int(r["participants"]) * 100, 1) if int(r["participants"]) > 0 else 0,
+            }
+            for r in quest_rows
+        ],
+        "top_xp_weekly": [
+            {"username": r["username"], "weekly_xp": int(r["weekly_xp"])}
+            for r in top_xp
+        ],
+        "summary": {
+            "active_members":   int(active_members or 0),
+            "total_messages":   int(total_messages or 0),
+            "warns_30d":        int(warns_30d or 0),
+            "quests_done_7d":   int(quests_done_7d or 0),
+        },
+    }

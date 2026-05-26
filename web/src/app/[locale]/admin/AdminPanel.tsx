@@ -9,11 +9,14 @@ import {
   fetchAllWarns, fetchAdminLogs,
   fetchQuestTemplates, createQuestTemplate, updateQuestTemplate, deleteQuestTemplate,
   fetchActiveQuests, deployWeeklyQuests,
+  fetchAnalytics,
   type UserResult, type UserProfile, type WarnEntry,
   type GlobalWarnEntry, type AdminLog,
   type QuestTemplate, type ActiveQuest,
+  type AnalyticsData,
 } from './actions'
 import { UserSearchInput } from './UserSearchInput'
+import { AnalyticsDashboard } from './AnalyticsDashboard'
 
 interface Props { initialCommands: Record<string, boolean>; descriptions: Record<string, string>; locale: string }
 
@@ -84,6 +87,7 @@ const TABS = [
   { key: 'sanctions',  label: 'Sanctions' },
   { key: 'logs',       label: 'Logs' },
   { key: 'quests',     label: 'Quêtes' },
+  { key: 'analytics',  label: '📊 Analytiques' },
 ] as const
 type TabKey = typeof TABS[number]['key']
 
@@ -347,6 +351,22 @@ export function AdminPanel({ initialCommands, descriptions, locale }: Props) {
     t => questTypeFilter === 'all' || t.quest_type === questTypeFilter
   ) ?? []
 
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  const [analyticsData, setAnalyticsData]       = useState<AnalyticsData | null>(null)
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [analyticsError, setAnalyticsError]     = useState<string | null>(null)
+
+  const loadAnalytics = () => {
+    setAnalyticsLoading(true)
+    setAnalyticsError(null)
+    startTransition(async () => {
+      const result = await fetchAnalytics()
+      if (!result.ok) setAnalyticsError(result.error)
+      else setAnalyticsData(result.data)
+      setAnalyticsLoading(false)
+    })
+  }
+
   return (
     <div>
       {/* ── Tab nav ────────────────────────────────────────────────────────── */}
@@ -354,7 +374,10 @@ export function AdminPanel({ initialCommands, descriptions, locale }: Props) {
         {TABS.map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => {
+              setActiveTab(tab.key)
+              if (tab.key === 'analytics' && !analyticsData && !analyticsLoading) loadAnalytics()
+            }}
             className={`px-5 py-3 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${
               activeTab === tab.key
                 ? 'border-primary text-primary'
@@ -876,6 +899,41 @@ export function AdminPanel({ initialCommands, descriptions, locale }: Props) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Analytics tab ──────────────────────────────────────────────────── */}
+      <div className={activeTab === 'analytics' ? '' : 'hidden'}>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold">Tableau de bord analytique</h2>
+          <button
+            onClick={loadAnalytics}
+            disabled={analyticsLoading}
+            className="px-4 py-2 text-sm rounded-lg border border-border hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-40"
+          >
+            {analyticsLoading ? 'Chargement…' : '↻ Actualiser'}
+          </button>
+        </div>
+
+        {analyticsError && (
+          <p className="text-sm text-destructive mb-4">{analyticsError}</p>
+        )}
+
+        {!analyticsData && !analyticsLoading && !analyticsError && (
+          <div className="text-center py-16 text-muted-foreground">
+            <p className="text-4xl mb-3">📊</p>
+            <p className="text-sm">Clique sur l&apos;onglet pour charger les analytiques.</p>
+          </div>
+        )}
+
+        {analyticsLoading && (
+          <div className="text-center py-16 text-muted-foreground">
+            <p className="text-sm animate-pulse">Chargement des données…</p>
+          </div>
+        )}
+
+        {analyticsData && !analyticsLoading && (
+          <AnalyticsDashboard data={analyticsData} />
+        )}
       </div>
     </div>
   )
