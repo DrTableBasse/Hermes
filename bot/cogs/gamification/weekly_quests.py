@@ -3,7 +3,7 @@ import logging
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 from utils.database import quest_manager, db_manager, notification_manager
 from utils.command_manager import command_enabled
 from utils.embed_style import hermes_embed, progress_bar, Colors, FOOTER_TEXT
@@ -104,7 +104,7 @@ class WeeklyQuestsCog(commands.Cog):
         except Exception as e:
             logger.warning("notify quest error for %s: %s", user_id, e)
 
-    @tasks.loop(hours=24)
+    @tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
     async def weekly_quest_reset(self):
         today = date.today()
         if today.weekday() == 0:

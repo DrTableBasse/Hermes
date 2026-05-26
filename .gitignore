@@ -4,8 +4,12 @@ build
 tmp
 venv
 .venv
-main.py
-__init__.py
+
+# V1 legacy root-level files (not in bot/ or web-api/)
+/main.py
+/__init__.py
+/config.py
+/constants.py
 
 # Secrets
 .env
@@ -32,8 +36,6 @@ __pycache__
 # Misc
 .venv
 data.db
-config.py
-constants.py
 myenv
 ListeUtilisateurs.txt
 

@@ -1,0 +1,58 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import database as db
+from routes import auth, users, leaderboard, articles, tags, media, admin
+from routes import xp, notifications, endorsements, activity, quests, comments, automod_api
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await db.init_pool()
+    yield
+    await db.close_pool()
+
+
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(title="Hermes Web API", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://web:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(users.router)
+app.include_router(leaderboard.router)
+app.include_router(articles.router)
+app.include_router(tags.router)
+app.include_router(media.router)
+app.include_router(admin.router)
+app.include_router(xp.router)
+app.include_router(notifications.router)
+app.include_router(endorsements.router)
+app.include_router(activity.router)
+app.include_router(quests.router)
+app.include_router(comments.router)
+app.include_router(automod_api.router)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
