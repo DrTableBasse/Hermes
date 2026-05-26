@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: Hermes
+    type: file
+    folder: Hermes
+    options:
+      path: /var/lib/grafana/dashboards

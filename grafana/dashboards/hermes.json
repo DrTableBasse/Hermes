@@ -1,0 +1,127 @@
+{
+  "title": "Hermes — Vue d'ensemble",
+  "uid": "hermes-overview",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "1m",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "gridPos": { "x": 0, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Bot connecté",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "0": { "text": "Hors ligne", "color": "red" }, "1": { "text": "En ligne", "color": "green" } } }],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_bot_ready", "legendFormat": "Statut" }]
+    },
+    {
+      "id": 2, "gridPos": { "x": 3, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Membres",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_members_total", "legendFormat": "Membres" }]
+    },
+    {
+      "id": 3, "gridPos": { "x": 6, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Messages total",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_messages_total", "legendFormat": "Messages" }]
+    },
+    {
+      "id": 4, "gridPos": { "x": 9, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "XP total distribué",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "unit": "none", "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_xp_total", "legendFormat": "XP" }]
+    },
+    {
+      "id": 5, "gridPos": { "x": 12, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Heures vocal total",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "h", "decimals": 1, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_voice_hours_total", "legendFormat": "Heures" }]
+    },
+    {
+      "id": 6, "gridPos": { "x": 15, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Quêtes actives",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_active_quests_total", "legendFormat": "Quêtes" }]
+    },
+    {
+      "id": 7, "gridPos": { "x": 18, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Quêtes complétées (semaine)",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_quest_completions_week", "legendFormat": "Complétées" }]
+    },
+    {
+      "id": 8, "gridPos": { "x": 21, "y": 0, "w": 3, "h": 4 },
+      "type": "stat", "title": "Avertissements total",
+      "datasource": "Prometheus",
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 10 }, { "color": "red", "value": 50 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_warns_total", "legendFormat": "Warns" }]
+    },
+    {
+      "id": 9, "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "type": "timeseries", "title": "Membres actifs (évolution)",
+      "datasource": "Prometheus",
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "single" } },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_members_total", "legendFormat": "Membres" }]
+    },
+    {
+      "id": 10, "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "type": "timeseries", "title": "XP total (évolution)",
+      "datasource": "Prometheus",
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "single" } },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": []
+      },
+      "targets": [{ "expr": "hermes_xp_total", "legendFormat": "XP" }]
+    }
+  ]
+}
