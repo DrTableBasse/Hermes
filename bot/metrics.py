@@ -35,7 +35,7 @@ async def refresh():
         xp_total.set(xp or 0)
 
         hours = await db_manager.fetchval(
-            "SELECT COALESCE(SUM(total_seconds) / 3600.0, 0) FROM user_voice_data"
+            "SELECT COALESCE(SUM(total_time) / 3600.0, 0) FROM user_voice_data"
         )
         voice_hours_total.set(float(hours or 0))
 
@@ -52,7 +52,7 @@ async def refresh():
         )
         quest_completions_week.set(completions or 0)
 
-        warns = await db_manager.fetchval("SELECT COUNT(*) FROM warns")
+        warns = await db_manager.fetchval("SELECT COUNT(*) FROM warn")
         warns_total.set(warns or 0)
 
     except Exception as e:
