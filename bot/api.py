@@ -1,5 +1,6 @@
 """Internal Bot API — only reachable from the Docker network (web-api calls it)."""
 import asyncio
+import functools
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -61,6 +62,7 @@ class CommandToggleRequest(BaseModel):
     command_name: str
     enabled:      bool
     guild_id:     Optional[int] = None
+    moderator_id: Optional[int] = None
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -76,9 +78,23 @@ async def health():
 @app.post("/warns", dependencies=[Depends(_require_token)])
 async def add_warn(req: WarnRequest):
     from utils.database import warn_manager
+    from utils.embed_style import send_sanction_dm
     ok = await warn_manager.add_warn(req.user_id, req.reason, req.moderator_id)
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to add warn")
+    try:
+        guild = _get_guild()
+        target = guild.get_member(req.user_id) or await _get_bot().fetch_user(req.user_id)
+        mod = guild.get_member(req.moderator_id)
+        mod_name = mod.display_name if mod else f"<@{req.moderator_id}>"
+        await send_sanction_dm(
+            target, 'warn', req.reason,
+            guild_name=guild.name,
+            guild_icon_url=guild.icon.url if guild.icon else None,
+            moderator_name=mod_name,
+        )
+    except Exception:
+        pass
     return {"success": True}
 
 @app.get("/warns/{user_id}", dependencies=[Depends(_require_token)])
@@ -100,27 +116,72 @@ async def update_warn(warn_id: int, reason: str):
     return {"success": ok}
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _get_member(guild: discord.Guild, user_id: int) -> discord.Member:
+    member = guild.get_member(user_id)
+    if member is None:
+        try:
+            member = await guild.fetch_member(user_id)
+        except discord.NotFound:
+            raise HTTPException(status_code=404, detail="Member not found")
+        except discord.HTTPException as e:
+            raise HTTPException(status_code=502, detail=f"Discord error: {e}")
+    return member
+
+
 # ── Moderation ────────────────────────────────────────────────────────────────
 
+def _handle_discord_errors(fn):
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except discord.Forbidden:
+            raise HTTPException(status_code=403, detail="Permission refusée — le bot n'a pas les droits nécessaires")
+        except discord.NotFound:
+            raise HTTPException(status_code=404, detail="Membre introuvable")
+        except discord.HTTPException as e:
+            raise HTTPException(status_code=502, detail=f"Erreur Discord: {e.text}")
+    return wrapper
+
+
 @app.post("/moderation/kick", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
 async def kick_user(req: ModerationRequest):
+    from utils.embed_style import send_sanction_dm
     guild  = _get_guild()
-    member = guild.get_member(req.user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+    member = await _get_member(guild, req.user_id)
+    mod = guild.get_member(req.moderator_id)
+    mod_name = mod.display_name if mod else None
+    await send_sanction_dm(
+        member, 'kick', req.reason,
+        guild_name=guild.name,
+        guild_icon_url=guild.icon.url if guild.icon else None,
+        moderator_name=mod_name,
+    )
     await member.kick(reason=req.reason)
     return {"success": True}
 
 @app.post("/moderation/ban", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
 async def ban_user(req: ModerationRequest):
+    from utils.embed_style import send_sanction_dm
     guild  = _get_guild()
-    member = guild.get_member(req.user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+    member = await _get_member(guild, req.user_id)
+    mod = guild.get_member(req.moderator_id)
+    mod_name = mod.display_name if mod else None
+    await send_sanction_dm(
+        member, 'ban', req.reason,
+        guild_name=guild.name,
+        guild_icon_url=guild.icon.url if guild.icon else None,
+        moderator_name=mod_name,
+    )
     await member.ban(reason=req.reason)
     return {"success": True}
 
 @app.post("/moderation/unban", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
 async def unban_user(user_id: int):
     guild = _get_guild()
     user  = await _get_bot().fetch_user(user_id)
@@ -128,21 +189,29 @@ async def unban_user(user_id: int):
     return {"success": True}
 
 @app.post("/moderation/timeout", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
 async def timeout_user(req: TempModerationRequest):
+    from utils.embed_style import send_sanction_dm
     guild  = _get_guild()
-    member = guild.get_member(req.user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+    member = await _get_member(guild, req.user_id)
+    mod = guild.get_member(req.moderator_id)
+    mod_name = mod.display_name if mod else None
+    await send_sanction_dm(
+        member, 'timeout', req.reason,
+        guild_name=guild.name,
+        guild_icon_url=guild.icon.url if guild.icon else None,
+        moderator_name=mod_name,
+        duration=f"{req.duration_minutes} min",
+    )
     until = datetime.now(timezone.utc) + timedelta(minutes=req.duration_minutes)
     await member.timeout(until, reason=req.reason)
     return {"success": True}
 
 @app.post("/moderation/untimeout", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
 async def untimeout_user(user_id: int):
     guild  = _get_guild()
-    member = guild.get_member(user_id)
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
+    member = await _get_member(guild, user_id)
     await member.timeout(None)
     return {"success": True}
 
@@ -153,12 +222,54 @@ async def untimeout_user(user_id: int):
 async def list_commands():
     from utils.command_manager import CommandStatusManager
     statuses = await CommandStatusManager.get_all()
-    return {"commands": statuses}
+    bot = _get_bot()
+    descriptions = {}
+    for cmd in bot.tree.get_commands():
+        if cmd.name not in statuses:
+            statuses[cmd.name] = True
+        descriptions[cmd.name] = cmd.description or ''
+    return {"commands": statuses, "descriptions": descriptions}
 
 @app.post("/commands/toggle", dependencies=[Depends(_require_token)])
 async def toggle_command(req: CommandToggleRequest):
     from utils.command_manager import CommandStatusManager
-    ok = await CommandStatusManager.set(req.command_name, req.enabled, req.guild_id)
+
+    actor_name = None
+    if req.moderator_id:
+        try:
+            guild = _get_guild()
+            mod = guild.get_member(req.moderator_id)
+            actor_name = mod.display_name if mod else str(req.moderator_id)
+        except Exception:
+            pass
+
+    ok = await CommandStatusManager.set(req.command_name, req.enabled, req.guild_id,
+                                         actor_name=actor_name)
+
+    if ok and req.moderator_id and _bot:
+        channel_id = int(os.getenv('ADMIN_LOG_CHANNEL_ID', '0') or '0')
+        if channel_id:
+            try:
+                channel = _bot.get_channel(channel_id)
+                if channel:
+                    from utils.embed_style import hermes_embed, Colors
+                    guild = _get_guild()
+                    mod = guild.get_member(req.moderator_id)
+                    mod_display = mod.mention if mod else f"<@{req.moderator_id}>"
+                    status = "activée ✅" if req.enabled else "désactivée ❌"
+                    embed = hermes_embed(
+                        title="⚙️ Commande modifiée",
+                        description=(
+                            f"La commande **`/{req.command_name}`** a été **{status}**\n"
+                            f"Par {mod_display} depuis le panel web."
+                        ),
+                        color=Colors.GREEN if req.enabled else Colors.ORANGE,
+                    )
+                    asyncio.create_task(channel.send(embed=embed))
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Command toggle notify failed: {e}")
+
     return {"success": ok}
 
 

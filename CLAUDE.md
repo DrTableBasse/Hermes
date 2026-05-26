@@ -1,226 +1,253 @@
 # CLAUDE.md
 
-This file provides **strict, actionable guidance** for Claude Code when working on the Hermes repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ---
 
 ## Project Overview
 
-**Hermes** is a modular Discord bot built with:
-
-- discord.py (interactions / slash commands)
-- PostgreSQL (persistent storage)
-- asyncpg (async DB access)
-- APScheduler (scheduled jobs)
-- FastAPI (parallel HTTP API)
-
-The bot and API run **concurrently** (bot = main thread, API = daemon thread).
+**Hermes** is a modular Discord bot + web platform for the SaucisseLand community. The v2 codebase uses a 4-container Docker stack. There is also legacy root-level code (`main.py`, `cogs/`, `utils/`) from v1 — prefer the `bot/` subdirectory for any new work.
 
 ---
 
 ## Quick Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Start the full stack (recommended)
+docker compose up --build
 
-# Initialize PostgreSQL (once)
-createdb saucisseland
-psql -d saucisseland -f init-postgres.sql/init.sql
+# Start only specific services
+docker compose up db bot
 
-# Validate configuration
-python config.py
-
-# Run the bot
+# Run the bot locally (without Docker)
+cd bot && pip install -r requirements.txt
 python main.py
 
-# Linting
+# Lint
 flake8 .
 
-# Run tests
+# Tests
 pytest
-Core Architecture
-1. Startup Flow (main.py)
+```
 
-Execution order is critical:
+### Web frontend (Next.js)
+```bash
+cd web
+npm install
+npm run dev        # dev server on :3000
+npm run build && npm start
+```
 
-asyncio.run(main())
-Start FastAPI server in a daemon thread
-Connect Discord bot
-on_ready event triggers:
-Config validation
-Database initialization (utils/database.py)
-Table bootstrap (command_status)
-Full guild member sync → user_voice_data
-Cog loading (dynamic)
-Slash command sync (guild-scoped)
+---
 
-⚠️ Important constraints
+## Architecture — Docker Stack
 
-Anything DB-related must happen after pool initialization
-Avoid heavy blocking logic in on_ready
-2. Cog System (Auto-Discovery)
+```
+docker-compose.yml
+├── db          PostgreSQL 15 (internal only)
+├── bot         Discord bot + internal FastAPI on :8001
+├── web-api     Public FastAPI on :8000
+└── web         Next.js frontend on :3000
+```
 
-Located in:
+### Service responsibilities
 
-cogs/
- ├── fun/
- ├── moderation/
- └── system/
+**`bot/`** — Discord bot process  
+- Connects to Discord, loads cogs, syncs slash commands  
+- Runs an **internal FastAPI** (`bot/api.py`, port 8001) on the Docker network only — `web-api` calls it to trigger Discord actions (kick, ban, timeout, warn, command toggle)  
+- Internal API is bearer-token protected via `BOT_API_TOKEN`
 
-Auto-loaded via utils/constants.py::cogs_names()
+**`web-api/`** — Public REST API  
+- Discord OAuth2 login (`web-api/auth.py` + `web-api/routes/auth.py`)  
+- Routes: `auth`, `users`, `leaderboard`, `articles`, `tags`, `media`, `admin`  
+- Calls `http://bot:8001` for Discord moderation actions  
+- CORS allows only `localhost:3000` and `web:3000`
 
-✅ To add a command:
+**`web/`** — Next.js frontend  
+- TypeScript, Tailwind CSS, next-intl (fr/en)  
+- Pages: articles, article editor, leaderboard, profile, admin panel  
+- Auth via Discord OAuth2 redirect to `web-api`
 
-Create a .py file in one of the folders
-Implement:
-async def setup(bot):
-    await bot.add_cog(MyCog(bot))
+---
 
-🚫 Do NOT:
+## Bot — Cog System
 
-Manually register cogs
-Hardcode imports in main.py
-3. Database Layer (utils/database.py)
+Cogs live in `bot/cogs/{fun,moderation,system}/`. Auto-discovered by `bot/utils/constants.py::cogs_names()` — every `.py` file in those directories is loaded. No manual registration needed.
 
-Uses a global asyncpg pool.
+### Adding a command
 
-Managers (initialized at import time)
-voice_manager → voice activity tracking
-warn_manager → moderation infractions
-Core Tables
-Table	Purpose
-user_voice_data	Voice time tracking
-warn	Warnings & sanctions
-user_message_stats	Message analytics
-command_status	Command enable/disable
+1. Create `bot/cogs/<category>/my_command.py`
+2. Implement `async def setup(bot): await bot.add_cog(MyCog(bot))`
+3. Use `@command_enabled()` from `bot/utils/command_manager.py` to gate execution
+4. Use `@administration_only()` from `bot/utils/decorators.py` for privileged commands
+5. Restart the bot — cog loads and slash commands sync automatically
 
-⚠️ Rules
+### Mandatory command pattern
 
-Always use async queries (await)
-Never create new connections manually (use pool)
-Keep queries centralized in managers when possible
-4. Command Enable/Disable System
+```python
+from utils.command_manager import command_enabled
+from utils.decorators import administration_only
 
-Handled by CommandStatusManager (utils/command_manager.py)
+class MyCog(commands.Cog):
+    @app_commands.command()
+    @command_enabled()          # checks DB; responds ephemerally if disabled
+    @administration_only()      # checks for ADMIN_ROLE_NAME role
+    async def my_cmd(self, interaction: discord.Interaction):
+        ...
+```
 
-Backed by DB
-5-minute cache layer
-Mandatory Pattern
+`@command_enabled()` always queries the DB (cache bypassed) and sends an ephemeral error if the command is disabled. **Never skip this decorator.**
 
-Every command MUST check status:
+---
 
-is_enabled = await CommandStatusManager.get_command_status(
-    command_name,
-    guild_id=interaction.guild_id,
-    use_cache=False
-)
+## Bot — Database Layer (`bot/utils/database.py`)
 
-if not is_enabled:
-    await interaction.response.send_message(
-        f"❌ La commande `/{command_name}` est désactivée.",
-        ephemeral=True
-    )
-    return
+Global `asyncpg` pool shared across the process. Manager singletons initialized at import time:
 
-✅ Preferred:
+| Manager | Purpose |
+|---|---|
+| `voice_manager` | Voice time tracking, member sync |
+| `warn_manager` | Moderation warnings |
+| `message_stats_manager` | Per-channel message counts |
+| `xp_manager` | XP, levels, leaderboard |
+| `streak_manager` | Voice + message streaks |
+| `quest_manager` | Weekly quests, progress, claim |
+| `notification_manager` | In-app notifications |
+| `command_stats_manager` | Per-user command usage counts |
+| `bump_manager` | DISBOARD bump tracking |
+| `invite_manager` | Invite tracking |
+| `achievement_manager` | Achievement unlock & check |
 
-@command_enabled()
+**Rules:**
+- Always `await` queries; never block the event loop
+- Use the pool via `get_connection()` context manager — never open a new connection
+- All DB-related code must run **after** `await init_database()` completes in `on_ready`
 
-🚫 Never skip this check
+---
 
-5. Logging System (utils/logging.py)
+## Bot — Startup Order (critical)
 
-Structured logging via Discord embeds.
+`on_ready` must execute in this order:
+1. `validate_config()`
+2. `set_bot_instance(bot)` — wires bot into internal API
+3. `await init_database()` + `await init_command_status_table()`
+4. Member sync (`guild.chunk` → `voice_manager.sync_member`)
+5. `await load_cogs()`
+6. `bot.tree.sync()` — guild-scoped slash command sync
 
-Channel priority
-COMMAND_LOG_CHANNEL_ID
-LOG_CHANNEL_ID (fallback)
-Specialized channels
-Admin → ADMIN_LOG_CHANNEL_ID
-Voice → VOICE_LOG_CHANNEL_ID
-Roles → ROLE_LOG_CHANNEL_ID
-Sanctions → SANCTION_LOG_CHANNEL_ID
-Confessions → CONFESSION_LOG_CHANNEL_ID
-Usage
-@log_command()
+Anything that touches the DB or bot state must come after step 3.
 
-✅ Logs only on success
-⚠️ Do not manually duplicate logs unless necessary
+---
 
-6. FastAPI Server
-Runs in a separate daemon thread
-Shares process with bot
+## Bot — Logging (`bot/utils/logging.py`)
 
-⚠️ Constraints:
+Structured logging via Discord embeds. Channel resolution priority:
+- Specialized env var (e.g. `VOICE_LOG_CHANNEL_ID`) → falls back to `LOG_CHANNEL_ID`
 
-No blocking operations
-Must not interfere with event loop
-Avoid shared mutable state without protection
-Development Conventions
-General Rules
-Use async everywhere (no blocking I/O)
-Respect separation:
-Cogs → logic layer
-Managers → DB layer
-Keep functions small and focused
-Prefer composition over duplication
-Command Design Rules
+Available functions: `log_command_usage`, `log_admin_action`, `log_voice_event`, `log_role_assignment`, `log_sanction`, `log_confession`
 
-Every command should:
+Use the `@log_command()` decorator to log after successful execution. Don't call logging functions manually unless the decorator doesn't fit.
 
-Check if enabled
-Handle errors cleanly
-Respond quickly (avoid timeout)
-Use ephemeral responses when appropriate
-Be logged via decorator
-Error Handling
-Never let exceptions reach Discord silently
-Use structured logging for failures
-Return user-friendly messages
-Adding a New Feature
-Identify category (fun, moderation, system)
-Create cog file
-Add DB logic (if needed) in a manager
-Add command with:
-status check
-logging decorator
-Test locally
-Restart bot
-Environment Variables
+---
 
-Create a .env file.
+## Environment Variables
 
-Required variables
-Variable	Description
-DISCORD_TOKEN	Bot token
-GUILD_ID	Target guild
-PG_HOST	PostgreSQL host
-PG_PORT	PostgreSQL port
-PG_DB	Database name
-PG_USER	DB user
-PG_PASSWORD	DB password
-Feature-specific
-Variable	Purpose
-BLAGUES_API_TOKEN	Joke API
-BOT_CHANNEL_START	Startup message
-LOG_CHANNEL_ID	Default logs
-VOICE_LOG_CHANNEL_ID	Voice logs
-CONFESSION_CHANNEL_ID	Confession system
-ANIME_NEWS_CHANNEL_ID	Anime feed
-AUTHORIZED_ROLES	Moderation roles
-Common Pitfalls (IMPORTANT)
+Create a `.env` file at the repo root (used by Docker Compose and local runs).
 
-❌ Forgetting await on DB calls
-❌ Blocking the event loop
-❌ Not checking command status
-❌ Not using logging decorator
-❌ Creating manual DB connections
-❌ Modifying shared state between FastAPI & bot unsafely
+| Variable | Required | Description |
+|---|---|---|
+| `DISCORD_TOKEN` | ✅ | Bot token |
+| `GUILD_ID` | ✅ | Target guild ID |
+| `BOT_CHANNEL_START` | ✅ | Startup message channel |
+| `BOT_API_TOKEN` | ✅ | Shared secret between web-api and bot internal API |
+| `PG_HOST` / `PG_PORT` / `PG_DB` / `PG_USER` / `PG_PASSWORD` | ✅ | PostgreSQL credentials |
+| `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | ✅ (web) | OAuth2 app credentials |
+| `NEXT_PUBLIC_API_URL` | ✅ (web) | Public URL of web-api |
+| `LOG_CHANNEL_ID` | ✅ | Default log channel |
+| `VOICE_LOG_CHANNEL_ID` | | Voice-specific logs |
+| `CONFESSION_CHANNEL_ID` | | Confession system |
+| `ANIME_NEWS_CHANNEL_ID` | | Anime article feed |
+| `ADMIN_ROLE_NAME` | | Role name for admin commands (default: `Administration`) |
+| `AUTHORIZED_ROLES` | | Comma-separated moderation roles |
+| `BLAGUES_API_TOKEN` | | Joke API |
 
-Recommended Improvements (for future work)
-Add migrations (Alembic)
-Add typed models (pydantic)
-Introduce service layer between cogs and DB
-Improve test coverage (mock Discord + DB)
+---
 
+## Bot — Cog Inventory
+
+### `bot/cogs/gamification/`
+| File | Commands |
+|---|---|
+| `xp.py` | `/level`, `/leaderboard-xp` |
+| `streaks.py` | `/streak` |
+| `weekly_quests.py` | `/quests`, `/quest-claim` |
+| `stats.py` | `/stats` — stats complètes avec rangs |
+| `classement.py` | `/classement` — leaderboard unifié 8 catégories (xp/vocal/messages/bumps/invitations/streaks/achievements/global) |
+
+### `bot/cogs/utilities/`
+| File | Commands |
+|---|---|
+| `info_commands.py` | `/profile`, `/top-today`, `/compare` |
+| `anime.py` | `/check_articles` |
+
+### `bot/cogs/moderation/`
+| File | Commands |
+|---|---|
+| `warn.py` | `/warn`, `/warns`, `/delwarn` |
+| `kick.py` | `/kick` |
+| `tempban.py` | `/tempban` |
+| `tempmute.py` | `/tempmute` |
+| `clear.py` | `/clear` |
+| `audit.py` | `/audit` — profil d'audit admin (éphémère) |
+| `automod.py` | Automod passif |
+| `voice.py` | Tracking vocal passif |
+
+### `bot/cogs/system/`
+| File | Role |
+|---|---|
+| `achievements_notifier.py` | DM + rôle auto-créé/attribué au débloquage ; backfill one-shot au démarrage |
+| `bump_tracker.py` | Détection bump DISBOARD |
+| `invite_tracker.py` | Tracking invitations |
+| `command_management.py` | `/enable-command`, `/disable-command`, `/commands-status` |
+
+### `bot/cogs/fun/`
+| File | Commands |
+|---|---|
+| `blague.py` | `/blague` |
+| `confess.py` | `/confess` |
+
+---
+
+## Achievement Roles
+
+When an achievement is unlocked (`AchievementsNotifier.notify`):
+1. Role name = `{icon} {achievement_name}`
+2. Role color = tier (Légendaire=gold, Épique=blue, Rare=orange, Commun=grey)
+3. Role is created if it doesn't exist (requires bot **Gérer les rôles** permission, bot role above achievement roles)
+4. Role is assigned to the member
+5. DM sent with embed mentioning the role obtained
+
+A one-shot `@tasks.loop(count=1)` task `backfill_roles` runs after `wait_until_ready()` to retroactively assign roles to all existing achievement holders in the DB.
+
+---
+
+## Wiki Setup
+
+`setup_wiki.py` (root) — one-shot script to create/populate the Discord forum wiki.
+- Finds or creates a `#wiki` forum channel in `CATEGORY_ID = 776919447310565416`
+- Creates 4 posts (threads), each with multiple styled embeds:
+  - 📖 Commandes du bot
+  - ⚡ Système XP & Niveaux
+  - 🔥 Quêtes & Streaks
+  - 🏆 Achievements & Rôles
+- Run with: `python setup_wiki.py` (uses `.env` for token/guild)
+- Safe to re-run — won't recreate the forum if `#wiki` already exists, but will add new threads
+
+---
+
+## Key Design Constraints
+
+- **Async only** — no blocking I/O anywhere in bot or web-api code
+- **No shared mutable state** between the bot's async event loop and the internal API thread (the internal API runs uvicorn in a daemon thread via `threading.Thread`)
+- **Slash commands are guild-scoped** — synced to `GUILD_ID` only, not globally
+- **Root-level v1 code** (`main.py`, `cogs/`, `utils/`) is legacy; don't extend it

@@ -7,6 +7,7 @@ from utils.database import warn_manager
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
 from utils.logging import log_command, log_admin_action
+from utils.embed_style import hermes_embed, moderation_embed, Colors
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +24,26 @@ class WarnCog(commands.Cog):
                    reason: str = "Aucune raison spécifiée"):
         success = await warn_manager.add_warn(user.id, reason, interaction.user.id)
         if not success:
-            await interaction.response.send_message("❌ Erreur lors de l'ajout de l'avertissement.", ephemeral=True)
+            await interaction.response.send_message(
+                embed=hermes_embed(description="❌ Erreur lors de l'ajout de l'avertissement.", color=Colors.RED),
+                ephemeral=True,
+            )
             return
 
-        embed = discord.Embed(title="⚠️ Avertissement", color=discord.Color.orange())
-        embed.add_field(name="Utilisateur",  value=user.mention,              inline=True)
-        embed.add_field(name="Modérateur",   value=interaction.user.mention,  inline=True)
-        embed.add_field(name="Raison",       value=reason,                    inline=False)
-        embed.add_field(name="Date",         value=f"<t:{int(time.time())}:F>", inline=False)
+        embed = moderation_embed('warn', interaction.user, user, reason)
+        embed.add_field(name="📅 Date", value=f"<t:{int(time.time())}:F>", inline=False)
         await interaction.response.send_message(embed=embed)
 
         try:
-            dm = discord.Embed(
-                title="⚠️ Vous avez reçu un avertissement",
-                description=f"Sur le serveur **{interaction.guild.name}**",
-                color=discord.Color.orange(),
+            dm = hermes_embed(
+                title="⚠️  Avertissement reçu",
+                description=(
+                    f"Vous avez reçu un avertissement sur **{interaction.guild.name}**\n\n"
+                    f"**Raison :** {reason}"
+                ),
+                color=Colors.ORANGE,
+                thumbnail_url=interaction.guild.icon.url if interaction.guild.icon else None,
             )
-            dm.add_field(name="Raison", value=reason, inline=False)
             await user.send(embed=dm)
         except discord.Forbidden:
             pass
@@ -49,31 +53,35 @@ class WarnCog(commands.Cog):
     @app_commands.command(name="warns", description="Afficher les avertissements d'un utilisateur")
     @command_enabled(guild_specific=True)
     async def warns(self, interaction: discord.Interaction, user: discord.Member):
-        data  = await warn_manager.get_user_warns(user.id)
+        data = await warn_manager.get_user_warns(user.id)
         count = len(data)
 
         if not data:
-            embed = discord.Embed(
-                title=f"📋 Avertissements — {user.display_name}",
-                description="✅ Aucun avertissement",
-                color=discord.Color.green(),
+            embed = hermes_embed(
+                title=f"📋  Avertissements  ─  {user.display_name}",
+                description="✅ Aucun avertissement — casier vierge !",
+                color=Colors.GREEN,
+                thumbnail_url=user.display_avatar.url,
             )
             await interaction.response.send_message(embed=embed)
             return
 
-        embed = discord.Embed(
-            title=f"📋 Avertissements — {user.display_name}",
-            description=f"Total : **{count}**",
-            color=discord.Color.red() if count > 2 else discord.Color.orange(),
+        color = Colors.RED if count > 2 else Colors.ORANGE
+        embed = hermes_embed(
+            title=f"📋  Avertissements  ─  {user.display_name}",
+            description=f"**{count}** avertissement{'s' if count > 1 else ''} au total",
+            color=color,
+            thumbnail_url=user.display_avatar.url,
         )
         for i, w in enumerate(data[:5], 1):
+            mod_mention = f"<@{w['moderator_id']}>" if w.get('moderator_id') else "Inconnu"
             embed.add_field(
-                name=f"⚠️ #{i}",
-                value=f"**Raison :** {w['reason']}\n**Date :** <t:{w['create_time']}:F>",
+                name=f"#{i}  ─  <t:{w['create_time']}:R>",
+                value=f"**Raison :** {w['reason']}\n**Par :** {mod_mention}",
                 inline=False,
             )
         if count > 5:
-            embed.set_footer(text=f"…et {count - 5} autre(s)")
+            embed.set_footer(text=f"…et {count - 5} autre(s)  ·  Hermes · SaucisseLand")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.command(name="delwarn", description="Supprimer un avertissement par son ID")
@@ -82,10 +90,16 @@ class WarnCog(commands.Cog):
     async def delwarn(self, interaction: discord.Interaction, warn_id: int):
         w = await warn_manager.get_by_id(warn_id)
         if not w:
-            await interaction.response.send_message(f"❌ Warn #{warn_id} introuvable.", ephemeral=True)
+            await interaction.response.send_message(
+                embed=hermes_embed(description=f"❌ Warn `#{warn_id}` introuvable.", color=Colors.RED),
+                ephemeral=True,
+            )
             return
         await warn_manager.delete_warn(warn_id)
-        await interaction.response.send_message(f"✅ Warn #{warn_id} supprimé.", ephemeral=True)
+        await interaction.response.send_message(
+            embed=hermes_embed(description=f"✅ Warn `#{warn_id}` supprimé avec succès.", color=Colors.GREEN),
+            ephemeral=True,
+        )
 
 
 async def setup(bot):

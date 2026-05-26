@@ -1,6 +1,4 @@
 services:
-
-  # ─── Base de données ──────────────────────────────────────────────────────────
   db:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -19,7 +17,6 @@ services:
     networks:
       - hermes
 
-  # ─── Bot Discord ──────────────────────────────────────────────────────────────
   bot:
     build: ./bot
     restart: unless-stopped
@@ -29,13 +26,12 @@ services:
     env_file: .env
     environment:
       PG_HOST: db
-      API_PORT: "8001"
+      BOT_API_PORT: "8001"
     volumes:
       - media_data:/app/media
     networks:
       - hermes
 
-  # ─── Backend (FastAPI) ────────────────────────────────────────────────────────
   web-api:
     build: ./web-api
     restart: unless-stopped
@@ -48,23 +44,28 @@ services:
     environment:
       PG_HOST: db
       BOT_API_URL: "http://bot:8001"
-      BOT_API_TOKEN: ${API_TOKEN}
       MEDIA_DIR: /app/media
-    ports:
-      - "8000:8000"
+    # Port 8000 non exposé — uniquement accessible depuis le réseau Docker interne
     volumes:
       - media_data:/app/media
     networks:
       - hermes
 
-  # ─── Frontend (Next.js) ───────────────────────────────────────────────────────
   web:
     build: ./web
     restart: unless-stopped
     depends_on:
-      - web-api
+      db:
+        condition: service_healthy
+      web-api:
+        condition: service_started
+    env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/proxy}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      WEB_API_INTERNAL_URL: http://web-api:8000
+      PG_HOST: db
     ports:
       - "3000:3000"
     networks:

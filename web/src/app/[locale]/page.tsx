@@ -1,50 +1,57 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
-import { api, type Article } from '@/lib/api'
+import { headers } from 'next/headers'
+import type { Article } from '@/lib/api'
+import { serverListArticles, serverLeaderboardGlobal, type GlobalEntry } from '@/lib/server-api'
 import { ArticleCard } from '@/components/ArticleCard'
+import { LoginButton } from '@/components/LoginButton'
+import { auth } from '@/lib/auth'
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
-  const t = await getTranslations('home')
+  const t  = await getTranslations('home')
   const ta = await getTranslations('articles')
-  const tl = await getTranslations('leaderboard')
 
-  const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+  const session    = await auth.api.getSession({ headers: await headers() }).catch(() => null)
+  const isLoggedIn = !!session
 
-  let articles: Article[] = []
-  let voiceTop: any[] = []
-  try {
-    const res = await api.articles.list(1, 3)
-    articles  = res.articles
-    const lb  = await api.leaderboard.voice(5)
-    voiceTop  = lb.leaderboard
-  } catch {}
+  const [articles, globalTop] = await Promise.all([
+    serverListArticles({ page: 1, limit: 3 }).then(r => r.articles).catch((): Article[] => []),
+    serverLeaderboardGlobal(5).catch((): GlobalEntry[] => []),
+  ])
+
+  const medals = ['🥇', '🥈', '🥉']
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto px-4 py-16">
       {/* Hero */}
-      <section className="text-center mb-20">
-        <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+      <section className="text-center mb-24 relative">
+        <div className="absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
+        </div>
+        <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 gradient-hero glow-text animate-fade-up tracking-tight">
           {t('hero_title')}
         </h1>
-        <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">{t('hero_subtitle')}</p>
-        <a
-          href={`${API}/auth/login`}
-          className="inline-flex items-center gap-2 bg-[#5865F2] text-white font-semibold px-6 py-3 rounded-lg hover:bg-[#4752C4] transition-colors text-lg"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
-          </svg>
-          {t('login_with_discord')}
-        </a>
+        <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto animate-fade-up" style={{ animationDelay: '0.1s' }}>
+          {t('hero_subtitle')}
+        </p>
+        {!isLoggedIn && (
+          <div className="animate-fade-up" style={{ animationDelay: '0.2s' }}>
+            <LoginButton
+              callbackURL={`/${locale}`}
+              label={t('login_with_discord')}
+              className="inline-flex items-center gap-2.5 bg-discord text-white font-semibold px-8 py-3.5 rounded-xl hover:opacity-90 transition-all text-lg shadow-lg shadow-discord/20 hover:shadow-xl hover:shadow-discord/30"
+            />
+          </div>
+        )}
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* Latest articles */}
         <section className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <h2 className="text-2xl font-bold">{t('latest_articles')}</h2>
-            <Link href={`/${locale}/articles`} className="text-sm text-primary hover:underline">
+            <Link href={`/${locale}/articles`} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               {t('view_all')} →
             </Link>
           </div>
@@ -53,33 +60,51 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {articles.map(a => (
-                <ArticleCard key={a.id} article={a} locale={locale} t={ta} />
+                <ArticleCard key={a.id} article={a} locale={locale} />
               ))}
             </div>
           )}
         </section>
 
-        {/* Top voice */}
+        {/* Global top members */}
         <section>
-          <h2 className="text-2xl font-bold mb-6">{t('top_members')}</h2>
-          <div className="space-y-3">
-            {voiceTop.map((entry, i) => (
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold">{t('top_members')}</h2>
+            <Link href={`/${locale}/leaderboard`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              Voir tout →
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {globalTop.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune donnée.</p>
+            ) : globalTop.map((entry, i) => (
               <div key={entry.user_id}
-                   className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card">
-                <span className="text-lg font-bold w-6 text-center">
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}
+                   className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all duration-200 hover:border-primary/30 ${
+                     i === 0 ? 'border-gold/30 bg-gold/5' : 'border-border bg-card'
+                   }`}
+              >
+                <span className={`text-lg font-bold w-8 text-center flex-shrink-0 ${
+                  i === 0 ? 'text-2xl' : ''
+                }`}>
+                  {medals[i] ?? `${i + 1}`}
                 </span>
                 {entry.discord_avatar ? (
                   <img src={entry.discord_avatar} alt={entry.username}
-                       className="w-8 h-8 rounded-full" />
+                       className={`rounded-full flex-shrink-0 ${i === 0 ? 'w-10 h-10 ring-2 ring-gold/40' : 'w-8 h-8'}`} />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-sm font-bold">
+                  <div className={`rounded-full bg-accent flex items-center justify-center font-bold flex-shrink-0 ${
+                    i === 0 ? 'w-10 h-10 text-base' : 'w-8 h-8 text-sm'
+                  }`}>
                     {entry.username[0]?.toUpperCase()}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">{entry.username}</p>
-                  <p className="text-xs text-muted-foreground">{entry.formatted}</p>
+                  <p className={`font-medium truncate ${i === 0 ? 'text-base' : 'text-sm'}`}>
+                    {entry.username}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {entry.voice_formatted} · {entry.total_messages.toLocaleString()} msgs · {entry.achievement_count} 🏆
+                  </p>
                 </div>
               </div>
             ))}

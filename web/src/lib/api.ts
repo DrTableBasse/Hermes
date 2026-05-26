@@ -1,4 +1,5 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
+// Toujours relatif : le navigateur passe par /api/proxy → Next.js relaie vers web-api (réseau interne)
+const API = process.env.NEXT_PUBLIC_API_URL ?? '/api/proxy'
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -16,8 +17,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 // Auth
 export const api = {
   auth: {
-    me:     ()      => request<User>('/auth/me'),
-    logout: ()      => request('/auth/logout', { method: 'POST' }),
+    me: () => request<User>('/auth/me'),
   },
   users: {
     stats: (id: string) => request<UserStats>(`/users/${id}/stats`),
@@ -62,6 +62,38 @@ export const api = {
     getWarns:       (userId: string)         => request<{ warns: Warn[] }>(`/admin/warns/${userId}`),
     deleteWarn:     (warnId: number)         => request(`/admin/warns/${warnId}`, { method: 'DELETE' }),
   },
+  xp: {
+    leaderboard: (period?: string) => request<{ leaderboard: XPEntry[] }>(`/xp/leaderboard${period ? `?period=${period}` : ''}`),
+    get: (userId: string) => request<XPData>(`/xp/${userId}`),
+  },
+  notifications: {
+    list: () => request<{ notifications: Notification[] }>('/notifications'),
+    markRead: (id: number) => request(`/notifications/${id}/read`, { method: 'POST' }),
+    markAllRead: () => request('/notifications/read-all', { method: 'POST' }),
+  },
+  endorsements: {
+    get: (userId: string) => request<{ skills: EndorsementSkill[]; total: number }>(`/endorsements/${userId}`),
+    endorse: (data: { target_user_id: number; skill: string }) =>
+      request('/endorsements', { method: 'POST', body: JSON.stringify(data) }),
+    leaderboard: (limit?: number) => request<{ leaderboard: ReputationEntry[] }>(`/endorsements${limit ? `?limit=${limit}` : ''}`),
+  },
+  activity: {
+    heatmap: (userId: string, days?: number) =>
+      request<{ heatmap: ActivityDay[] }>(`/activity/${userId}/heatmap${days ? `?days=${days}` : ''}`),
+    daily: (userId: string, days?: number) =>
+      request<{ daily: DailyActivity[] }>(`/activity/${userId}/daily${days ? `?days=${days}` : ''}`),
+  },
+  quests: {
+    list: () => request<{ quests: Quest[] }>('/quests'),
+    claim: (questId: number) => request<{ success: boolean; xp_reward: number }>(`/quests/${questId}/claim`, { method: 'POST' }),
+  },
+  comments: {
+    list: (articleId: number) => request<{ comments: Comment[] }>(`/comments/article/${articleId}`),
+    create: (data: { article_id: number; content: string; parent_id?: number }) =>
+      request<Comment>('/comments', { method: 'POST', body: JSON.stringify(data) }),
+    delete: (id: number) => request(`/comments/${id}`, { method: 'DELETE' }),
+    vote: (id: number) => request<{ voted: boolean }>(`/comments/${id}/vote`, { method: 'POST' }),
+  },
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -71,7 +103,7 @@ export interface User {
 }
 export interface UserStats {
   user:    { user_id: number; username: string; nickname: string | null; discord_avatar: string | null; last_seen: string }
-  stats:   { total_messages: number; voice_hours: number; warn_count: number; msg_rank: number; voice_rank: number }
+  stats:   { total_messages: number; voice_hours: number; warn_count: number; msg_rank: number; voice_rank: number; xp_total: number; current_level: number; current_streak: number; max_streak: number; xp_multiplier: number; bump_count: number; bump_rank: number }
   achievements: Achievement[]
 }
 export interface Achievement { id: number; name: string; description: string; icon: string; points: number; unlocked_at: string }
@@ -90,3 +122,12 @@ export interface AdminStats { members: number; total_messages: number; total_war
 export interface CommandToggle { command_name: string; enabled: boolean }
 export interface ModerationAction { user_id: number; reason?: string; duration?: number }
 export interface Warn { id: number; user_id: number; reason: string; create_time: number; moderator_id: number }
+export interface XPData { user_id: number; total_xp: number; weekly_xp: number; current_level: number }
+export interface XPEntry { user_id: number; username: string; discord_avatar: string | null; total_xp: number; weekly_xp: number; current_level: number }
+export interface Notification { id: number; user_id: number; type: string; title: string; body: string; is_read: boolean; created_at: string }
+export interface EndorsementSkill { skill: string; count: number }
+export interface ReputationEntry { user_id: number; username: string; discord_avatar: string | null; total_endorsements: number }
+export interface ActivityDay { date: string; count: number }
+export interface DailyActivity { date: string; messages: number }
+export interface Quest { id: number; title: string; description: string; quest_type: string; target_value: number; xp_reward: number; current_progress: number; status: string }
+export interface Comment { id: number; article_id: number; user_id: number; content: string; parent_id: number | null; vote_count: number; created_at: string; username: string; discord_avatar: string | null }

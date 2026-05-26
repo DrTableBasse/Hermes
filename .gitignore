@@ -4,16 +4,18 @@ build
 tmp
 venv
 .venv
-main.py
-__init__.py
+
+# V1 legacy root-level files (not in bot/ or web-api/)
+/main.py
+/__init__.py
+/config.py
+/constants.py
 
 # Secrets
 .env
 .env.local
 .env.production.local
 .env.development.local
-ClaudeTokenAuthentik
-*.token
 
 # Frontend assets compiled code
 public/assets
@@ -34,10 +36,21 @@ __pycache__
 # Misc
 .venv
 data.db
-config.py
-constants.py
 myenv
 ListeUtilisateurs.txt
 
-# Claude Code internal
+# SQL dumps
+*.sql.gz
+saucisseland_*.sql
+
+# Claude memory
 .claude/
+
+# One-time scripts
+setup_wiki.py
+
+# Fichier compose redondant (compose.yml fait référence)
+docker-compose.yml
+
+# Next.js build cache
+web/tsconfig.tsbuildinfo

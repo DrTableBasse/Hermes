@@ -4,6 +4,7 @@ from discord.ext import commands
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
 from utils.logging import log_command
+from utils.embed_style import hermes_embed, Colors
 
 
 class ClearCog(commands.Cog):
@@ -16,11 +17,20 @@ class ClearCog(commands.Cog):
     @log_command()
     async def clear(self, interaction: discord.Interaction, amount: int):
         if amount < 1 or amount > 100:
-            await interaction.response.send_message("❌ Entre 1 et 100 messages.", ephemeral=True)
+            await interaction.response.send_message(
+                embed=hermes_embed(description="❌ Entrez un nombre entre **1** et **100**.", color=Colors.RED),
+                ephemeral=True,
+            )
             return
         await interaction.response.defer(ephemeral=True)
         deleted = await interaction.channel.purge(limit=amount)
-        await interaction.followup.send(f"✅ {len(deleted)} message(s) supprimé(s).", ephemeral=True)
+        await interaction.followup.send(
+            embed=hermes_embed(
+                description=f"🗑️ **{len(deleted)}** message{'s' if len(deleted) > 1 else ''} supprimé{'s' if len(deleted) > 1 else ''}.",
+                color=Colors.GREEN,
+            ),
+            ephemeral=True,
+        )
 
 
 async def setup(bot):
