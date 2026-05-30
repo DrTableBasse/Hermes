@@ -44,6 +44,36 @@ class WelcomeCog(commands.Cog):
         except Exception as e:
             logger.error(f"Failed to send welcome message: {e}")
 
+    @commands.Cog.listener()
+    async def on_member_remove(self, member: discord.Member):
+        if member.bot:
+            return
+
+        channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+        if channel is None:
+            logger.warning(f"Welcome channel {WELCOME_CHANNEL_ID} not found")
+            return
+
+        member_count = member.guild.member_count
+
+        embed = discord.Embed(
+            title="👋 Au revoir !",
+            description=(
+                f"**{member.display_name}** vient de quitter le serveur. 😢\n"
+                "On espère te revoir bientôt !"
+            ),
+            color=0xE74C3C,
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"Nous sommes maintenant {member_count} membres.")
+
+        try:
+            await channel.send(embed=embed)
+        except discord.Forbidden:
+            logger.error(f"Missing permissions to send goodbye message in channel {WELCOME_CHANNEL_ID}")
+        except Exception as e:
+            logger.error(f"Failed to send goodbye message: {e}")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WelcomeCog(bot))
