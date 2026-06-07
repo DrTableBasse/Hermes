@@ -118,7 +118,7 @@
 
 /* ── Scrollbar ────────────────────────────────────────────────── */
 
-::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { @apply bg-background; }
 ::-webkit-scrollbar-thumb { @apply bg-border rounded-full; }
 ::-webkit-scrollbar-thumb:hover { @apply bg-muted-foreground/40; }
