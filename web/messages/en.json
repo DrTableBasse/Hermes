@@ -11,7 +11,8 @@
   "home": {
     "hero_title": "Welcome to Hermes",
     "hero_subtitle": "The community hub — stats, articles, and Discord server management.",
-    "join_discord": "Join Discord",
+    "join_discord": "Join SaucisseLand",
+    "already_member": "Already a member? Sign in →",
     "latest_articles": "Latest articles",
     "view_all": "View all articles",
     "top_members": "Top members",
