@@ -35,7 +35,7 @@ export function LeaderboardSearch({ defaultValue = '' }: { defaultValue?: string
         value={value}
         onChange={e => setValue(e.target.value)}
         placeholder="Rechercher un membre…"
-        className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg w-56 focus:outline-none focus:ring-2 focus:ring-primary"
+        className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg w-full max-w-xs focus:outline-none focus:ring-2 focus:ring-primary"
       />
       {value && (
         <button
