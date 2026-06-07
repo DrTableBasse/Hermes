@@ -184,10 +184,10 @@ export default async function LeaderboardPage({
           {/* Mobile layout — visible only on xs screens */}
           <div className="block sm:hidden mb-8 space-y-3">
             {/* #1 Gold — full width, prominent */}
-            <div className="flex flex-col items-center text-center p-5 rounded-2xl border border-gold/40 bg-gold/5 medal-glow">
+            <div className="flex flex-col items-center text-center p-5 rounded-2xl border border-gold/40 bg-gold/5 medal-glow transition-all">
               <span className="text-4xl font-bold mb-2">{medal(1)}</span>
               <Avatar src={top3[0].discord_avatar} name={top3[0].username} size="lg" />
-              <p className="font-semibold text-base w-full mt-2">{top3[0].username}</p>
+              <p className="font-semibold text-base w-full mt-2 truncate">{top3[0].username}</p>
               {tab === 'levels' && (
                 <p className="font-bold mt-1 text-base text-primary">
                   Niv.&nbsp;{top3[0].current_level}
@@ -209,7 +209,7 @@ export default async function LeaderboardPage({
                 const actualRank = i === 0 ? 2 : 3
                 return (
                   <div key={entry.user_id}
-                       className="flex flex-col items-center text-center p-3 rounded-2xl border border-border bg-card"
+                       className="flex flex-col items-center text-center p-3 rounded-2xl border border-border bg-card transition-all"
                   >
                     <span className="text-xl font-bold mb-2">{medal(actualRank)}</span>
                     <Avatar src={entry.discord_avatar} name={entry.username} size="sm" />
