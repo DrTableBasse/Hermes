@@ -6,6 +6,30 @@ import { serverListArticles, serverLeaderboardGlobal, type GlobalEntry } from '@
 import { ArticleCard } from '@/components/ArticleCard'
 import { LoginButton } from '@/components/LoginButton'
 import { auth } from '@/lib/auth'
+import type { Metadata } from 'next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const isFr = locale === 'fr'
+  return {
+    title: { absolute: 'Hermes · SaucisseLand' },
+    description: isFr
+      ? 'Hub communautaire du serveur Discord SaucisseLand — XP, classements, quêtes, articles.'
+      : 'Community hub for the SaucisseLand Discord server — XP, leaderboards, quests, articles.',
+    openGraph: {
+      title:       'Hermes · SaucisseLand',
+      description: isFr
+        ? 'Hub communautaire SaucisseLand'
+        : 'SaucisseLand community hub',
+      type:   'website',
+      locale,
+    },
+  }
+}
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params
