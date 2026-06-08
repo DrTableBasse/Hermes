@@ -33,7 +33,7 @@ export async function generateMetadata({
         title:       article.title,
         description: desc,
         type:        'article',
-        locale,
+        locale: locale === 'fr' ? 'fr_FR' : 'en_US',
         ...(article.cover_image_url && {
           images: [{ url: article.cover_image_url }],
         }),
