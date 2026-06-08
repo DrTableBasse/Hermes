@@ -1,3 +1,5 @@
+import type { Metadata } from 'next'
+import Image from 'next/image'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
@@ -11,6 +13,37 @@ import { ArticleActions } from './ArticleActions'
 type UserWithExtras = {
   isAdmin?: boolean; isRedacteur?: boolean; discordId?: string
 } & Record<string, unknown>
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>
+}): Promise<Metadata> {
+  const { locale, slug } = await params
+  try {
+    const article = await serverGetArticle(slug)
+    const desc = article.content
+      .slice(0, 160)
+      .replace(/[#*`_\n]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return {
+      title:       article.title,
+      description: desc,
+      openGraph: {
+        title:       article.title,
+        description: desc,
+        type:        'article',
+        locale: locale === 'fr' ? 'fr_FR' : 'en_US',
+        ...(article.cover_image_url && {
+          images: [{ url: article.cover_image_url }],
+        }),
+      },
+    }
+  } catch {
+    return { title: 'Article' }
+  }
+}
 
 export default async function ArticlePage({
   params,
@@ -34,8 +67,15 @@ export default async function ArticlePage({
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       {article.cover_image_url && (
-        <div className="mb-8 rounded-xl overflow-hidden max-h-80">
-          <img src={article.cover_image_url} alt={article.title} className="w-full h-full object-cover" />
+        <div className="relative mb-8 rounded-xl overflow-hidden h-80">
+          <Image
+            src={article.cover_image_url}
+            alt={article.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 768px"
+            priority
+          />
         </div>
       )}
 

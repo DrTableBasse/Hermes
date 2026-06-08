@@ -1,6 +1,7 @@
 import React from 'react'
 import { headers } from 'next/headers'
 import Link from 'next/link'
+import Image from 'next/image'
 import { auth } from '@/lib/auth'
 import { Suspense } from 'react'
 import {
@@ -51,8 +52,9 @@ function scoreLabel(tab: Tab, entry: any): string {
 
 function Avatar({ src, name, size = 'md' }: { src: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
   const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-10 h-10 text-sm', lg: 'w-14 h-14 text-lg' }
+  const sizesPx = { sm: 32, md: 40, lg: 56 }
   return src ? (
-    <img src={src} alt={name} className={`${sizes[size]} rounded-full flex-shrink-0`} />
+    <Image src={src} alt={name} width={sizesPx[size]} height={sizesPx[size]} className={`${sizes[size]} rounded-full flex-shrink-0`} />
   ) : (
     <div className={`${sizes[size]} rounded-full bg-accent flex items-center justify-center font-bold flex-shrink-0`}>
       {name[0]?.toUpperCase()}

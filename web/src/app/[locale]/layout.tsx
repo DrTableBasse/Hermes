@@ -10,8 +10,16 @@ import type { User } from '@/lib/api'
 import '../globals.css'
 
 export const metadata: Metadata = {
-  title: 'Hermes',
-  description: 'Hub communautaire du serveur Discord',
+  title: {
+    default:  'Hermes · SaucisseLand',
+    template: '%s · Hermes',
+  },
+  description:
+    'Hub communautaire du serveur Discord SaucisseLand — XP, classements, quêtes, articles.',
+  openGraph: {
+    siteName: 'Hermes',
+    type:     'website',
+  },
 }
 
 export default async function LocaleLayout({

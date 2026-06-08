@@ -21,6 +21,14 @@ const securityHeaders = [
   },
 ]
 
+const appHostname = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').hostname
+  } catch {
+    return 'localhost'
+  }
+})()
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -28,6 +36,7 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.discordapp.com' },
       { protocol: 'http',  hostname: 'localhost' },
+      { protocol: 'https', hostname: appHostname },
     ],
   },
   async headers() {

@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
@@ -10,9 +11,14 @@ export function ArticleCard({ article, locale, isDraft }: Props) {
   return (
     <div className="glass-card-hover flex flex-col overflow-hidden group">
       {article.cover_image_url && (
-        <div className="h-48 overflow-hidden">
-          <img src={article.cover_image_url} alt={article.title}
-               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        <div className="relative h-48 overflow-hidden">
+          <Image
+            src={article.cover_image_url}
+            alt={article.title}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          />
         </div>
       )}
       <div className="p-5 flex flex-col flex-1">
