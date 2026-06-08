@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
@@ -66,8 +67,15 @@ export default async function ArticlePage({
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       {article.cover_image_url && (
-        <div className="mb-8 rounded-xl overflow-hidden max-h-80">
-          <img src={article.cover_image_url} alt={article.title} className="w-full h-full object-cover" />
+        <div className="relative mb-8 rounded-xl overflow-hidden h-80">
+          <Image
+            src={article.cover_image_url}
+            alt={article.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 768px"
+            priority
+          />
         </div>
       )}
 
