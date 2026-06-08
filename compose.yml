@@ -80,6 +80,7 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       WEB_API_INTERNAL_URL: http://web-api:8000
       PG_HOST: db
+      HOSTNAME: "0.0.0.0"
     ports:
       - "3000:3000"
     networks:
