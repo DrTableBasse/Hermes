@@ -163,6 +163,8 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
     voice_max    = int(streak_data['max_streak'])     if streak_data and streak_data.get('max_streak')     else 0
     xp_multi     = float(streak_data['xp_multiplier']) if streak_data and streak_data.get('xp_multiplier') else 1.0
     current_streak = voice_streak
+    msg_current  = int(msg_streak_data['current_streak']) if msg_streak_data and msg_streak_data.get('current_streak') else 0
+    msg_max      = int(msg_streak_data['max_streak'])     if msg_streak_data and msg_streak_data.get('max_streak')     else 0
 
     msg_rank = await db.fetchval("""
         SELECT COUNT(*) + 1 FROM (
@@ -213,8 +215,10 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
             "current_streak": current_streak,
             "max_streak":     voice_max,
             "xp_multiplier":  xp_multi,
-            "bump_count":     int(bump_count),
-            "bump_rank":      int(bump_rank),
+            "bump_count":         int(bump_count),
+            "bump_rank":          int(bump_rank),
+            "msg_current_streak": msg_current,
+            "msg_max_streak":     msg_max,
         },
         "achievements": [
             {
@@ -241,7 +245,7 @@ async def get_user_public_stats(request: Request, user_id: int):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    total_messages, voice_row, xp_row, ach_count, streak_row, bump_count = await asyncio.gather(
+    total_messages, voice_row, xp_row, ach_count, streak_row, bump_count, achievements = await asyncio.gather(
         db.fetchval(
             "SELECT COALESCE(SUM(message_count), 0) FROM user_message_stats WHERE user_id = $1",
             user_id,
@@ -255,6 +259,13 @@ async def get_user_public_stats(request: Request, user_id: int):
         db.fetchval(
             "SELECT COALESCE(bump_count, 0) FROM user_bump_stats WHERE user_id = $1", user_id
         ),
+        db.fetch("""
+            SELECT a.id, a.name, a.description, a.icon, a.points, ua.unlocked_at
+            FROM achievements a
+            JOIN user_achievements ua ON a.id = ua.achievement_id
+            WHERE ua.user_id = $1
+            ORDER BY a.points DESC, ua.unlocked_at DESC
+        """, user_id),
     )
 
     s = voice_row["total_time"] if voice_row else 0
@@ -276,4 +287,15 @@ async def get_user_public_stats(request: Request, user_id: int):
             "current_streak":    streak_row["current_streak"] if streak_row else 0,
             "bump_count":        int(bump_count or 0),
         },
+        "achievements": [
+            {
+                "id":          a["id"],
+                "name":        a["name"],
+                "description": a["description"],
+                "icon":        a["icon"],
+                "points":      a["points"],
+                "unlocked_at": a["unlocked_at"].isoformat() if a["unlocked_at"] else None,
+            }
+            for a in achievements
+        ],
     }
