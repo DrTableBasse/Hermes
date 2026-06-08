@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { Suspense } from 'react'
 import Link from 'next/link'
@@ -10,6 +11,21 @@ import { TagManager } from './TagManager'
 type UserWithExtras = {
   isAdmin?: boolean; isRedacteur?: boolean
 } & Record<string, unknown>
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const isFr = locale === 'fr'
+  return {
+    title: isFr ? 'Articles' : 'Articles',
+    description: isFr
+      ? 'Découvrez les articles et actualités de la communauté SaucisseLand.'
+      : 'Discover articles and news from the SaucisseLand community.',
+  }
+}
 
 export default async function ArticlesPage({
   params,
