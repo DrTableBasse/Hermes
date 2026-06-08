@@ -1,13 +1,15 @@
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 import database as db
 from middleware.auth_middleware import get_current_user
+from limiter import limiter
 
 router = APIRouter(prefix="/leaderboard", tags=["leaderboard"])
 
 
 @router.get("/voice")
-async def leaderboard_voice(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_voice(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -54,7 +56,8 @@ async def leaderboard_voice(page: int = 1, limit: int = 10, search: Optional[str
 
 
 @router.get("/messages")
-async def leaderboard_messages(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_messages(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -103,7 +106,8 @@ async def leaderboard_messages(page: int = 1, limit: int = 10, search: Optional[
 
 
 @router.get("/achievements")
-async def leaderboard_achievements(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_achievements(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -152,7 +156,8 @@ async def leaderboard_achievements(page: int = 1, limit: int = 10, search: Optio
 
 
 @router.get("/xp")
-async def leaderboard_xp(page: int = 1, limit: int = 10, period: str = "all"):
+@limiter.limit("60/minute")
+async def leaderboard_xp(request: Request, page: int = 1, limit: int = 10, period: str = "all"):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -176,7 +181,8 @@ async def leaderboard_xp(page: int = 1, limit: int = 10, period: str = "all"):
 
 
 @router.get("/global")
-async def leaderboard_global(page: int = 1, limit: int = 10):
+@limiter.limit("60/minute")
+async def leaderboard_global(request: Request, page: int = 1, limit: int = 10):
     """Combined score: 1pt/min voice + 1pt/message + 200pt/achievement."""
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
@@ -221,7 +227,8 @@ async def leaderboard_global(page: int = 1, limit: int = 10):
 
 
 @router.get("/bumps")
-async def leaderboard_bumps(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_bumps(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -268,7 +275,8 @@ async def leaderboard_bumps(page: int = 1, limit: int = 10, search: Optional[str
 
 
 @router.get("/invites")
-async def leaderboard_invites(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_invites(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -315,7 +323,8 @@ async def leaderboard_invites(page: int = 1, limit: int = 10, search: Optional[s
 
 
 @router.get("/levels")
-async def leaderboard_levels(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_levels(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -367,7 +376,8 @@ async def leaderboard_levels(page: int = 1, limit: int = 10, search: Optional[st
 
 
 @router.get("/streaks")
-async def leaderboard_streaks(page: int = 1, limit: int = 10, search: Optional[str] = None):
+@limiter.limit("60/minute")
+async def leaderboard_streaks(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
@@ -425,7 +435,8 @@ async def leaderboard_streaks(page: int = 1, limit: int = 10, search: Optional[s
 
 
 @router.get("/me")
-async def my_ranks(user: dict = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def my_ranks(request: Request, user: dict = Depends(get_current_user)):
     uid = int(user['sub'])
 
     voice_rank = await db.fetchval("""

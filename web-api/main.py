@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
+from limiter import limiter
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -20,8 +20,6 @@ async def lifespan(app: FastAPI):
     yield
     await db.close_pool()
 
-
-limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title="Hermes Web API", lifespan=lifespan)
 

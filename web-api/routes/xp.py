@@ -1,11 +1,13 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 import database as db
+from limiter import limiter
 
 router = APIRouter(prefix="/xp", tags=["xp"])
 
 
 @router.get("/leaderboard")
-async def xp_leaderboard(limit: int = 10, period: str = "all"):
+@limiter.limit("60/minute")
+async def xp_leaderboard(request: Request, limit: int = 10, period: str = "all"):
     limit = max(1, min(limit, 100))
     if period == "weekly":
         rows = await db.fetch(
@@ -25,7 +27,8 @@ async def xp_leaderboard(limit: int = 10, period: str = "all"):
 
 
 @router.get("/{user_id}")
-async def get_user_xp(user_id: int):
+@limiter.limit("60/minute")
+async def get_user_xp(request: Request, user_id: int):
     row = await db.fetchrow("SELECT * FROM user_xp WHERE user_id = $1", user_id)
     if not row:
         return {"user_id": user_id, "total_xp": 0, "weekly_xp": 0, "current_level": 0}
