@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
+import Image from 'next/image'
 import { headers } from 'next/headers'
 import type { Article } from '@/lib/api'
 import { serverListArticles, serverLeaderboardGlobal, type GlobalEntry } from '@/lib/server-api'
@@ -146,7 +147,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                   {medals[i] ?? `${i + 1}`}
                 </span>
                 {entry.discord_avatar ? (
-                  <img src={entry.discord_avatar} alt={entry.username}
+                  <Image src={entry.discord_avatar} alt={entry.username} width={i === 0 ? 40 : 32} height={i === 0 ? 40 : 32}
                        className={`rounded-full flex-shrink-0 ${i === 0 ? 'w-10 h-10 ring-2 ring-gold/40' : 'w-8 h-8'}`} />
                 ) : (
                   <div className={`rounded-full bg-accent flex items-center justify-center font-bold flex-shrink-0 ${

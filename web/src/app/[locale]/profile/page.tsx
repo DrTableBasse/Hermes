@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
@@ -39,7 +40,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
       {/* Profile header */}
       <div className="flex items-center gap-5 mb-12 glass-card p-6">
         {usr.discord_avatar ? (
-          <img src={usr.discord_avatar} alt={usr.username}
+          <Image src={usr.discord_avatar} alt={usr.username} width={80} height={80}
                className="w-20 h-20 rounded-full ring-4 ring-border/60" />
         ) : (
           <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-3xl font-bold ring-4 ring-border/60">
