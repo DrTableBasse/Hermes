@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry, Achievement } from './api'
+import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry, Achievement, AchievementWithStatus } from './api'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
 
@@ -158,4 +158,9 @@ export async function serverSearchUserByUsername(
 
 export async function serverLeaderboardXpWeekly(limit = 10): Promise<LbPage<XPEntry>> {
   return get<LbPage<XPEntry>>(`/xp/leaderboard?period=weekly&limit=${limit}`)
+}
+
+export async function serverGetUserAchievementsAll(userId: string): Promise<AchievementWithStatus[]> {
+  const res = await get<{ achievements: AchievementWithStatus[] }>(`/users/${userId}/achievements`)
+  return res.achievements
 }

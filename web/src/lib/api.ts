@@ -107,6 +107,16 @@ export interface UserStats {
   achievements: Achievement[]
 }
 export interface Achievement { id: number; name: string; description: string; icon: string; points: number; unlocked_at: string }
+export interface AchievementWithStatus {
+  id: number
+  name: string
+  description: string
+  icon: string
+  points: number
+  condition_type: string
+  unlocked: boolean
+  unlocked_at: string | null
+}
 export interface LeaderboardEntry { user_id: number; username: string; discord_avatar: string | null; total_messages: number }
 export interface VoiceEntry { user_id: number; username: string; discord_avatar: string | null; total_seconds: number; formatted: string }
 export interface Tag { id: number; name: string; slug: string; color: string }
