@@ -245,7 +245,7 @@ async def get_user_public_stats(request: Request, user_id: int):
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    total_messages, voice_row, xp_row, ach_count, streak_row, bump_count = await asyncio.gather(
+    total_messages, voice_row, xp_row, ach_count, streak_row, bump_count, achievements = await asyncio.gather(
         db.fetchval(
             "SELECT COALESCE(SUM(message_count), 0) FROM user_message_stats WHERE user_id = $1",
             user_id,
@@ -259,19 +259,18 @@ async def get_user_public_stats(request: Request, user_id: int):
         db.fetchval(
             "SELECT COALESCE(bump_count, 0) FROM user_bump_stats WHERE user_id = $1", user_id
         ),
+        db.fetch("""
+            SELECT a.id, a.name, a.description, a.icon, a.points, ua.unlocked_at
+            FROM achievements a
+            JOIN user_achievements ua ON a.id = ua.achievement_id
+            WHERE ua.user_id = $1
+            ORDER BY a.points DESC, ua.unlocked_at DESC
+        """, user_id),
     )
 
     s = voice_row["total_time"] if voice_row else 0
     h, rem = divmod(s, 3600)
     m, _ = divmod(rem, 60)
-
-    achievements = await db.fetch("""
-        SELECT a.id, a.name, a.description, a.icon, a.points, ua.unlocked_at
-        FROM achievements a
-        JOIN user_achievements ua ON a.id = ua.achievement_id
-        WHERE ua.user_id = $1
-        ORDER BY a.points DESC, ua.unlocked_at DESC
-    """, user_id)
 
     return {
         "user_id":        str(user_id),
@@ -295,7 +294,7 @@ async def get_user_public_stats(request: Request, user_id: int):
                 "description": a["description"],
                 "icon":        a["icon"],
                 "points":      a["points"],
-                "unlocked_at": str(a["unlocked_at"]),
+                "unlocked_at": a["unlocked_at"].isoformat() if a["unlocked_at"] else None,
             }
             for a in achievements
         ],
