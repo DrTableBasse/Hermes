@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry } from './api'
+import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry, Achievement } from './api'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
 
@@ -136,6 +136,7 @@ export interface PublicUserStats {
     current_streak: number
     bump_count: number
   }
+  achievements: Achievement[]
 }
 
 export async function serverGetUserPublicStats(userId: string): Promise<PublicUserStats> {
