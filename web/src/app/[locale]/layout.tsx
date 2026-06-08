@@ -8,6 +8,7 @@ import { Navbar } from '@/components/Navbar'
 import { auth } from '@/lib/auth'
 import type { User } from '@/lib/api'
 import '../globals.css'
+import { ThemeProvider } from '@/components/ThemeProvider'
 
 export const metadata: Metadata = {
   title: {
@@ -58,8 +59,9 @@ export default async function LocaleLayout({
   } catch {}
 
   return (
-    <html lang={locale} className="dark">
+    <html lang={locale} suppressHydrationWarning>
       <body>
+        <ThemeProvider>
         <NextIntlClientProvider messages={messages}>
           <Navbar user={user} locale={locale} />
           <main className="min-h-screen">{children}</main>
@@ -89,6 +91,7 @@ export default async function LocaleLayout({
             </div>
           </footer>
         </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

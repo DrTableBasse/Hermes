@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { authClient } from '@/lib/auth-client'
 import type { User } from '@/lib/api'
 import { LoginButton } from '@/components/LoginButton'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface NavbarProps { user: User | null; locale: string }
 
@@ -67,6 +68,7 @@ export function Navbar({ user, locale }: NavbarProps) {
 
         {/* Right section */}
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <button
             onClick={switchLocale}
             className="text-xs border border-border rounded-md px-2.5 py-1 text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-all"
