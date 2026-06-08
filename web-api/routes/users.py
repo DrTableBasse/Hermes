@@ -299,3 +299,34 @@ async def get_user_public_stats(request: Request, user_id: int):
             for a in achievements
         ],
     }
+
+
+@router.get("/{user_id}/achievements")
+@limiter.limit("60/minute")
+async def get_user_achievements_all(request: Request, user_id: int):
+    """All achievements with unlock status — unauthenticated."""
+    rows = await db.fetch("""
+        SELECT
+            a.id, a.name, a.description, a.icon, a.points, a.condition_type,
+            CASE WHEN ua.user_id IS NOT NULL THEN true ELSE false END AS unlocked,
+            ua.unlocked_at
+        FROM achievements a
+        LEFT JOIN user_achievements ua
+               ON a.id = ua.achievement_id AND ua.user_id = $1
+        ORDER BY a.points DESC, a.id
+    """, user_id)
+    return {
+        "achievements": [
+            {
+                "id":             r["id"],
+                "name":           r["name"],
+                "description":    r["description"],
+                "icon":           r["icon"],
+                "points":         r["points"],
+                "condition_type": r["condition_type"],
+                "unlocked":       r["unlocked"],
+                "unlocked_at":    r["unlocked_at"].isoformat() if r["unlocked_at"] else None,
+            }
+            for r in rows
+        ]
+    }
