@@ -189,7 +189,9 @@ export default async function LeaderboardPage({
             <div className="flex flex-col items-center text-center p-5 rounded-2xl border border-gold/40 bg-gold/5 medal-glow transition-all">
               <span className="text-4xl font-bold mb-2">{medal(1)}</span>
               <Avatar src={top3[0].discord_avatar} name={top3[0].username} size="lg" />
-              <p className="font-semibold text-base w-full mt-2 truncate">{top3[0].username}</p>
+              <p className="font-semibold text-base w-full mt-2 truncate">
+                <Link href={`/${locale}/u/${top3[0].user_id}`} className="hover:text-primary transition-colors">{top3[0].username}</Link>
+              </p>
               {tab === 'levels' && (
                 <p className="font-bold mt-1 text-base text-primary">
                   Niv.&nbsp;{top3[0].current_level}
@@ -215,7 +217,9 @@ export default async function LeaderboardPage({
                   >
                     <span className="text-xl font-bold mb-2">{medal(actualRank)}</span>
                     <Avatar src={entry.discord_avatar} name={entry.username} size="sm" />
-                    <p className="font-semibold text-xs truncate w-full mt-2">{entry.username}</p>
+                    <p className="font-semibold text-xs truncate w-full mt-2">
+                      <Link href={`/${locale}/u/${entry.user_id}`} className="hover:text-primary transition-colors">{entry.username}</Link>
+                    </p>
                     {tab === 'levels' && (
                       <p className="font-bold mt-1 text-xs text-primary/80">
                         Niv.&nbsp;{entry.current_level}
@@ -253,7 +257,7 @@ export default async function LeaderboardPage({
                   </span>
                   <Avatar src={entry.discord_avatar} name={entry.username} size={isCenter ? 'lg' : 'md'} />
                   <p className={`font-semibold truncate w-full mt-2 ${isCenter ? 'text-base' : 'text-sm'}`}>
-                    {entry.username}
+                    <Link href={`/${locale}/u/${entry.user_id}`} className="hover:text-primary transition-colors">{entry.username}</Link>
                   </p>
                   {tab === 'levels' && (
                     <p className={`font-bold mt-1 ${isCenter ? 'text-base text-primary' : 'text-sm text-primary/80'}`}>
@@ -300,7 +304,7 @@ export default async function LeaderboardPage({
               </span>
               <Avatar src={entry.discord_avatar} name={entry.username} />
               <span className="flex-1 font-medium truncate">
-                {entry.username}
+                <Link href={`/${locale}/u/${entry.user_id}`} className="hover:text-primary transition-colors">{entry.username}</Link>
                 {isMe && (
                   <span className="ml-2 text-xs text-primary font-normal">(moi)</span>
                 )}
