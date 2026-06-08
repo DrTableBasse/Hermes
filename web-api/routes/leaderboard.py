@@ -156,15 +156,22 @@ async def leaderboard_xp(page: int = 1, limit: int = 10, period: str = "all"):
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
-    col    = "weekly_xp" if period == "weekly" else "total_xp"
 
     total = await db.fetchval("SELECT COUNT(*) FROM user_xp")
-    rows  = await db.fetch(
-        f"SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
-        f"FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
-        f"ORDER BY x.{col} DESC LIMIT $1 OFFSET $2",
-        limit, offset,
-    )
+    if period == "weekly":
+        rows = await db.fetch(
+            "SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
+            "FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
+            "ORDER BY x.weekly_xp DESC LIMIT $1 OFFSET $2",
+            limit, offset,
+        )
+    else:
+        rows = await db.fetch(
+            "SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
+            "FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
+            "ORDER BY x.total_xp DESC LIMIT $1 OFFSET $2",
+            limit, offset,
+        )
     return {"leaderboard": [dict(r) for r in rows], "total": int(total or 0), "page": page, "limit": limit}
 
 
