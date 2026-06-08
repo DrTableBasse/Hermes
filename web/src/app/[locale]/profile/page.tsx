@@ -77,6 +77,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
               icon: stats.current_streak >= 14 ? '🔥🔥🔥' : stats.current_streak >= 7 ? '🔥🔥' : stats.current_streak >= 1 ? '🔥' : '❄️',
               sub: stats.current_streak >= 1 ? `×${stats.xp_multiplier?.toFixed(1) ?? '1.0'} XP · record ${stats.max_streak ?? 0}j` : 'Rejoins un vocal !',
             },
+            {
+              label: 'Streak messages',
+              value: (stats.msg_current_streak ?? 0) > 0 ? `${stats.msg_current_streak}j` : '—',
+              icon: (stats.msg_current_streak ?? 0) >= 14 ? '💬🔥🔥' : (stats.msg_current_streak ?? 0) >= 7 ? '💬🔥' : (stats.msg_current_streak ?? 0) >= 1 ? '💬' : '🔇',
+              sub: (stats.msg_current_streak ?? 0) >= 1 ? `record ${stats.msg_max_streak ?? 0}j` : 'Envoie un message !',
+            },
           ].map(({ label, value, icon, sub }) => (
             <div key={label} className="stat-card">
               <div className="text-3xl mb-2">{icon}</div>
@@ -95,6 +101,35 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
           <ActivityHeatmap data={activityData} />
         </div>
       </section>
+
+      {/* Badges Réputation */}
+      {achievements.length > 0 && (() => {
+        const tiers = { Légendaire: 0, Épique: 0, Rare: 0, Commun: 0 } as Record<string, number>
+        for (const a of achievements) {
+          if (a.points >= 100)      tiers['Légendaire']++
+          else if (a.points >= 50)  tiers['Épique']++
+          else if (a.points >= 25)  tiers['Rare']++
+          else                      tiers['Commun']++
+        }
+        const badges = [
+          { label: 'Légendaire', count: tiers['Légendaire'], icon: '⭐', cls: 'bg-yellow-500/20 text-yellow-300 ring-yellow-500/40' },
+          { label: 'Épique',     count: tiers['Épique'],     icon: '💎', cls: 'bg-indigo-500/20 text-indigo-300 ring-indigo-500/40' },
+          { label: 'Rare',       count: tiers['Rare'],       icon: '🔶', cls: 'bg-orange-500/20 text-orange-300 ring-orange-500/40' },
+          { label: 'Commun',     count: tiers['Commun'],     icon: '⚪', cls: 'bg-neutral-500/20 text-neutral-300 ring-neutral-500/40' },
+        ].filter(b => b.count > 0)
+        return (
+          <section className="mb-8">
+            <h2 className="text-xl font-bold mb-4">Réputation</h2>
+            <div className="flex flex-wrap gap-2">
+              {badges.map(b => (
+                <span key={b.label} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ring-1 ${b.cls}`}>
+                  {b.icon} {b.count} {b.label}
+                </span>
+              ))}
+            </div>
+          </section>
+        )
+      })()}
 
       {/* Achievements */}
       <section>
