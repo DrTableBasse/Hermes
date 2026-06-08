@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
@@ -11,6 +12,37 @@ import { ArticleActions } from './ArticleActions'
 type UserWithExtras = {
   isAdmin?: boolean; isRedacteur?: boolean; discordId?: string
 } & Record<string, unknown>
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string; slug: string }>
+}): Promise<Metadata> {
+  const { locale, slug } = await params
+  try {
+    const article = await serverGetArticle(slug)
+    const desc = article.content
+      .slice(0, 160)
+      .replace(/[#*`_\n]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    return {
+      title:       article.title,
+      description: desc,
+      openGraph: {
+        title:       article.title,
+        description: desc,
+        type:        'article',
+        locale,
+        ...(article.cover_image_url && {
+          images: [{ url: article.cover_image_url }],
+        }),
+      },
+    }
+  } catch {
+    return { title: 'Article' }
+  }
+}
 
 export default async function ArticlePage({
   params,
