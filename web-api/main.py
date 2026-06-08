@@ -1,10 +1,10 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
+from limiter import limiter
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,8 +21,6 @@ async def lifespan(app: FastAPI):
     await db.close_pool()
 
 
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(title="Hermes Web API", lifespan=lifespan)
 
 app.state.limiter = limiter
@@ -33,8 +31,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://web:3000"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Cookie"],
 )
 
 app.include_router(auth.router)

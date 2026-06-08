@@ -435,24 +435,29 @@ class QuestManager:
         """, user_id, quest_id)
         return row['xp_reward']
 
-    async def create_weekly_quests(self, count: int = 8):
-        """Pick random templates and create quests for the current week."""
+    async def create_weekly_quests(self, count: int = 8, force: bool = False):
+        """Pick random templates with category diversity and create quests for the current week."""
         from datetime import date, timedelta
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
         week_end = week_start + timedelta(days=6)
 
-        existing = await self.db.fetchval(
-            "SELECT COUNT(*) FROM weekly_quests WHERE week_start = $1", week_start
+        active = await self.db.fetchval(
+            "SELECT COUNT(*) FROM weekly_quests WHERE week_start = $1 AND is_active = TRUE", week_start
         )
-        if existing:
+        if active and not force:
             return
 
         try:
-            templates = await self.db.fetch(
-                "SELECT * FROM quest_templates WHERE is_enabled = TRUE ORDER BY RANDOM() LIMIT $1",
-                count,
-            )
+            # At most 2 per quest_type to ensure variety
+            templates = await self.db.fetch("""
+                SELECT * FROM (
+                    SELECT *, ROW_NUMBER() OVER (PARTITION BY quest_type ORDER BY RANDOM()) AS rn
+                    FROM quest_templates WHERE is_enabled = TRUE
+                ) t WHERE rn <= 2
+                ORDER BY RANDOM()
+                LIMIT $1
+            """, count)
         except Exception:
             templates = []
 

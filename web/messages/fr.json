@@ -11,7 +11,11 @@
   "home": {
     "hero_title": "Bienvenue sur Hermes",
     "hero_subtitle": "Le hub de la communauté — stats, articles, et gestion du serveur Discord.",
-    "join_discord": "Rejoindre le Discord",
+    "join_discord": "Rejoindre SaucisseLand",
+    "already_member": "Déjà membre ? Se connecter →",
+    "badge_gaming": "Serveur gaming",
+    "badge_leaderboard": "Classements live",
+    "badge_quests": "Quêtes hebdo",
     "latest_articles": "Derniers articles",
     "view_all": "Voir tous les articles",
     "top_members": "Top membres",

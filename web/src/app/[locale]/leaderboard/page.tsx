@@ -180,42 +180,97 @@ export default async function LeaderboardPage({
 
       {/* Top 3 Podium */}
       {top3.length >= 3 && (
-        <div className="grid grid-cols-3 gap-3 mb-8">
-          {[top3[1], top3[0], top3[2]].map((entry, i) => {
-            const actualRank = [2, 1, 3][i]
-            const isCenter = i === 1
-            return (
-              <div key={entry.user_id}
-                   className={`flex flex-col items-center text-center p-4 rounded-2xl border transition-all ${
-                     isCenter
-                       ? 'border-gold/40 bg-gold/5 -mt-4 pb-6 medal-glow'
-                       : 'border-border bg-card mt-2'
-                   }`}
-              >
-                <span className={`font-bold mb-2 ${isCenter ? 'text-3xl' : 'text-2xl'}`}>
-                  {medal(actualRank)}
-                </span>
-                <Avatar src={entry.discord_avatar} name={entry.username} size={isCenter ? 'lg' : 'md'} />
-                <p className={`font-semibold truncate w-full mt-2 ${isCenter ? 'text-base' : 'text-sm'}`}>
-                  {entry.username}
+        <>
+          {/* Mobile layout — visible only on xs screens */}
+          <div className="block sm:hidden mb-8 space-y-3">
+            {/* #1 Gold — full width, prominent */}
+            <div className="flex flex-col items-center text-center p-5 rounded-2xl border border-gold/40 bg-gold/5 medal-glow transition-all">
+              <span className="text-4xl font-bold mb-2">{medal(1)}</span>
+              <Avatar src={top3[0].discord_avatar} name={top3[0].username} size="lg" />
+              <p className="font-semibold text-base w-full mt-2 truncate">{top3[0].username}</p>
+              {tab === 'levels' && (
+                <p className="font-bold mt-1 text-base text-primary">
+                  Niv.&nbsp;{top3[0].current_level}
                 </p>
-                {tab === 'levels' && (
-                  <p className={`font-bold mt-1 ${isCenter ? 'text-base text-primary' : 'text-sm text-primary/80'}`}>
-                    Niv.&nbsp;{entry.current_level}
-                  </p>
-                )}
-                {tab === 'streaks' && (
-                  <p className={`font-bold mt-1 ${isCenter ? 'text-base text-primary' : 'text-sm text-primary/80'}`}>
-                    Record&nbsp;{entry.max_streak}j
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
-                  {scoreLabel(tab, entry)}
+              )}
+              {tab === 'streaks' && (
+                <p className="font-bold mt-1 text-base text-primary">
+                  Record&nbsp;{top3[0].max_streak}j
                 </p>
-              </div>
-            )
-          })}
-        </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+                {scoreLabel(tab, top3[0])}
+              </p>
+            </div>
+
+            {/* #2 Silver + #3 Bronze — side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              {[top3[1], top3[2]].map((entry, i) => {
+                const actualRank = i === 0 ? 2 : 3
+                return (
+                  <div key={entry.user_id}
+                       className="flex flex-col items-center text-center p-3 rounded-2xl border border-border bg-card transition-all"
+                  >
+                    <span className="text-xl font-bold mb-2">{medal(actualRank)}</span>
+                    <Avatar src={entry.discord_avatar} name={entry.username} size="sm" />
+                    <p className="font-semibold text-xs truncate w-full mt-2">{entry.username}</p>
+                    {tab === 'levels' && (
+                      <p className="font-bold mt-1 text-xs text-primary/80">
+                        Niv.&nbsp;{entry.current_level}
+                      </p>
+                    )}
+                    {tab === 'streaks' && (
+                      <p className="font-bold mt-1 text-xs text-primary/80">
+                        Record&nbsp;{entry.max_streak}j
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+                      {scoreLabel(tab, entry)}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Desktop layout — visible on sm+ screens */}
+          <div className="hidden sm:grid grid-cols-3 gap-3 mb-8">
+            {[top3[1], top3[0], top3[2]].map((entry, i) => {
+              const actualRank = [2, 1, 3][i]
+              const isCenter = i === 1
+              return (
+                <div key={entry.user_id}
+                     className={`flex flex-col items-center text-center p-4 rounded-2xl border transition-all ${
+                       isCenter
+                         ? 'border-gold/40 bg-gold/5 -mt-4 pb-6 medal-glow'
+                         : 'border-border bg-card mt-2'
+                     }`}
+                >
+                  <span className={`font-bold mb-2 ${isCenter ? 'text-3xl' : 'text-2xl'}`}>
+                    {medal(actualRank)}
+                  </span>
+                  <Avatar src={entry.discord_avatar} name={entry.username} size={isCenter ? 'lg' : 'md'} />
+                  <p className={`font-semibold truncate w-full mt-2 ${isCenter ? 'text-base' : 'text-sm'}`}>
+                    {entry.username}
+                  </p>
+                  {tab === 'levels' && (
+                    <p className={`font-bold mt-1 ${isCenter ? 'text-base text-primary' : 'text-sm text-primary/80'}`}>
+                      Niv.&nbsp;{entry.current_level}
+                    </p>
+                  )}
+                  {tab === 'streaks' && (
+                    <p className={`font-bold mt-1 ${isCenter ? 'text-base text-primary' : 'text-sm text-primary/80'}`}>
+                      Record&nbsp;{entry.max_streak}j
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5 tabular-nums">
+                    {scoreLabel(tab, entry)}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </>
       )}
 
       {/* Rest of leaderboard */}

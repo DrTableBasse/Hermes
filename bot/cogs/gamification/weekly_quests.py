@@ -6,6 +6,7 @@ from discord.ext import commands, tasks
 from datetime import date, datetime, time, timezone
 from utils.database import quest_manager, db_manager, notification_manager
 from utils.command_manager import command_enabled
+from utils.decorators import administration_only
 from utils.embed_style import hermes_embed, progress_bar, Colors, FOOTER_TEXT
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,28 @@ class WeeklyQuestsCog(commands.Cog):
             )
         except Exception as e:
             logger.warning("notify quest error for %s: %s", user_id, e)
+
+    @app_commands.command(name="reset-quests", description="[Admin] Réinitialiser les quêtes de la semaine")
+    @administration_only()
+    async def reset_quests_cmd(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        await db_manager.execute("UPDATE weekly_quests SET is_active = FALSE WHERE is_active = TRUE")
+        await quest_manager.create_weekly_quests(force=True)
+        new_quests = await quest_manager.get_active_quests()
+
+        embed = hermes_embed(
+            title="🔄  Quêtes réinitialisées",
+            description=f"**{len(new_quests)}** nouvelles quêtes créées pour cette semaine.",
+            color=Colors.GREEN,
+        )
+        for q in new_quests:
+            embed.add_field(
+                name=f"{q['icon']} {q['title']}",
+                value=f"{q.get('description', '')} · **+{q['xp_reward']} XP**",
+                inline=False,
+            )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+        logger.info("Weekly quests manually reset by %s", interaction.user)
 
     @tasks.loop(time=time(0, 0, tzinfo=timezone.utc))
     async def weekly_quest_reset(self):

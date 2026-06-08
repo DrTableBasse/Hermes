@@ -8,7 +8,9 @@ from typing import Optional
 import discord
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel
 
 from config import BOT_API_PORT, BOT_API_TOKEN
@@ -70,7 +72,14 @@ class CommandToggleRequest(BaseModel):
 @app.get("/health")
 async def health():
     ready = _bot is not None and _bot.is_ready()
+    import metrics as bot_metrics
+    bot_metrics.bot_ready.set(1 if ready else 0)
     return {"status": "ok" if ready else "starting", "ready": ready}
+
+
+@app.get("/metrics")
+async def metrics():
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 # ── Warns ─────────────────────────────────────────────────────────────────────
