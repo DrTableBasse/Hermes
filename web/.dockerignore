@@ -1,0 +1,6 @@
+.git
+.env*
+node_modules
+.next
+*.md
+.pytest_cache
