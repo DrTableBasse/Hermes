@@ -3,8 +3,8 @@ import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { serverGetUserStats, serverGetUserActivity } from '@/lib/server-api'
-import ActivityHeatmap from '@/components/ActivityHeatmap'
+import AchievementsPanel from '@/components/AchievementsPanel'
+import { serverGetUserStats, serverGetUserAchievementsAll } from '@/lib/server-api'
 import { format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 
@@ -24,8 +24,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
   let data = null
   try { data = await serverGetUserStats(u.discordId, token) } catch {}
 
-  let activityData: import('@/lib/api').ActivityDay[] = []
-  try { activityData = await serverGetUserActivity(u.discordId) } catch {}
+  let allAchievements: import('@/lib/api').AchievementWithStatus[] = []
+  try { allAchievements = await serverGetUserAchievementsAll(u.discordId) } catch {}
 
   if (!data) {
     return (
@@ -35,7 +35,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
     )
   }
 
-  const { user: usr, stats, achievements } = data
+  const { user: usr, stats } = data
   const voiceH = Math.floor(stats.voice_hours)
   const voiceM = Math.round((stats.voice_hours - voiceH) * 60)
 
@@ -94,67 +94,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
         </div>
       </section>
 
-      {/* Activité */}
-      <section className="mb-12">
-        <h2 className="text-xl font-bold mb-5">Activité (12 derniers mois)</h2>
-        <div className="glass-card p-6">
-          <ActivityHeatmap data={activityData} />
-        </div>
-      </section>
-
-      {/* Badges Réputation */}
-      {achievements.length > 0 && (() => {
-        const tiers = { Légendaire: 0, Épique: 0, Rare: 0, Commun: 0 } as Record<string, number>
-        for (const a of achievements) {
-          if (a.points >= 100)      tiers['Légendaire']++
-          else if (a.points >= 50)  tiers['Épique']++
-          else if (a.points >= 25)  tiers['Rare']++
-          else                      tiers['Commun']++
-        }
-        const badges = [
-          { label: 'Légendaire', count: tiers['Légendaire'], icon: '⭐', cls: 'bg-yellow-500/20 text-yellow-300 ring-yellow-500/40' },
-          { label: 'Épique',     count: tiers['Épique'],     icon: '💎', cls: 'bg-indigo-500/20 text-indigo-300 ring-indigo-500/40' },
-          { label: 'Rare',       count: tiers['Rare'],       icon: '🔶', cls: 'bg-orange-500/20 text-orange-300 ring-orange-500/40' },
-          { label: 'Commun',     count: tiers['Commun'],     icon: '⚪', cls: 'bg-neutral-500/20 text-neutral-300 ring-neutral-500/40' },
-        ].filter(b => b.count > 0)
-        return (
-          <section className="mb-8">
-            <h2 className="text-xl font-bold mb-4">Réputation</h2>
-            <div className="flex flex-wrap gap-2">
-              {badges.map(b => (
-                <span key={b.label} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ring-1 ${b.cls}`}>
-                  {b.icon} {b.count} {b.label}
-                </span>
-              ))}
-            </div>
-          </section>
-        )
-      })()}
-
       {/* Achievements */}
       <section>
         <h2 className="text-xl font-bold mb-5">{t('achievements')}</h2>
-        {achievements.length === 0 ? (
-          <div className="glass-card p-8 text-center">
-            <p className="text-3xl mb-2">🏆</p>
-            <p className="text-muted-foreground">{t('no_achievements')}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {achievements.map(a => (
-              <div key={a.id} className="glass-card-hover flex items-start gap-3 p-4">
-                <span className="text-3xl">{a.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{a.name}</p>
-                  <p className="text-sm text-muted-foreground">{a.description}</p>
-                  <p className="text-xs text-primary font-medium mt-1.5">
-                    +{a.points} pts · {t('unlocked_at')} {format(new Date(a.unlocked_at), 'dd/MM/yyyy', { locale: dateLocale })}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <AchievementsPanel achievements={allAchievements} />
       </section>
     </div>
   )
