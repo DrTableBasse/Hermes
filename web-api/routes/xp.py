@@ -7,12 +7,20 @@ router = APIRouter(prefix="/xp", tags=["xp"])
 @router.get("/leaderboard")
 async def xp_leaderboard(limit: int = 10, period: str = "all"):
     limit = max(1, min(limit, 100))
-    col = "weekly_xp" if period == "weekly" else "total_xp"
-    rows = await db.fetch(
-        f"SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
-        f"FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
-        f"ORDER BY x.{col} DESC LIMIT $1", limit
-    )
+    if period == "weekly":
+        rows = await db.fetch(
+            "SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
+            "FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
+            "ORDER BY x.weekly_xp DESC LIMIT $1",
+            limit,
+        )
+    else:
+        rows = await db.fetch(
+            "SELECT x.user_id, x.total_xp, x.weekly_xp, x.current_level, v.username, v.discord_avatar "
+            "FROM user_xp x JOIN user_voice_data v ON x.user_id = v.user_id "
+            "ORDER BY x.total_xp DESC LIMIT $1",
+            limit,
+        )
     return {"leaderboard": [dict(r) for r in rows]}
 
 
