@@ -3,7 +3,8 @@ import Image from 'next/image'
 import { getTranslations } from 'next-intl/server'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { serverGetUserStats } from '@/lib/server-api'
+import { serverGetUserStats, serverGetUserActivity } from '@/lib/server-api'
+import ActivityHeatmap from '@/components/ActivityHeatmap'
 import { format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 
@@ -22,6 +23,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
 
   let data = null
   try { data = await serverGetUserStats(u.discordId, token) } catch {}
+
+  let activityData: import('@/lib/api').ActivityDay[] = []
+  try { activityData = await serverGetUserActivity(u.discordId) } catch {}
 
   if (!data) {
     return (
@@ -81,6 +85,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
               <div className="text-xs text-primary font-medium mt-1.5">{sub}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Activité */}
+      <section className="mb-12">
+        <h2 className="text-xl font-bold mb-5">Activité (12 derniers mois)</h2>
+        <div className="glass-card p-6">
+          <ActivityHeatmap data={activityData} />
         </div>
       </section>
 
