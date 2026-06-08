@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+import asyncio
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from limiter import limiter
 from middleware.auth_middleware import get_current_user
 import database as db
 
@@ -224,4 +227,53 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
             }
             for a in achievements
         ],
+    }
+
+
+@router.get("/{user_id}/public")
+@limiter.limit("60/minute")
+async def get_user_public_stats(request: Request, user_id: int):
+    """Public stats — no auth required. Returns community-visible data only."""
+    user = await db.fetchrow(
+        "SELECT user_id, username, nickname, discord_avatar FROM user_voice_data WHERE user_id = $1",
+        user_id,
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    total_messages, voice_row, xp_row, ach_count, streak_row, bump_count = await asyncio.gather(
+        db.fetchval(
+            "SELECT COALESCE(SUM(message_count), 0) FROM user_message_stats WHERE user_id = $1",
+            user_id,
+        ),
+        db.fetchrow("SELECT total_time FROM user_voice_data WHERE user_id = $1", user_id),
+        db.fetchrow("SELECT total_xp, current_level FROM user_xp WHERE user_id = $1", user_id),
+        db.fetchval("SELECT COUNT(*) FROM user_achievements WHERE user_id = $1", user_id),
+        db.fetchrow(
+            "SELECT current_streak, max_streak FROM user_streaks WHERE user_id = $1", user_id
+        ),
+        db.fetchval(
+            "SELECT COALESCE(bump_count, 0) FROM user_bump_stats WHERE user_id = $1", user_id
+        ),
+    )
+
+    s = voice_row["total_time"] if voice_row else 0
+    h, rem = divmod(s, 3600)
+    m, _ = divmod(rem, 60)
+
+    return {
+        "user_id":        str(user_id),
+        "username":       user["username"],
+        "nickname":       user["nickname"],
+        "discord_avatar": user["discord_avatar"],
+        "stats": {
+            "total_messages":    int(total_messages or 0),
+            "voice_seconds":     s,
+            "voice_formatted":   f"{h}h {m}m",
+            "total_xp":          xp_row["total_xp"] if xp_row else 0,
+            "current_level":     xp_row["current_level"] if xp_row else 0,
+            "achievement_count": int(ach_count or 0),
+            "current_streak":    streak_row["current_streak"] if streak_row else 0,
+            "bump_count":        int(bump_count or 0),
+        },
     }
