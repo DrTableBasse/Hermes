@@ -33,6 +33,12 @@ services:
       - "8001:8001"
     networks:
       - hermes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   web-api:
     build: ./web-api
@@ -52,6 +58,12 @@ services:
       - media_data:/app/media
     networks:
       - hermes
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   web:
     build: ./web
@@ -60,7 +72,7 @@ services:
       db:
         condition: service_healthy
       web-api:
-        condition: service_started
+        condition: service_healthy
     env_file: .env
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/proxy}
@@ -72,6 +84,12 @@ services:
       - "3000:3000"
     networks:
       - hermes
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ > /dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres_data:
