@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry } from './api'
+import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry } from './api'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
 
@@ -119,4 +119,41 @@ export async function serverListVoiceLeaderboard(limit = 5): Promise<VoiceEntry[
 export async function serverListMessagesLeaderboard(limit = 20): Promise<LeaderboardEntry[]> {
   const data = await get<LbPage<LeaderboardEntry>>(`/leaderboard/messages?limit=${limit}`)
   return data.leaderboard
+}
+
+export interface PublicUserStats {
+  user_id: string
+  username: string
+  nickname: string | null
+  discord_avatar: string | null
+  stats: {
+    total_messages: number
+    voice_seconds: number
+    voice_formatted: string
+    total_xp: number
+    current_level: number
+    achievement_count: number
+    current_streak: number
+    bump_count: number
+  }
+}
+
+export async function serverGetUserPublicStats(userId: string): Promise<PublicUserStats> {
+  return get<PublicUserStats>(`/users/${userId}/public`)
+}
+
+export async function serverGetUserActivity(userId: string): Promise<ActivityDay[]> {
+  return get<ActivityDay[]>(`/activity/${userId}/heatmap?days=365`)
+}
+
+export async function serverSearchUserByUsername(
+  query: string
+): Promise<LbPage<LeaderboardEntry>> {
+  return get<LbPage<LeaderboardEntry>>(
+    `/leaderboard/messages?search=${encodeURIComponent(query)}&limit=1`
+  )
+}
+
+export async function serverLeaderboardXpWeekly(limit = 10): Promise<LbPage<XPEntry>> {
+  return get<LbPage<XPEntry>>(`/xp/leaderboard?period=weekly&limit=${limit}`)
 }
