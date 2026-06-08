@@ -143,7 +143,8 @@ export async function serverGetUserPublicStats(userId: string): Promise<PublicUs
 }
 
 export async function serverGetUserActivity(userId: string): Promise<ActivityDay[]> {
-  return get<ActivityDay[]>(`/activity/${userId}/heatmap?days=365`)
+  const res = await get<{ heatmap: ActivityDay[] }>(`/activity/${userId}/heatmap?days=365`)
+  return res.heatmap
 }
 
 export async function serverSearchUserByUsername(
