@@ -171,13 +171,19 @@ class GameLFG(commands.Cog):
             )
             return
 
-        # Vérification : bon forum
+        # Vérification : bon forum + bon topic
         parent = interaction.channel.parent
         forum_id = self._forum_ids.get(key)
-        if not forum_id or not parent or parent.id != forum_id:
+        in_right_forum = forum_id and parent and parent.id == forum_id
+        in_lfg_thread  = interaction.channel.name.lower() == "recherche joueurs"
+
+        if not in_right_forum or not in_lfg_thread:
             await interaction.response.send_message(
                 embed=hermes_embed(
-                    description=f"❌ Utilise cette commande uniquement dans le forum **{game['name']}**.",
+                    description=(
+                        f"❌ Cette commande est réservée au topic **Recherche Joueurs** "
+                        f"dans le forum **{game['name']}**."
+                    ),
                     color=Colors.RED,
                 ),
                 ephemeral=True,
