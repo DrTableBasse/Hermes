@@ -94,7 +94,7 @@ class GameLFG(commands.Cog):
                 try:
                     await guild.create_role(
                         name=role_name,
-                        mentionable=True,
+                        mentionable=False,  # seul le bot peut ping via allowed_mentions
                         reason="Rôle jeu créé automatiquement par Hermes",
                     )
                     logger.info(f"Rôle jeu créé : '{role_name}'")
