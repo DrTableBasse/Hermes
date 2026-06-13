@@ -30,7 +30,9 @@ BOT_API_TOKEN = os.getenv('BOT_API_TOKEN', '')
 BOT_API_PORT  = int(os.getenv('BOT_API_PORT', '8001'))
 
 
-ACHIEVEMENTS_CHANNEL_ID = int(os.getenv('ACHIEVEMENTS_CHANNEL_ID', '0') or '0') or None
+ACHIEVEMENTS_CHANNEL_ID    = int(os.getenv('ACHIEVEMENTS_CHANNEL_ID', '0') or '0') or None
+REACTION_ROLE_CHANNEL_ID   = int(os.getenv('REACTION_ROLE_CHANNEL_ID', '836712775194771486') or '836712775194771486')
+GAME_FORUMS_CATEGORY_ID    = int(os.getenv('GAME_FORUMS_CATEGORY_ID', '0') or '0') or None
 XP_LEVEL_ROLES: dict = {}  # dict level -> role_name, configurable depuis .env
 
 
