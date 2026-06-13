@@ -17,8 +17,8 @@ EMBED_TITLE = "🎮 Rôles par Réaction"
 
 # emoji -> role_name (ordre d'affichage conservé)
 NOTIFICATION_ROLES: dict[str, str] = {
-    "⭐": "Annonces Globales",
-    "📺": "Annonces Streams/Vidéos",
+    "⭐": "annonces globales",
+    "📺": "annonces streams/vidéos",
     "🎭": "Annonce Animation",
 }
 

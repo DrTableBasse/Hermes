@@ -23,42 +23,42 @@ GAMES: dict[str, dict] = {
         "name": "Dead by Daylight",
         "role_name": "Dead by Daylight",
         "emoji": "🔪",
-        "forum_name": "dbd-recherche-joueurs",
+        "forum_name": "dbd",
         "color": Colors.RED,
     },
     "lol": {
         "name": "League of Legends",
         "role_name": "League of Legends",
         "emoji": "⚔️",
-        "forum_name": "lol-recherche-joueurs",
+        "forum_name": "lol",
         "color": Colors.GOLD,
     },
     "warframe": {
         "name": "Warframe",
         "role_name": "Warframe",
         "emoji": "🚀",
-        "forum_name": "warframe-recherche-joueurs",
+        "forum_name": "warframe",
         "color": Colors.BLUE,
     },
     "overwatch": {
         "name": "Overwatch",
         "role_name": "Overwatch",
         "emoji": "🌀",
-        "forum_name": "overwatch-recherche-joueurs",
+        "forum_name": "overwatch",
         "color": Colors.ORANGE,
     },
     "fortnite": {
         "name": "Fortnite",
         "role_name": "Fortnite",
         "emoji": "🏹",
-        "forum_name": "fortnite-recherche-joueurs",
+        "forum_name": "fortnite",
         "color": Colors.PURPLE,
     },
     "minecraft": {
         "name": "Minecraft",
         "role_name": "Minecraft",
         "emoji": "⛏️",
-        "forum_name": "minecraft-recherche-joueurs",
+        "forum_name": "minecraft",
         "color": Colors.GREEN,
     },
 }
@@ -111,6 +111,8 @@ class GameLFG(commands.Cog):
             if not isinstance(category, discord.CategoryChannel):
                 category = None
 
+        everyone = guild.default_role
+
         for key, game in GAMES.items():
             forum_name = game["forum_name"]
             existing = discord.utils.get(guild.forums, name=forum_name)
@@ -118,6 +120,14 @@ class GameLFG(commands.Cog):
                 self._forum_ids[key] = existing.id
                 logger.info(f"Forum trouvé : '{forum_name}' ({existing.id})")
                 continue
+
+            game_role = discord.utils.get(guild.roles, name=game["role_name"])
+
+            overwrites: dict = {
+                everyone: discord.PermissionOverwrite(view_channel=False),
+            }
+            if game_role:
+                overwrites[game_role] = discord.PermissionOverwrite(view_channel=True)
 
             try:
                 forum = await guild.create_forum_channel(
@@ -127,6 +137,7 @@ class GameLFG(commands.Cog):
                         f"{game['emoji']} Forum {game['name']} — Recherche de joueurs. "
                         f"Utilisez /{key} pour notifier les joueurs {game['name']}."
                     ),
+                    overwrites=overwrites,
                     reason="Forum jeu créé automatiquement par Hermes",
                 )
                 self._forum_ids[key] = forum.id
