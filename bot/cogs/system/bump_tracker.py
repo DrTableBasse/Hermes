@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 BUMP_CHANNEL_ID     = int(os.getenv('BUMP_CHANNEL_ID', '1068608173310754886'))
 BUMP_LOG_CHANNEL_ID = int(os.getenv('BUMP_LOG_CHANNEL_ID', '777124592552116234'))
 DISBOARD_ID         = 302050872383242240
+CARLGG_ID           = 235148962103951360
 BUMP_ROLE_NAME      = os.getenv('BUMP_ROLE_NAME', 'Bumper Fou')
 BUMP_ROLE_THRESHOLD = int(os.getenv('BUMP_ROLE_THRESHOLD', '20'))
 
@@ -55,7 +56,10 @@ class BumpTrackerCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.channel.id != BUMP_CHANNEL_ID:
             return
-        if message.author.id != DISBOARD_ID:
+        if message.author.id == CARLGG_ID:
+            if 'bumped this server' not in message.content:
+                return
+        elif message.author.id != DISBOARD_ID:
             return
 
         bumper_id = _extract_bumper_id(message)
@@ -127,7 +131,8 @@ class BumpTrackerCog(commands.Cog):
         embed.add_field(name="Progression 🎖️", value=progression, inline=True)
         if role_just_given:
             embed.add_field(name="🎊 Rôle obtenu", value=f"**{BUMP_ROLE_NAME}** attribué !", inline=False)
-        embed.set_footer(text=f"Message DISBOARD ID : {message.id}")
+        source = "carl.gg" if message.author.id == CARLGG_ID else "DISBOARD"
+        embed.set_footer(text=f"Message {source} ID : {message.id}")
         try:
             log_channel = message.guild.get_channel(BUMP_LOG_CHANNEL_ID)
             if log_channel:
