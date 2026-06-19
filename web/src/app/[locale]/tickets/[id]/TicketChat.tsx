@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '@/lib/api'
 import type { TicketDetail, TicketMessage } from '@/lib/api'
 
@@ -12,6 +12,31 @@ function SourceBadge({ source }: { source: 'web' | 'discord' }) {
     }`}>
       {source === 'discord' ? '🎮 Discord' : '🌐 Web'}
     </span>
+  )
+}
+
+function MessageBubble({ m }: { m: TicketMessage }) {
+  return (
+    <div className="glass-card p-4">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="font-semibold text-sm">{m.author_name}</span>
+        <SourceBadge source={m.source} />
+        <span className="text-xs text-muted-foreground ml-auto">
+          {new Date(m.created_at).toLocaleString('fr-FR')}
+        </span>
+      </div>
+      {m.content && <p className="text-sm whitespace-pre-wrap">{m.content}</p>}
+      {m.image_url && (
+        <a href={m.image_url} target="_blank" rel="noopener noreferrer" className="block mt-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={m.image_url}
+            alt="image"
+            className="max-h-72 rounded-lg border border-border object-contain"
+          />
+        </a>
+      )}
+    </div>
   )
 }
 
@@ -29,8 +54,14 @@ export default function TicketChat({
   const [sending, setSending]   = useState(false)
   const [status, setStatus]     = useState(ticket.status)
   const [error, setError]       = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const isClosed = status !== 'open'
+
+  async function refreshMessages() {
+    const updated = await api.tickets.get(ticket.id)
+    setMessages(updated.messages)
+  }
 
   async function sendMessage(e: React.FormEvent) {
     e.preventDefault()
@@ -39,14 +70,28 @@ export default function TicketChat({
     setError(null)
     try {
       await api.tickets.message(ticket.id, content.trim())
-      // Optimistic: reload messages from server
-      const updated = await api.tickets.get(ticket.id)
-      setMessages(updated.messages)
+      await refreshMessages()
       setContent('')
     } catch (err: any) {
       setError(err.message ?? 'Erreur lors de l\'envoi')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setSending(true)
+    setError(null)
+    try {
+      const msg = await api.tickets.uploadImage(ticket.id, file)
+      setMessages((prev) => [...prev, msg])
+    } catch (err: any) {
+      setError(err.message ?? 'Erreur lors de l\'upload')
+    } finally {
+      setSending(false)
+      if (fileRef.current) fileRef.current.value = ''
     }
   }
 
@@ -75,21 +120,9 @@ export default function TicketChat({
         {messages.length === 0 && (
           <p className="text-muted-foreground text-center py-6">Aucun message pour l&apos;instant.</p>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-sm">{m.author_name}</span>
-              <SourceBadge source={m.source} />
-              <span className="text-xs text-muted-foreground ml-auto">
-                {new Date(m.created_at).toLocaleString('fr-FR')}
-              </span>
-            </div>
-            <p className="text-sm whitespace-pre-wrap">{m.content}</p>
-          </div>
-        ))}
+        {messages.map((m) => <MessageBubble key={m.id} m={m} />)}
       </div>
 
-      {/* Error */}
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
       {/* Reply form */}
@@ -102,6 +135,24 @@ export default function TicketChat({
             onChange={(e) => setContent(e.target.value)}
             disabled={sending}
           />
+          {/* Image upload */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageUpload}
+            disabled={sending}
+          />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={sending}
+            title="Envoyer une image"
+            className="rounded-md border border-border px-3 py-2 text-muted-foreground hover:text-foreground hover:border-foreground/30 disabled:opacity-50 transition-colors"
+          >
+            🖼️
+          </button>
           <button
             type="submit"
             disabled={sending || !content.trim()}

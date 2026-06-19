@@ -2,8 +2,10 @@ import { headers } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { serverListAllTickets } from '@/lib/server-api'
+import { serverListAllTickets, serverGetMyTickets } from '@/lib/server-api'
 import type { Ticket } from '@/lib/api'
+import AdminTicketPanel from './AdminTicketPanel'
+import TicketSection from './TicketSection'
 
 const STATUS_LABEL: Record<string, string> = {
   open:     '🟢 Ouvert',
@@ -25,15 +27,31 @@ export default async function TicketsAdminPage({
   const session = await auth.api.getSession({ headers: await headers() })
   const u = session?.user as any
   if (!u) redirect(`/${locale}/login`)
-  if (!u.isAdmin) redirect(`/${locale}`)
 
   const token = (session!.session as any).token as string
+  const isAdmin = !!(u as any).isAdmin
+
+  if (!isAdmin) {
+    // Regular user: show their own tickets
+    let myTickets: Ticket[] = []
+    try { myTickets = await serverGetMyTickets(token) } catch {}
+    return (
+      <div className="container mx-auto px-4 py-12 max-w-3xl">
+        <h1 className="text-3xl font-extrabold tracking-tight mb-8">🎫 Tickets</h1>
+        <TicketSection initialTickets={myTickets} locale={locale} />
+      </div>
+    )
+  }
+
+  // Admin view
   let tickets: Ticket[] = []
   try { tickets = await serverListAllTickets(token) } catch {}
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-4xl">
       <h1 className="text-3xl font-extrabold tracking-tight mb-8">🎫 Tickets</h1>
+
+      <AdminTicketPanel locale={locale} />
 
       {tickets.length === 0 ? (
         <p className="text-muted-foreground text-center py-12">Aucun ticket.</p>

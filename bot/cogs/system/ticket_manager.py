@@ -127,15 +127,29 @@ class TicketManagerCog(commands.Cog):
         if status != "open":
             return
 
-        await db_manager.execute(
-            """INSERT INTO ticket_messages
-                   (ticket_id, author_id, author_name, content, source)
-               VALUES ($1, $2, $3, $4, 'discord')""",
-            ticket_id,
-            message.author.id,
-            message.author.display_name,
-            message.content,
-        )
+        # Text message
+        if message.content.strip():
+            await db_manager.execute(
+                """INSERT INTO ticket_messages
+                       (ticket_id, author_id, author_name, content, source)
+                   VALUES ($1, $2, $3, $4, 'discord')""",
+                ticket_id,
+                message.author.id,
+                message.author.display_name,
+                message.content,
+            )
+        # Image attachments
+        for att in message.attachments:
+            if att.content_type and att.content_type.startswith("image/"):
+                await db_manager.execute(
+                    """INSERT INTO ticket_messages
+                           (ticket_id, author_id, author_name, content, source, image_url)
+                       VALUES ($1, $2, $3, '', 'discord', $4)""",
+                    ticket_id,
+                    message.author.id,
+                    message.author.display_name,
+                    att.url,
+                )
 
 
 async def setup(bot):

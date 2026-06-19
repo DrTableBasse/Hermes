@@ -359,6 +359,32 @@ async def close_ticket_channel_endpoint(ticket_id: int, _=Depends(_require_token
     return {"success": True}
 
 
+class TicketImageRequest(BaseModel):
+    image_url: str
+    author_name: str
+
+
+@app.post("/tickets/{ticket_id}/image")
+async def post_ticket_image_endpoint(
+    ticket_id: int, req: TicketImageRequest, _=Depends(_require_token)
+):
+    bot = _get_bot()
+    cog = bot.cogs.get("TicketManagerCog")
+    if not cog:
+        return {"success": True}
+    channel_id = next(
+        (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
+    )
+    if channel_id:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            embed = discord.Embed(color=0x57F287)
+            embed.set_author(name=f"{req.author_name} (web)")
+            embed.set_image(url=req.image_url)
+            await channel.send(embed=embed)
+    return {"success": True}
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():

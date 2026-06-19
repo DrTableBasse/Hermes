@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -50,6 +52,9 @@ app.include_router(quests.router)
 app.include_router(comments.router)
 app.include_router(automod_api.router)
 app.include_router(tickets.router)
+
+os.makedirs("/app/media/tickets", exist_ok=True)
+app.mount("/media", StaticFiles(directory="/app/media"), name="media")
 
 
 @app.get("/health")

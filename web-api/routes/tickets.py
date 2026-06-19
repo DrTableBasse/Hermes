@@ -2,11 +2,17 @@
 """Support ticket routes."""
 import logging
 import os
+import uuid
+import shutil
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import database as db
 from middleware.auth_middleware import get_current_user, require_admin
+
+MEDIA_DIR = "/app/media/tickets"
+os.makedirs(MEDIA_DIR, exist_ok=True)
+MEDIA_BASE_URL = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 logger = logging.getLogger(__name__)
@@ -69,6 +75,7 @@ def _serialize_message(m) -> dict:
         "author_name": m["author_name"],
         "content":     m["content"],
         "source":      m["source"],
+        "image_url":   m.get("image_url"),
         "created_at":  m["created_at"].isoformat() if m["created_at"] else None,
     }
 
@@ -243,3 +250,49 @@ async def close_ticket(ticket_id: int, user: dict = Depends(get_current_user)):
     except Exception as e:
         logger.warning("Ticket #%s: fermeture Discord échouée: %s", ticket_id, e)
     return {"success": True}
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
+
+@router.post("/{ticket_id}/upload")
+async def upload_image(
+    ticket_id: int,
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user),
+):
+    user_id = int(user["sub"])
+    ticket = await db.fetchrow("SELECT * FROM tickets WHERE id = $1", ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket introuvable")
+    if not user.get("is_admin") and ticket["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if ticket["status"] != "open":
+        raise HTTPException(status_code=409, detail="Ce ticket est fermé.")
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Type de fichier non supporté.")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    dest_dir = os.path.join(MEDIA_DIR, str(ticket_id))
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, filename)
+    with open(dest_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    image_url = f"{MEDIA_BASE_URL}/api/proxy/media/tickets/{ticket_id}/{filename}"
+    author_name = await _get_username(user_id)
+    msg_id = await db.fetchval(
+        """INSERT INTO ticket_messages
+               (ticket_id, author_id, author_name, content, source, image_url)
+           VALUES ($1, $2, $3, '', 'web', $4) RETURNING id""",
+        ticket_id, user_id, author_name, image_url,
+    )
+    try:
+        await _bot("post", f"/tickets/{ticket_id}/image", json={
+            "image_url": image_url, "author_name": author_name,
+        })
+    except Exception as e:
+        logger.warning("Ticket #%s: relay image Discord échoué: %s", ticket_id, e)
+    msg = await db.fetchrow("SELECT * FROM ticket_messages WHERE id = $1", msg_id)
+    return _serialize_message(msg)
