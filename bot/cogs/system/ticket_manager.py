@@ -79,6 +79,7 @@ class TicketManagerCog(commands.Cog):
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            user: discord.PermissionOverwrite(view_channel=True, send_messages=True),
             guild.me: discord.PermissionOverwrite(
                 view_channel=True, send_messages=True, manage_channels=True
             ),
@@ -92,6 +93,7 @@ class TicketManagerCog(commands.Cog):
             c if c.isalnum() or c == "-" else "-"
             for c in user.display_name.lower()
         )[:20].strip("-")
+        safe_name = safe_name or "user"
         channel = await guild.create_text_channel(
             name=f"ticket-{safe_name}-{ticket_id}",
             category=category,
