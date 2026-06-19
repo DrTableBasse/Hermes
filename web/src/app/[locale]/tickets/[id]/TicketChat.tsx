@@ -40,6 +40,56 @@ function MessageBubble({ m }: { m: TicketMessage }) {
   )
 }
 
+function AddMemberPanel({ ticketId }: { ticketId: number }) {
+  const [userId, setUserId] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault()
+    const id = userId.trim()
+    if (!id || loading) return
+    setLoading(true)
+    setFeedback(null)
+    try {
+      await api.tickets.addMember(ticketId, id)
+      setFeedback({ ok: true, msg: 'Membre ajouté au salon Discord.' })
+      setUserId('')
+    } catch (err: any) {
+      setFeedback({ ok: false, msg: err.message ?? 'Erreur' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="glass-card p-4">
+      <p className="text-sm font-semibold mb-3">👤 Ajouter un membre au ticket</p>
+      <form onSubmit={handleAdd} className="flex gap-2">
+        <input
+          className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
+          placeholder="ID Discord (ex: 123456789012345678)"
+          value={userId}
+          onChange={(e) => setUserId(e.target.value)}
+          disabled={loading}
+        />
+        <button
+          type="submit"
+          disabled={loading || !userId.trim()}
+          className="rounded-md border border-border px-3 py-2 text-sm hover:bg-accent/40 disabled:opacity-50 transition-colors"
+        >
+          {loading ? '…' : 'Ajouter'}
+        </button>
+      </form>
+      {feedback && (
+        <p className={`text-xs mt-2 ${feedback.ok ? 'text-green-400' : 'text-red-400'}`}>
+          {feedback.msg}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function TicketChat({
   ticket,
   isAdmin,
@@ -115,6 +165,17 @@ export default function TicketChat({
 
   return (
     <div className="space-y-4">
+      {/* Transcript header (closed/resolved tickets) */}
+      {isClosed && (
+        <div className="rounded-md border border-border bg-accent/20 px-4 py-3 text-sm text-muted-foreground">
+          📄 <span className="font-medium">Retranscription</span> — ce ticket est{' '}
+          {status === 'resolved' ? 'résolu' : 'fermé'}.
+          {ticket.closed_at && (
+            <> Fermé le {new Date(ticket.closed_at).toLocaleDateString('fr-FR')}.</>
+          )}
+        </div>
+      )}
+
       {/* Message thread */}
       <div className="space-y-3 max-h-[60vh] overflow-y-auto">
         {messages.length === 0 && (
@@ -125,17 +186,16 @@ export default function TicketChat({
 
       {error && <p className="text-red-400 text-sm">{error}</p>}
 
-      {/* Reply form */}
+      {/* Reply form (open tickets only) */}
       {!isClosed && (
         <form onSubmit={sendMessage} className="flex gap-2">
           <input
             className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="Votre message..."
+            placeholder="Votre message…"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             disabled={sending}
           />
-          {/* Image upload */}
           <input
             ref={fileRef}
             type="file"
@@ -158,9 +218,14 @@ export default function TicketChat({
             disabled={sending || !content.trim()}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {sending ? '...' : 'Envoyer'}
+            {sending ? '…' : 'Envoyer'}
           </button>
         </form>
+      )}
+
+      {/* Admin: add member panel */}
+      {isAdmin && !isClosed && (
+        <AddMemberPanel ticketId={ticket.id} />
       )}
 
       {/* Actions */}
@@ -180,11 +245,6 @@ export default function TicketChat({
           >
             🔒 Fermer définitivement
           </button>
-        )}
-        {isClosed && (
-          <p className="text-muted-foreground text-sm">
-            Ce ticket est {status === 'resolved' ? 'résolu' : 'fermé'}.
-          </p>
         )}
       </div>
     </div>

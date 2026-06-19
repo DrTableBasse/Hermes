@@ -359,6 +359,35 @@ async def close_ticket_channel_endpoint(ticket_id: int, _=Depends(_require_token
     return {"success": True}
 
 
+class TicketAddMemberRequest(BaseModel):
+    user_id: int
+
+
+@app.post("/tickets/{ticket_id}/add_member")
+async def add_member_to_ticket_endpoint(
+    ticket_id: int, req: TicketAddMemberRequest, _=Depends(_require_token)
+):
+    bot = _get_bot()
+    guild = _get_guild()
+    cog = bot.cogs.get("TicketManagerCog")
+    if not cog:
+        raise HTTPException(status_code=500, detail="TicketManagerCog non chargé")
+    channel_id = next(
+        (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
+    )
+    if not channel_id:
+        raise HTTPException(status_code=404, detail="Salon Discord introuvable")
+    channel = bot.get_channel(channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Salon Discord introuvable")
+    member = await _get_member(guild, req.user_id)
+    await channel.set_permissions(member, view_channel=True, send_messages=True)
+    await channel.send(
+        f"👤 **{member.display_name}** a été ajouté au ticket par un administrateur."
+    )
+    return {"success": True}
+
+
 class TicketImageRequest(BaseModel):
     file_path: str
     author_name: str

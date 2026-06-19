@@ -232,6 +232,30 @@ async def resolve_ticket(ticket_id: int, user: dict = Depends(get_current_user))
     return {"success": True}
 
 
+class TicketAddMemberRequest(BaseModel):
+    user_id: str
+
+
+@router.post("/{ticket_id}/members")
+async def add_member_to_ticket(
+    ticket_id: int,
+    body: TicketAddMemberRequest,
+    user: dict = Depends(get_current_user),
+):
+    require_admin(user)
+    ticket = await db.fetchrow("SELECT * FROM tickets WHERE id = $1", ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket introuvable")
+    if ticket["status"] != "open":
+        raise HTTPException(status_code=409, detail="Ce ticket est fermé.")
+    try:
+        target_id = int(body.user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ID Discord invalide.")
+    await _bot("post", f"/tickets/{ticket_id}/add_member", json={"user_id": target_id})
+    return {"success": True}
+
+
 @router.post("/{ticket_id}/close")
 async def close_ticket(ticket_id: int, user: dict = Depends(get_current_user)):
     require_admin(user)

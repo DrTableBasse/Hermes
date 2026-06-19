@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { serverGetTicket } from '@/lib/server-api'
@@ -35,6 +36,13 @@ export default async function TicketDetailPage({
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <Link
+        href={`/${locale}/tickets`}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-8 transition-colors"
+      >
+        ← Retour aux tickets
+      </Link>
+
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-2xl font-extrabold tracking-tight">

@@ -133,6 +133,8 @@ export const api = {
     close:   (id: number)               => request<{ success: boolean }>(`/tickets/${id}/close`,   { method: 'POST' }),
     adminCreate: (user_id: string, title: string) =>
       request<Ticket>('/tickets/admin', { method: 'POST', body: JSON.stringify({ user_id, title }) }),
+    addMember: (id: number, user_id: string) =>
+      request<{ success: boolean }>(`/tickets/${id}/members`, { method: 'POST', body: JSON.stringify({ user_id }) }),
     uploadImage: async (id: number, file: File): Promise<TicketMessage> => {
       const form = new FormData()
       form.append('file', file)
