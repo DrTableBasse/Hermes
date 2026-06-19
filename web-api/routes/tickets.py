@@ -2,6 +2,7 @@
 """Support ticket routes."""
 import logging
 import os
+import shutil
 import uuid
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -229,6 +230,7 @@ async def resolve_ticket(ticket_id: int, user: dict = Depends(get_current_user))
         "UPDATE tickets SET status = 'resolved', closed_at = NOW() WHERE id = $1",
         ticket_id,
     )
+    shutil.rmtree(os.path.join(MEDIA_DIR, str(ticket_id)), ignore_errors=True)
     return {"success": True}
 
 
@@ -272,6 +274,7 @@ async def close_ticket(ticket_id: int, user: dict = Depends(get_current_user)):
         await _bot("post", f"/tickets/{ticket_id}/close", json={})
     except Exception as e:
         logger.warning("Ticket #%s: fermeture Discord échouée: %s", ticket_id, e)
+    shutil.rmtree(os.path.join(MEDIA_DIR, str(ticket_id)), ignore_errors=True)
     return {"success": True}
 
 
