@@ -282,6 +282,79 @@ async def toggle_command(req: CommandToggleRequest):
     return {"success": ok}
 
 
+# ── Tickets ──────────────────────────────────────────────────────────────────
+
+class TicketCreateRequest(BaseModel):
+    user_id: int
+    username: str
+    ticket_id: int
+    title: str
+
+
+class TicketMessageRequest(BaseModel):
+    content: str
+    author_name: str
+
+
+@app.post("/tickets/create")
+async def create_ticket_channel_endpoint(
+    req: TicketCreateRequest, _=Depends(_require_token)
+):
+    bot = _get_bot()
+    guild = _get_guild()
+    cog = bot.cogs.get("TicketManagerCog")
+    if not cog:
+        raise HTTPException(status_code=500, detail="TicketManagerCog non chargé")
+    member = await _get_member(guild, req.user_id)
+    channel_id = await cog.create_ticket_channel(guild, member, req.ticket_id, req.title)
+    cog._ticket_channels[channel_id] = req.ticket_id
+    return {"discord_channel_id": channel_id}
+
+
+@app.post("/tickets/{ticket_id}/message")
+async def post_ticket_message_endpoint(
+    ticket_id: int, req: TicketMessageRequest, _=Depends(_require_token)
+):
+    bot = _get_bot()
+    cog = bot.cogs.get("TicketManagerCog")
+    channel_id = next(
+        (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
+    )
+    if not channel_id:
+        raise HTTPException(status_code=404, detail="Salon Discord introuvable")
+    channel = bot.get_channel(channel_id)
+    if not channel:
+        raise HTTPException(status_code=404, detail="Salon Discord introuvable")
+    await channel.send(f"**{req.author_name}** *(web)* : {req.content}")
+    return {"success": True}
+
+
+@app.post("/tickets/{ticket_id}/close")
+async def close_ticket_channel_endpoint(ticket_id: int, _=Depends(_require_token)):
+    bot = _get_bot()
+    guild = _get_guild()
+    cog = bot.cogs.get("TicketManagerCog")
+    channel_id = next(
+        (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
+    )
+    if channel_id:
+        channel = bot.get_channel(channel_id)
+        if channel:
+            embed = discord.Embed(
+                title="🔒 Ticket fermé",
+                description="Ce ticket a été fermé définitivement par un administrateur.",
+                color=0xED4245,
+            )
+            embed.set_footer(text="Hermes · SaucisseLand")
+            await channel.send(embed=embed)
+            for target, overwrite in list(channel.overwrites.items()):
+                if target != guild.me:
+                    overwrite.send_messages = False
+                    await channel.set_permissions(target, overwrite=overwrite)
+        del cog._ticket_channels[channel_id]
+    return {"success": True}
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():
