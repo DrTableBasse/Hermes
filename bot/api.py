@@ -317,6 +317,8 @@ async def post_ticket_message_endpoint(
 ):
     bot = _get_bot()
     cog = bot.cogs.get("TicketManagerCog")
+    if not cog:
+        raise HTTPException(status_code=500, detail="TicketManagerCog non chargé")
     channel_id = next(
         (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
     )
@@ -334,6 +336,8 @@ async def close_ticket_channel_endpoint(ticket_id: int, _=Depends(_require_token
     bot = _get_bot()
     guild = _get_guild()
     cog = bot.cogs.get("TicketManagerCog")
+    if not cog:
+        raise HTTPException(status_code=500, detail="TicketManagerCog non chargé")
     channel_id = next(
         (k for k, v in cog._ticket_channels.items() if v == ticket_id), None
     )

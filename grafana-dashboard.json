@@ -1,0 +1,558 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "type": "datasource",
+      "pluginId": "prometheus"
+    }
+  ],
+  "title": "Hermes — Dashboard complet",
+  "uid": "hermes-full",
+  "schemaVersion": 38,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Bot connecté",
+      "gridPos": { "x": 0, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "Hors ligne", "color": "red" },
+                "1": { "text": "En ligne",   "color": "green" }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",   "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "hermes_bot_ready",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Membres",
+      "gridPos": { "x": 3, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_members_total", "legendFormat": "" }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "En vocal",
+      "gridPos": { "x": 6, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_members_in_voice", "legendFormat": "" }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Messages total",
+      "gridPos": { "x": 9, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_messages_total", "legendFormat": "" }]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "XP total",
+      "gridPos": { "x": 12, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_xp_total", "legendFormat": "" }]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Heures vocal",
+      "gridPos": { "x": 15, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" }, "unit": "h", "decimals": 1, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_voice_hours_total", "legendFormat": "" }]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Succès débloqués",
+      "gridPos": { "x": 18, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_achievements_total", "legendFormat": "" }]
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Bumps DISBOARD",
+      "gridPos": { "x": 21, "y": 0, "w": 3, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_bumps_total", "legendFormat": "" }]
+    },
+
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Warns (30 jours)",
+      "gridPos": { "x": 0, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 3 }, { "color": "red", "value": 10 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_warns_30d", "legendFormat": "" }]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Warns total",
+      "gridPos": { "x": 4, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 10 }, { "color": "red", "value": 50 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_warns_total", "legendFormat": "" }]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Membres sanctionnés",
+      "gridPos": { "x": 8, "y": 4, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_users_with_warns", "legendFormat": "" }]
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "🚨 Membres avec avertissements",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "sortBy": [{ "displayName": "Avertissements", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Avertissements" },
+            "properties": [
+              { "id": "custom.width", "value": 150 },
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 2 }, { "color": "red", "value": 5 }] } }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "user_id": true },
+            "renameByName": { "username": "Membre", "Value": "Avertissements" }
+          }
+        },
+        { "id": "sortBy", "options": { "fields": [{ "displayName": "Avertissements", "desc": true }] } }
+      ],
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_user_warn_count", "legendFormat": "", "instant": true }
+      ]
+    },
+
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Quêtes actives",
+      "gridPos": { "x": 0, "y": 8, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_active_quests_total", "legendFormat": "" }]
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Complétées (semaine)",
+      "gridPos": { "x": 4, "y": 8, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_quest_completions_week", "legendFormat": "" }]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Taux moyen de complétion",
+      "gridPos": { "x": 8, "y": 8, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 20 }, { "color": "green", "value": 50 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "avg(hermes_quest_completion_rate)", "legendFormat": "" }]
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "📋 Quêtes de la semaine",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "sortBy": [{ "displayName": "Participants", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Taux (%)" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.width", "value": 130 },
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 25 }, { "color": "green", "value": 60 }] } }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "XP" },         "properties": [{ "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Icône" }, "properties": [{ "id": "custom.width", "value": 60 }] }
+        ]
+      },
+      "transformations": [
+        { "id": "merge", "options": {} },
+        { "id": "labelsToFields", "options": { "mode": "columns" } },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "quest_id": true },
+            "renameByName": {
+              "icon":       "Icône",
+              "title":      "Quête",
+              "quest_type": "Type",
+              "Value #A":   "Participants",
+              "Value #B":   "Complétés",
+              "Value #C":   "Taux (%)",
+              "Value #D":   "XP"
+            }
+          }
+        }
+      ],
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_quest_participants",    "legendFormat": "", "instant": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_quest_completions_cnt", "legendFormat": "", "instant": true, "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_quest_completion_rate", "legendFormat": "", "instant": true, "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_quest_xp_reward",       "legendFormat": "", "instant": true, "refId": "D" }
+      ]
+    },
+
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Niveau max",
+      "gridPos": { "x": 0, "y": 22, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "super-light-yellow" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_top_level", "legendFormat": "" }]
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "XP moyen / membre",
+      "gridPos": { "x": 4, "y": 22, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "decimals": 0, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_avg_xp", "legendFormat": "" }]
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "XP cette semaine",
+      "gridPos": { "x": 8, "y": 22, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_xp_weekly_total", "legendFormat": "" }]
+    },
+    {
+      "id": 20,
+      "type": "bargauge",
+      "title": "Distribution des niveaux",
+      "gridPos": { "x": 12, "y": 22, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-BlPu" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_level_distribution", "legendFormat": "Niv. {{range}}", "instant": true }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "bargauge",
+      "title": "🏆 Top 15 XP",
+      "gridPos": { "x": 0, "y": 26, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-GrYlRd" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_user_xp_top)", "legendFormat": "{{username}} (Niv.{{level}})", "instant": true }
+      ]
+    },
+
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Streaks vocaux actifs",
+      "gridPos": { "x": 0, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_active_voice_streaks", "legendFormat": "" }]
+    },
+    {
+      "id": 23,
+      "type": "stat",
+      "title": "Streaks messages actifs",
+      "gridPos": { "x": 4, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_active_msg_streaks", "legendFormat": "" }]
+    },
+    {
+      "id": 24,
+      "type": "stat",
+      "title": "Record streak vocal",
+      "gridPos": { "x": 8, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "d", "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_max_voice_streak", "legendFormat": "" }]
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Record streak messages",
+      "gridPos": { "x": 12, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "unit": "d", "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_max_msg_streak", "legendFormat": "" }]
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Succès (7 jours)",
+      "gridPos": { "x": 16, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_achievements_7d", "legendFormat": "" }]
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "Succès (7 jours) — bumps",
+      "gridPos": { "x": 20, "y": 34, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_bumps_total", "legendFormat": "" }]
+    },
+
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Membres (evolution)",
+      "gridPos": { "x": 0, "y": 38, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "single" } },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "custom": { "lineWidth": 2, "fillOpacity": 20 } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_members_total", "legendFormat": "Membres" }]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "XP total (evolution)",
+      "gridPos": { "x": 12, "y": 38, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "single" } },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "yellow" }, "custom": { "lineWidth": 2, "fillOpacity": 20 } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_xp_total", "legendFormat": "XP total" }]
+    },
+    {
+      "id": 30,
+      "type": "timeseries",
+      "title": "Avertissements (evolution)",
+      "gridPos": { "x": 0, "y": 46, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Warns total" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "Warns 30j" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] }
+        ]
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_warns_total", "legendFormat": "Warns total" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_warns_30d",   "legendFormat": "Warns 30j" }
+      ]
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Succes & Bumps (evolution)",
+      "gridPos": { "x": 12, "y": 46, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Succes" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "Bumps" },  "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] }
+        ]
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_achievements_total", "legendFormat": "Succes" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_bumps_total",         "legendFormat": "Bumps" }
+      ]
+    }
+  ]
+}
