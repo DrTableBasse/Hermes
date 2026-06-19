@@ -54,3 +54,5 @@ docker-compose.yml
 
 # Next.js build cache
 web/tsconfig.tsbuildinfo
+web/.next/
+web/next-env.d.ts
