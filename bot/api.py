@@ -360,7 +360,7 @@ async def close_ticket_channel_endpoint(ticket_id: int, _=Depends(_require_token
 
 
 class TicketImageRequest(BaseModel):
-    image_url: str
+    file_path: str
     author_name: str
 
 
@@ -378,10 +378,16 @@ async def post_ticket_image_endpoint(
     if channel_id:
         channel = bot.get_channel(channel_id)
         if channel:
-            embed = discord.Embed(color=0x57F287)
-            embed.set_author(name=f"{req.author_name} (web)")
-            embed.set_image(url=req.image_url)
-            await channel.send(embed=embed)
+            try:
+                await channel.send(
+                    f"**{req.author_name}** *(web)*",
+                    file=discord.File(req.file_path),
+                )
+            except FileNotFoundError:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Ticket #%s: fichier image introuvable: %s", ticket_id, req.file_path
+                )
     return {"success": True}
 
 

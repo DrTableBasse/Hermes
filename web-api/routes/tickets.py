@@ -3,7 +3,6 @@
 import logging
 import os
 import uuid
-import shutil
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
@@ -252,7 +251,49 @@ async def close_ticket(ticket_id: int, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8 MB
+MAX_DIMENSION    = 4096
+
+# Magic bytes → (PIL format, extension)
+_MAGIC: list[tuple[bytes, str, str]] = [
+    (b"\xff\xd8\xff",      "JPEG", "jpg"),
+    (b"\x89PNG\r\n\x1a\n", "PNG",  "png"),
+    (b"GIF87a",            "GIF",  "gif"),
+    (b"GIF89a",            "GIF",  "gif"),
+    (b"RIFF",              "WEBP", "webp"),
+]
+
+
+def _detect_image(data: bytes) -> tuple[str, str]:
+    """Return (PIL format, extension) or raise HTTPException."""
+    for magic, fmt, ext in _MAGIC:
+        if data[:len(magic)] == magic:
+            if fmt == "WEBP" and data[8:12] != b"WEBP":
+                continue
+            return fmt, ext
+    raise HTTPException(status_code=400, detail="Format non supporté (JPEG, PNG, GIF, WEBP uniquement).")
+
+
+def _sanitize_image(data: bytes, pil_format: str) -> bytes:
+    """Re-encode via Pillow to strip embedded payloads. Raises on invalid image."""
+    from PIL import Image
+    import io
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.verify()
+        img = Image.open(io.BytesIO(data))  # re-open after verify()
+        if img.width > MAX_DIMENSION or img.height > MAX_DIMENSION:
+            raise HTTPException(status_code=400, detail=f"Image trop grande (max {MAX_DIMENSION}px).")
+        out = io.BytesIO()
+        save_fmt = pil_format if pil_format != "WEBP" else "WEBP"
+        if img.mode not in ("RGB", "RGBA", "P", "L"):
+            img = img.convert("RGB")
+        img.save(out, format=save_fmt)
+        return out.getvalue()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Fichier invalide ou corrompu.")
 
 
 @router.post("/{ticket_id}/upload")
@@ -269,16 +310,22 @@ async def upload_image(
         raise HTTPException(status_code=403, detail="Accès refusé")
     if ticket["status"] != "open":
         raise HTTPException(status_code=409, detail="Ce ticket est fermé.")
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Type de fichier non supporté.")
 
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    # Read with size limit
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Fichier trop grand (max 8 Mo).")
+
+    # Validate magic bytes + re-encode via Pillow
+    pil_format, ext = _detect_image(data)
+    data = _sanitize_image(data, pil_format)
+
     filename = f"{uuid.uuid4().hex}.{ext}"
     dest_dir = os.path.join(MEDIA_DIR, str(ticket_id))
     os.makedirs(dest_dir, exist_ok=True)
     dest_path = os.path.join(dest_dir, filename)
     with open(dest_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(data)
 
     image_url = f"{MEDIA_BASE_URL}/api/proxy/media/tickets/{ticket_id}/{filename}"
     author_name = await _get_username(user_id)
@@ -288,9 +335,10 @@ async def upload_image(
            VALUES ($1, $2, $3, '', 'web', $4) RETURNING id""",
         ticket_id, user_id, author_name, image_url,
     )
+    # Pass file path to bot (shared /app/media volume) so it can send as Discord attachment
     try:
         await _bot("post", f"/tickets/{ticket_id}/image", json={
-            "image_url": image_url, "author_name": author_name,
+            "file_path": dest_path, "author_name": author_name,
         })
     except Exception as e:
         logger.warning("Ticket #%s: relay image Discord échoué: %s", ticket_id, e)
