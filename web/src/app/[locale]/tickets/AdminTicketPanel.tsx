@@ -1,14 +1,42 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 
 export default function AdminTicketPanel({ locale }: { locale: string }) {
   const router = useRouter()
-  const [userId, setUserId] = useState('')
-  const [title, setTitle]   = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError]   = useState<string | null>(null)
+  const [userId, setUserId]     = useState('')
+  const [title, setTitle]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [preview, setPreview]   = useState<string | null>(null)
+  const [resolving, setResolving] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleUserIdChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setUserId(val)
+    setPreview(null)
+    setError(null)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const trimmed = val.trim()
+    if (!/^\d{15,20}$/.test(trimmed)) return
+
+    debounceRef.current = setTimeout(async () => {
+      setResolving(true)
+      try {
+        const data = await api.users.publicStats(trimmed)
+        const name = (data as any).nickname || (data as any).username
+        setPreview(name ?? null)
+      } catch {
+        setPreview(null)
+      } finally {
+        setResolving(false)
+      }
+    }, 400)
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -36,26 +64,38 @@ export default function AdminTicketPanel({ locale }: { locale: string }) {
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
             placeholder="ex: 279205522970902528"
             value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            onChange={handleUserIdChange}
             disabled={loading}
           />
+          <div className="mt-1 h-4">
+            {resolving && (
+              <span className="text-xs text-muted-foreground">Recherche…</span>
+            )}
+            {!resolving && preview && (
+              <span className="text-xs text-green-400">✓ {preview}</span>
+            )}
+            {!resolving && !preview && userId.trim().length > 0 && /^\d{15,20}$/.test(userId.trim()) && (
+              <span className="text-xs text-muted-foreground">Utilisateur inconnu (pas encore sur le serveur ?)</span>
+            )}
+          </div>
         </div>
         <div className="flex-[2]">
           <label className="text-xs text-muted-foreground mb-1 block">Sujet</label>
           <input
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-            placeholder="Décrivez le problème..."
+            placeholder="Décrivez le problème…"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             disabled={loading}
           />
+          <div className="mt-1 h-4" />
         </div>
         <button
           type="submit"
           disabled={loading || !userId.trim() || !title.trim()}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 shrink-0"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 shrink-0 self-start sm:self-auto mt-1 sm:mt-0"
         >
-          {loading ? '...' : 'Créer'}
+          {loading ? '…' : 'Créer'}
         </button>
       </form>
       {error && <p className="text-red-400 text-xs mt-2">{error}</p>}

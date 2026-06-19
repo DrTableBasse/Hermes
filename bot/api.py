@@ -388,6 +388,9 @@ async def add_member_to_ticket_endpoint(
     return {"success": True}
 
 
+_ALLOWED_MEDIA_ROOT = os.path.realpath("/app/media/tickets")
+
+
 class TicketImageRequest(BaseModel):
     file_path: str
     author_name: str
@@ -397,6 +400,11 @@ class TicketImageRequest(BaseModel):
 async def post_ticket_image_endpoint(
     ticket_id: int, req: TicketImageRequest, _=Depends(_require_token)
 ):
+    # Validate path is inside the allowed media directory (prevents arbitrary file read)
+    real = os.path.realpath(req.file_path)
+    if not real.startswith(_ALLOWED_MEDIA_ROOT + os.sep):
+        raise HTTPException(status_code=400, detail="Chemin non autorisé")
+
     bot = _get_bot()
     cog = bot.cogs.get("TicketManagerCog")
     if not cog:
@@ -410,12 +418,12 @@ async def post_ticket_image_endpoint(
             try:
                 await channel.send(
                     f"**{req.author_name}** *(web)*",
-                    file=discord.File(req.file_path),
+                    file=discord.File(real),
                 )
             except FileNotFoundError:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "Ticket #%s: fichier image introuvable: %s", ticket_id, req.file_path
+                    "Ticket #%s: fichier image introuvable: %s", ticket_id, real
                 )
     return {"success": True}
 

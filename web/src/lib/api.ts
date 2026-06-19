@@ -49,7 +49,8 @@ export const api = {
     me: () => request<User>('/auth/me'),
   },
   users: {
-    stats: (id: string) => request<UserStats>(`/users/${id}/stats`),
+    stats:       (id: string) => request<UserStats>(`/users/${id}/stats`),
+    publicStats: (id: string) => request<{ user_id: string; username: string; nickname: string | null }>(`/users/${id}/public`),
   },
   leaderboard: {
     messages: (limit = 10) => request<{ leaderboard: LeaderboardEntry[] }>(`/leaderboard/messages?limit=${limit}`),
