@@ -5,7 +5,7 @@ import os
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-import db as db
+import database as db
 from middleware.auth_middleware import get_current_user, require_admin
 
 router = APIRouter(prefix="/tickets", tags=["tickets"])
