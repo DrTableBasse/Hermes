@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry, Achievement, AchievementWithStatus } from './api'
+import type { Article, ArticleList, Tag, VoiceEntry, LeaderboardEntry, ActivityDay, XPEntry, Achievement, AchievementWithStatus, Ticket, TicketDetail } from './api'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
 
@@ -163,4 +163,20 @@ export async function serverLeaderboardXpWeekly(limit = 10): Promise<LbPage<XPEn
 export async function serverGetUserAchievementsAll(userId: string): Promise<AchievementWithStatus[]> {
   const res = await get<{ achievements: AchievementWithStatus[] }>(`/users/${userId}/achievements`)
   return res.achievements
+}
+
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
+export async function serverGetMyTickets(token: string): Promise<Ticket[]> {
+  const data = await get<{ tickets: Ticket[] }>('/tickets', token)
+  return data.tickets
+}
+
+export async function serverListAllTickets(token: string): Promise<Ticket[]> {
+  const data = await get<{ tickets: Ticket[] }>('/tickets', token)
+  return data.tickets
+}
+
+export async function serverGetTicket(id: number, token: string): Promise<TicketDetail> {
+  return get<TicketDetail>(`/tickets/${id}`, token)
 }
