@@ -11,7 +11,7 @@ load_dotenv()
 
 import database as db
 from routes import auth, users, leaderboard, articles, tags, media, admin
-from routes import xp, notifications, endorsements, activity, quests, comments, automod_api
+from routes import xp, notifications, endorsements, activity, quests, comments, automod_api, tickets
 
 
 @asynccontextmanager
@@ -49,6 +49,7 @@ app.include_router(activity.router)
 app.include_router(quests.router)
 app.include_router(comments.router)
 app.include_router(automod_api.router)
+app.include_router(tickets.router)
 
 
 @app.get("/health")
