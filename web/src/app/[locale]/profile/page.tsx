@@ -4,7 +4,9 @@ import { getTranslations } from 'next-intl/server'
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import AchievementsPanel from '@/components/AchievementsPanel'
-import { serverGetUserStats, serverGetUserAchievementsAll } from '@/lib/server-api'
+import TicketSection from '../tickets/TicketSection'
+import { serverGetUserStats, serverGetUserAchievementsAll, serverGetMyTickets } from '@/lib/server-api'
+import type { Ticket } from '@/lib/api'
 import { format } from 'date-fns'
 import { fr, enUS } from 'date-fns/locale'
 
@@ -26,6 +28,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
 
   let allAchievements: import('@/lib/api').AchievementWithStatus[] = []
   try { allAchievements = await serverGetUserAchievementsAll(u.discordId) } catch {}
+
+  let myTickets: Ticket[] = []
+  try { myTickets = await serverGetMyTickets(token) } catch {}
 
   if (!data) {
     return (
@@ -98,6 +103,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ locale
       <section>
         <h2 className="text-xl font-bold mb-5">{t('achievements')}</h2>
         <AchievementsPanel achievements={allAchievements} />
+      </section>
+
+      {/* Tickets */}
+      <section className="mt-12">
+        <TicketSection initialTickets={myTickets} locale={locale} />
       </section>
     </div>
   )
