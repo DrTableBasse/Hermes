@@ -14,6 +14,34 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+export interface Ticket {
+  id: number
+  user_id: string
+  title: string
+  status: 'open' | 'resolved' | 'closed'
+  discord_channel_id: string | null
+  created_at: string
+  closed_at: string | null
+  created_by_admin: boolean
+  username?: string
+  discord_avatar?: string | null
+}
+
+export interface TicketMessage {
+  id: number
+  ticket_id: number
+  author_id: string
+  author_name: string
+  content: string
+  source: 'web' | 'discord'
+  created_at: string
+}
+
+export interface TicketDetail extends Ticket {
+  messages: TicketMessage[]
+}
+
 // Auth
 export const api = {
   auth: {
@@ -152,30 +180,3 @@ export interface ActivityDay { date: string; count: number }
 export interface DailyActivity { date: string; messages: number }
 export interface Quest { id: number; title: string; description: string; quest_type: string; target_value: number; xp_reward: number; current_progress: number; status: string }
 export interface Comment { id: number; article_id: number; user_id: number; content: string; parent_id: number | null; vote_count: number; created_at: string; username: string; discord_avatar: string | null }
-
-export interface Ticket {
-  id: number
-  user_id: string
-  title: string
-  status: 'open' | 'resolved' | 'closed'
-  discord_channel_id: string | null
-  created_at: string
-  closed_at: string | null
-  created_by_admin: boolean
-  username?: string
-  discord_avatar?: string | null
-}
-
-export interface TicketMessage {
-  id: number
-  ticket_id: number
-  author_id: string
-  author_name: string
-  content: string
-  source: 'web' | 'discord'
-  created_at: string
-}
-
-export interface TicketDetail extends Ticket {
-  messages: TicketMessage[]
-}
