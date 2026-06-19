@@ -39,6 +39,7 @@ class TicketCreate(BaseModel):
 
 class TicketAdminCreate(BaseModel):
     user_id: str
+    title: str
 
 
 class MessageCreate(BaseModel):
@@ -67,7 +68,7 @@ def _serialize_message(m) -> dict:
         "author_id":   str(m["author_id"]),
         "author_name": m["author_name"],
         "content":     m["content"],
-        "source":      m["src"],
+        "source":      m["source"],
         "created_at":  m["created_at"].isoformat() if m["created_at"] else None,
     }
 
@@ -195,7 +196,7 @@ async def send_message(
     author_name = await _get_username(user_id)
     await db.execute(
         """INSERT INTO ticket_messages
-               (ticket_id, author_id, author_name, content, src)
+               (ticket_id, author_id, author_name, content, source)
            VALUES ($1, $2, $3, $4, 'web')""",
         ticket_id, user_id, author_name, body.content,
     )
