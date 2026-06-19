@@ -11,7 +11,9 @@ _SESSION_QUERY = """
 
 
 async def _fetch_session(session_token: str) -> Optional[dict]:
-    row = await db.fetchrow(_SESSION_QUERY, session_token)
+    # BetterAuth appends ".{signature}" to the token in browser cookies — strip it
+    token = session_token.split('.')[0]
+    row = await db.fetchrow(_SESSION_QUERY, token)
     if not row:
         return None
     return {
