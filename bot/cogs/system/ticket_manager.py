@@ -11,7 +11,7 @@ import unicodedata
 import re
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from datetime import datetime
 
 from utils.database import db_manager
@@ -129,6 +129,7 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         bot.add_view(TicketControlView())
+        self._cleanup_closed_tickets.start()
 
     # ── /newticket ────────────────────────────────────────────────────────────
 
@@ -233,6 +234,15 @@ class Tickets(commands.Cog):
                 "❌ Ce salon n'est pas un ticket actif.", ephemeral=True
             )
 
+        # Seuls le créateur du ticket et le staff (manage_channels) peuvent fermer
+        is_owner = interaction.user.id == ticket["user_id"]
+        is_staff = interaction.channel.permissions_for(interaction.user).manage_channels
+        if not is_owner and not is_staff:
+            return await interaction.response.send_message(
+                "❌ Seul le créateur du ticket ou un membre du staff peut fermer ce ticket.",
+                ephemeral=True,
+            )
+
         view = CloseConfirmView()
         await interaction.response.send_message(
             "⚠️ Confirmer la fermeture de ce ticket ?", view=view, ephemeral=True
@@ -261,19 +271,51 @@ class Tickets(commands.Cog):
                 file=discord.File(io.BytesIO(transcript_bytes), filename=filename),
             )
 
-        await db_manager.execute("UPDATE tickets SET status = 'closed' WHERE id = $1", ticket["id"])
+        await db_manager.execute(
+            "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE id = $1",
+            ticket["id"],
+        )
 
         close_e = discord.Embed(
             title="🔒 Ticket fermé",
-            description="Ce ticket a été fermé. Suppression dans 5 secondes.",
+            description=(
+                "Ce ticket a été fermé et le transcript a été sauvegardé.\n"
+                "**Ce salon sera supprimé automatiquement dans 48h.**"
+            ),
             color=discord.Color.red(),
+            timestamp=discord.utils.utcnow(),
         )
+        close_e.set_footer(text=f"Fermé par {interaction.user}")
         await interaction.channel.send(embed=close_e)
-        await asyncio.sleep(5)
-        try:
-            await interaction.channel.delete(reason="Ticket fermé")
-        except discord.NotFound:
-            pass
+
+    # ── Tâche de suppression différée (48h après fermeture) ───────────────────
+
+    @tasks.loop(minutes=10)
+    async def _cleanup_closed_tickets(self):
+        rows = await db_manager.fetch(
+            "SELECT guild_id, channel_id FROM tickets "
+            "WHERE status = 'closed' AND closed_at IS NOT NULL "
+            "AND closed_at + interval '48 hours' <= NOW() AND channel_id IS NOT NULL"
+        )
+        for row in rows:
+            guild = self.bot.get_guild(row["guild_id"])
+            if not guild:
+                continue
+            channel = guild.get_channel(row["channel_id"])
+            if channel:
+                try:
+                    await channel.delete(reason="Ticket fermé depuis 48h")
+                except (discord.NotFound, discord.Forbidden):
+                    pass
+            # Marquer channel_id comme nul pour ne plus tenter de supprimer
+            await db_manager.execute(
+                "UPDATE tickets SET channel_id = NULL WHERE channel_id = $1",
+                row["channel_id"],
+            )
+
+    @_cleanup_closed_tickets.before_loop
+    async def _before_cleanup(self):
+        await self.bot.wait_until_ready()
 
     # ── HTML transcript ───────────────────────────────────────────────────────
 
