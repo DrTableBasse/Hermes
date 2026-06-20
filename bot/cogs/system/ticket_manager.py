@@ -15,7 +15,7 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 
-from utils.db import db_manager
+from utils.database import db_manager
 
 
 def _slug(text: str, max_len: int = 25) -> str:
