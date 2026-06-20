@@ -893,12 +893,12 @@ class Tickets(commands.Cog):
             bot_tag = '<span class="bt">BOT</span>' if msg.author.bot else ""
             ts = msg.created_at.strftime("%d/%m/%Y %H:%M:%S")
             initials = msg.author.display_name[:2].upper()
+            content_div = '<div class="mt">' + content + '</div>' if content else ''
             messages_html += (
                 f'<div class="mg"><div class="av">{initials}</div><div class="mc">'
                 f'<div class="mh"><span class="un">{html.escape(str(msg.author))}</span>'
                 f'{bot_tag}<span class="ts">{ts}</span></div>'
-                f'{"<div class=\'mt\'>" + content + "</div>" if content else ""}'
-                f'{embed_html}{attach_html}</div></div>'
+                f'{content_div}{embed_html}{attach_html}</div></div>'
             )
         doc = (
             f'<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'
