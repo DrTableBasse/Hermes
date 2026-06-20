@@ -100,6 +100,29 @@ class CloseConfirmView(discord.ui.View):
         self.stop()
 
 
+# ── Modal formulaire ──────────────────────────────────────────────────────────
+
+class NewTicketModal(discord.ui.Modal, title="🎫 Ouvrir un ticket"):
+    sujet = discord.ui.TextInput(
+        label="Sujet",
+        placeholder="Ex : Problème avec mon rang, Demande de partenariat…",
+        max_length=100,
+        required=True,
+    )
+    description = discord.ui.TextInput(
+        label="Description",
+        placeholder="Décrivez votre demande en détail…",
+        style=discord.TextStyle.paragraph,
+        max_length=1000,
+        required=True,
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        cog: Tickets = interaction.client.get_cog("Tickets")
+        await cog._create_ticket(interaction, self.sujet.value, self.description.value)
+
+
 # ── Cog ───────────────────────────────────────────────────────────────────────
 
 class Tickets(commands.Cog):
@@ -110,9 +133,20 @@ class Tickets(commands.Cog):
     # ── /newticket ────────────────────────────────────────────────────────────
 
     @app_commands.command(name="newticket", description="Ouvrir un ticket de support")
-    @app_commands.describe(sujet="Sujet de votre ticket (optionnel)")
-    async def newticket(self, interaction: discord.Interaction, sujet: str = "Support"):
-        await interaction.response.defer(ephemeral=True)
+    async def newticket(self, interaction: discord.Interaction):
+        existing = await db_manager.fetchrow(
+            "SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2 AND status = 'open'",
+            interaction.guild.id, interaction.user.id,
+        )
+        if existing:
+            ch = interaction.guild.get_channel(existing["channel_id"])
+            if ch:
+                return await interaction.response.send_message(
+                    f"❌ Vous avez déjà un ticket ouvert : {ch.mention}", ephemeral=True
+                )
+        await interaction.response.send_modal(NewTicketModal())
+
+    async def _create_ticket(self, interaction: discord.Interaction, sujet: str, description: str):
         guild = interaction.guild
 
         category = guild.get_channel(TICKET_CATEGORY_ID)
@@ -120,17 +154,6 @@ class Tickets(commands.Cog):
             return await interaction.followup.send(
                 "❌ Catégorie de tickets introuvable. Contactez un administrateur.", ephemeral=True
             )
-
-        existing = await db_manager.fetchrow(
-            "SELECT channel_id FROM tickets WHERE guild_id = $1 AND user_id = $2 AND status = 'open'",
-            guild.id, interaction.user.id,
-        )
-        if existing:
-            ch = guild.get_channel(existing["channel_id"])
-            if ch:
-                return await interaction.followup.send(
-                    f"❌ Vous avez déjà un ticket ouvert : {ch.mention}", ephemeral=True
-                )
 
         ticket_num = (
             await db_manager.fetchval("SELECT COUNT(*) FROM tickets WHERE guild_id = $1", guild.id) or 0
@@ -171,18 +194,15 @@ class Tickets(commands.Cog):
         )
 
         welcome = discord.Embed(
-            title=f"🎫 Ticket #{ticket_num:04d}",
-            description=(
-                f"Bienvenue {interaction.user.mention} !\n\n"
-                f"**Sujet :** {sujet}\n\n"
-                "Décrivez votre demande ci-dessous. Le staff vous répondra dès que possible.\n"
-                "Utilisez le bouton **Fermer** quand votre ticket est résolu."
-            ),
+            title=f"🎫 Ticket #{ticket_num:04d} — {sujet}",
             color=0x5865F2,
             timestamp=discord.utils.utcnow(),
         )
+        welcome.add_field(name="👤 Ouvert par", value=interaction.user.mention, inline=True)
+        welcome.add_field(name="📋 Sujet", value=sujet, inline=True)
+        welcome.add_field(name="📝 Description", value=description, inline=False)
         welcome.set_thumbnail(url=interaction.user.display_avatar.url)
-        welcome.set_footer(text=f"Ticket #{ticket_num:04d} • SaucisseLand Support")
+        welcome.set_footer(text=f"Ticket #{ticket_num:04d} • Le staff vous répondra dès que possible")
         await channel.send(content=interaction.user.mention, embed=welcome, view=TicketControlView())
 
         trans_ch = guild.get_channel(TICKET_TRANSCRIPT_ID)
@@ -195,6 +215,7 @@ class Tickets(commands.Cog):
             log_e.add_field(name="Utilisateur", value=f"{interaction.user.mention} (`{interaction.user.id}`)")
             log_e.add_field(name="Salon", value=channel.mention)
             log_e.add_field(name="Sujet", value=sujet)
+            log_e.add_field(name="Description", value=description[:500], inline=False)
             await trans_ch.send(embed=log_e)
 
         await interaction.followup.send(f"✅ Votre ticket a été créé : {channel.mention}", ephemeral=True)
