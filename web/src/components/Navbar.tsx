@@ -63,7 +63,6 @@ export function Navbar({ user, locale }: NavbarProps) {
           {navLink('/articles', t('articles'))}
           {navLink('/leaderboard', t('leaderboard'))}
           {user && navLink('/profile', t('profile'))}
-          {user && navLink('/tickets', t('tickets'))}
           {user?.is_admin && navLink('/admin', t('admin'))}
         </nav>
 
@@ -128,7 +127,6 @@ export function Navbar({ user, locale }: NavbarProps) {
             {navLink('/articles', t('articles'))}
             {navLink('/leaderboard', t('leaderboard'))}
             {user && navLink('/profile', t('profile'))}
-            {user && navLink('/tickets', t('tickets'))}
             {user?.is_admin && navLink('/admin', t('admin'))}
             <div className="border-t border-border/40 pt-4">
               {user ? (

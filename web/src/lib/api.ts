@@ -14,35 +14,6 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-export interface Ticket {
-  id: number
-  user_id: string
-  title: string
-  status: 'open' | 'resolved' | 'closed'
-  discord_channel_id: string | null
-  created_at: string
-  closed_at: string | null
-  created_by_admin: boolean
-  username?: string
-  discord_avatar?: string | null
-}
-
-export interface TicketMessage {
-  id: number
-  ticket_id: number
-  author_id: string
-  author_name: string
-  content: string
-  source: 'web' | 'discord'
-  image_url: string | null
-  created_at: string
-}
-
-export interface TicketDetail extends Ticket {
-  messages: TicketMessage[]
-}
-
 // Auth
 export const api = {
   auth: {
@@ -123,26 +94,6 @@ export const api = {
       request<Comment>('/comments', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: number) => request(`/comments/${id}`, { method: 'DELETE' }),
     vote: (id: number) => request<{ voted: boolean }>(`/comments/${id}/vote`, { method: 'POST' }),
-  },
-  tickets: {
-    list:    ()                          => request<{ tickets: Ticket[] }>('/tickets'),
-    get:     (id: number)               => request<TicketDetail>(`/tickets/${id}`),
-    create:  (title: string)            => request<Ticket>('/tickets', { method: 'POST', body: JSON.stringify({ title }) }),
-    message: (id: number, content: string) =>
-      request<{ success: boolean }>(`/tickets/${id}/message`, { method: 'POST', body: JSON.stringify({ content }) }),
-    resolve: (id: number)               => request<{ success: boolean }>(`/tickets/${id}/resolve`, { method: 'POST' }),
-    close:   (id: number)               => request<{ success: boolean }>(`/tickets/${id}/close`,   { method: 'POST' }),
-    adminCreate: (user_id: string, title: string) =>
-      request<Ticket>('/tickets/admin', { method: 'POST', body: JSON.stringify({ user_id, title }) }),
-    addMember: (id: number, user_id: string) =>
-      request<{ success: boolean }>(`/tickets/${id}/members`, { method: 'POST', body: JSON.stringify({ user_id }) }),
-    uploadImage: async (id: number, file: File): Promise<TicketMessage> => {
-      const form = new FormData()
-      form.append('file', file)
-      const res = await fetch(`${API}/tickets/${id}/upload`, { method: 'POST', credentials: 'include', body: form })
-      if (!res.ok) { const e = await res.json().catch(() => ({ detail: res.statusText })); throw new Error(e.detail ?? 'Upload error') }
-      return res.json()
-    },
   },
 }
 
