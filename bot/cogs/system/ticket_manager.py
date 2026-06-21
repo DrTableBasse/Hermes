@@ -176,7 +176,7 @@ class Tickets(commands.Cog):
                     read_messages=True, send_messages=True
                 )
 
-        channel_name = f"ticket-{ticket_num:04d}-{_slug(sujet)}"
+        channel_name = f"ticket-{_slug(interaction.user.display_name)}"
         try:
             channel = await category.create_text_channel(
                 name=channel_name,
@@ -254,9 +254,10 @@ class Tickets(commands.Cog):
         transcript_bytes = await self._html_transcript(interaction.channel, ticket["ticket_number"])
         filename = f"ticket-{ticket['ticket_number']:04d}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
 
+        user = interaction.guild.get_member(ticket["user_id"])
+
         trans_ch = interaction.guild.get_channel(TICKET_TRANSCRIPT_ID)
         if trans_ch:
-            user = interaction.guild.get_member(ticket["user_id"])
             t_embed = discord.Embed(
                 title=f"📄 Transcript — {ticket['subject']}",
                 color=discord.Color.blue(),
@@ -275,6 +276,13 @@ class Tickets(commands.Cog):
             "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE id = $1",
             ticket["id"],
         )
+
+        # Renommer le salon : ticket-pseudo✅
+        try:
+            display = user.display_name if user else str(ticket["user_id"])
+            await interaction.channel.edit(name=f"ticket-{_slug(display)}✅")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
 
         close_e = discord.Embed(
             title="🔒 Ticket fermé",
