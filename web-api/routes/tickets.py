@@ -52,7 +52,7 @@ async def list_tickets(
                 "status":        r["status"],
                 "created_at":    r["created_at"].isoformat() if r["created_at"] else None,
                 "closed_at":     r["closed_at"].isoformat() if r["closed_at"] else None,
-                "has_transcript": r["transcript_html"] is not None,
+                "has_transcript": r["has_transcript"],
             }
             for r in rows
         ],
