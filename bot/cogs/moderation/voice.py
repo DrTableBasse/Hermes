@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from config import VOICE_LOG_CHANNEL_ID, VOICE_HOURS_FOR_ROLE, ROLE_BATMAN
 from utils.command_manager import command_enabled
@@ -19,6 +19,25 @@ class VoiceCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self._sessions: dict[int, datetime] = {}
+        self._startup_check.start()
+
+    def cog_unload(self):
+        self._startup_check.cancel()
+
+    @tasks.loop(count=1)
+    async def _startup_check(self):
+        """Au démarrage, vérifie les salons vocaux déjà occupés pour Pack des Vocaux."""
+        guild_id = int(os.getenv('GUILD_ID', '0'))
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return
+        for channel in guild.voice_channels:
+            await self._check_pack_vocaux(channel)
+        logger.info("Pack des Vocaux : vérification startup terminée")
+
+    @_startup_check.before_loop
+    async def _before_startup_check(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_ready(self):
