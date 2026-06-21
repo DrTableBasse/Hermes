@@ -273,8 +273,8 @@ class Tickets(commands.Cog):
             )
 
         await db_manager.execute(
-            "UPDATE tickets SET status = 'closed', closed_at = NOW() WHERE id = $1",
-            ticket["id"],
+            "UPDATE tickets SET status = 'closed', closed_at = NOW(), transcript_html = $2 WHERE id = $1",
+            ticket["id"], transcript_bytes.decode("utf-8"),
         )
 
         # Renommer le salon : ticket-pseudo✅

@@ -1,5 +1,6 @@
 """Ticket history — admin only."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from middleware.auth_middleware import get_current_user, require_admin
 import database as db
 
@@ -27,7 +28,8 @@ async def list_tickets(
             t.subject,
             t.status,
             t.created_at,
-            t.closed_at
+            t.closed_at,
+            (t.transcript_html IS NOT NULL) AS has_transcript
         FROM tickets t
         LEFT JOIN user_voice_data v ON v.user_id = t.user_id
         {where}
@@ -50,6 +52,7 @@ async def list_tickets(
                 "status":        r["status"],
                 "created_at":    r["created_at"].isoformat() if r["created_at"] else None,
                 "closed_at":     r["closed_at"].isoformat() if r["closed_at"] else None,
+                "has_transcript": r["transcript_html"] is not None,
             }
             for r in rows
         ],
@@ -57,3 +60,21 @@ async def list_tickets(
         "page":  page,
         "limit": limit,
     }
+
+
+@router.get("/{ticket_id}/transcript", response_class=HTMLResponse)
+async def get_transcript(
+    ticket_id: int,
+    user: dict = Depends(get_current_user),
+):
+    require_admin(user)
+
+    row = await db.fetchrow(
+        "SELECT transcript_html FROM tickets WHERE id = $1", ticket_id
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Ticket introuvable")
+    if not row["transcript_html"]:
+        raise HTTPException(status_code=404, detail="Aucun transcript pour ce ticket")
+
+    return HTMLResponse(content=row["transcript_html"])

@@ -24,6 +24,7 @@ async function fetchTickets(token: string, status: string, page: number) {
       status: string
       created_at: string | null
       closed_at: string | null
+      has_transcript: boolean
     }[]
     total: number
     page: number
@@ -127,12 +128,13 @@ export default async function AdminTicketsPage({
               <th className="text-left px-4 py-3 text-muted-foreground font-medium w-24">Statut</th>
               <th className="text-left px-4 py-3 text-muted-foreground font-medium w-40">Ouvert le</th>
               <th className="text-left px-4 py-3 text-muted-foreground font-medium w-40">Fermé le</th>
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-32">Transcript</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {!data || data.tickets.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
+                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
                   Aucun ticket trouvé.
                 </td>
               </tr>
@@ -157,6 +159,20 @@ export default async function AdminTicketsPage({
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{fmt(t.created_at)}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{fmt(t.closed_at)}</td>
+                  <td className="px-4 py-3">
+                    {t.has_transcript ? (
+                      <a
+                        href={`/api/proxy/tickets/${t.id}/transcript`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium hover:bg-blue-500/20 transition-colors"
+                      >
+                        📄 Voir
+                      </a>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
                 </tr>
               ))
             )}
