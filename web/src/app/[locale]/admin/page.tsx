@@ -64,6 +64,18 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
         </section>
       )}
 
+      <section className="mb-8">
+        <h2 className="text-xl font-bold mb-4">Outils</h2>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href={`/${locale}/admin/tickets`}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-muted hover:bg-accent/50 border border-border transition-colors text-sm font-medium"
+          >
+            🎫 Historique tickets
+          </a>
+        </div>
+      </section>
+
       <AdminPanel initialCommands={commands} descriptions={commandDescriptions} locale={locale} />
     </div>
   )
