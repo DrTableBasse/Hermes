@@ -64,6 +64,7 @@ export function Navbar({ user, locale }: NavbarProps) {
           {navLink('/leaderboard', t('leaderboard'))}
           {user && navLink('/profile', t('profile'))}
           {user?.is_admin && navLink('/admin', t('admin'))}
+          {user?.is_admin && navLink('/admin/tickets', t('tickets'))}
         </nav>
 
         {/* Right section */}
@@ -128,6 +129,7 @@ export function Navbar({ user, locale }: NavbarProps) {
             {navLink('/leaderboard', t('leaderboard'))}
             {user && navLink('/profile', t('profile'))}
             {user?.is_admin && navLink('/admin', t('admin'))}
+            {user?.is_admin && navLink('/admin/tickets', t('tickets'))}
             <div className="border-t border-border/40 pt-4">
               {user ? (
                 <div className="flex items-center justify-between">
