@@ -17,7 +17,7 @@ load_dotenv()
 
 from config import validate_config, BOT_API_PORT
 from utils.constants import cogs_names
-from utils.database import init_database, voice_manager, message_stats_manager
+from utils.database import init_database, voice_manager, message_stats_manager, db_manager, achievement_manager, command_stats_manager
 from utils.command_manager import init_command_status_table
 from utils.embed_style import hermes_embed, Colors
 
@@ -169,7 +169,7 @@ async def on_message(message: discord.Message):
                 from cogs.gamification.xp import XP_MESSAGE
                 await xp_cog.award_xp(message.author.id, XP_MESSAGE, 'message', channel=message.channel)
             from utils.database import streak_manager, quest_manager
-            await streak_manager.update_message_streak(message.author.id)
+            streak_result = await streak_manager.update_message_streak(message.author.id)
             completed = await quest_manager.update_progress(message.author.id, 'messages', 1)
             if completed:
                 quest_cog = bot.get_cog('WeeklyQuestsCog')
@@ -192,8 +192,59 @@ async def on_message(message: discord.Message):
                         if quest_cog:
                             for q in completed:
                                 await quest_cog.notify(message.author.id, q)
+            # Achievements messages en temps réel
+            try:
+                notifier = bot.get_cog('AchievementsNotifier')
+                if notifier:
+                    stats = await db_manager.fetchrow("""
+                        SELECT COALESCE(SUM(message_count), 0) AS total,
+                               COUNT(DISTINCT channel_id)       AS channels
+                        FROM user_message_stats WHERE user_id = $1
+                    """, message.author.id)
+                    msg_total    = int(stats['total']    or 0) if stats else 0
+                    msg_channels = int(stats['channels'] or 0) if stats else 0
+                    msg_streak   = int(streak_result.get('streak') or 0) if streak_result else 0
+                    for ct, val in [
+                        ('messages',               msg_total),
+                        ('messages_multi_channel', msg_channels),
+                        ('message_streak_days',    msg_streak),
+                    ]:
+                        unlocked = await achievement_manager.check_and_unlock(message.author.id, ct, val)
+                        for a in unlocked:
+                            await notifier.notify(message.author.id, a['id'])
+            except Exception as e:
+                logger.warning(f"Message achievement check failed: {e}")
+
     except Exception as e:
         logger.warning(f"XP/streak tracking on message: {e}")
+
+
+@bot.event
+async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
+    if interaction.user.bot:
+        return
+    try:
+        await command_stats_manager.increment(interaction.user.id, command.name)
+        notifier = bot.get_cog('AchievementsNotifier')
+        if notifier:
+            total_cmds = await db_manager.fetchval(
+                "SELECT COALESCE(SUM(usage_count), 0) FROM user_command_stats WHERE user_id = $1",
+                interaction.user.id,
+            ) or 0
+            to_check = [('commands_used', int(total_cmds))]
+            if command.name in ('blague', 'confess'):
+                cmd_count = await db_manager.fetchval(
+                    "SELECT COALESCE(usage_count, 0) FROM user_command_stats"
+                    " WHERE user_id = $1 AND command_name = $2",
+                    interaction.user.id, command.name,
+                ) or 0
+                to_check.append((f'{command.name}_count', int(cmd_count)))
+            for ct, val in to_check:
+                unlocked = await achievement_manager.check_and_unlock(interaction.user.id, ct, val)
+                for a in unlocked:
+                    await notifier.notify(interaction.user.id, a['id'])
+    except Exception as e:
+        logger.warning(f"Command stats tracking: {e}")
 
 
 @bot.event

@@ -95,11 +95,37 @@ class WarnCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        warned_user_id = w['user_id']
         await warn_manager.delete_warn(warn_id)
         await interaction.response.send_message(
             embed=hermes_embed(description=f"✅ Warn `#{warn_id}` supprimé avec succès.", color=Colors.GREEN),
             ephemeral=True,
         )
+        # Si l'utilisateur n'a plus de warns, vérifier warn_free + warn_free_days
+        try:
+            from utils.database import achievement_manager, db_manager
+            notifier = self.bot.get_cog('AchievementsNotifier')
+            if notifier:
+                remaining = await db_manager.fetchval(
+                    "SELECT COUNT(*) FROM warn WHERE user_id = $1", warned_user_id
+                ) or 0
+                if remaining == 0:
+                    unlocked = await achievement_manager.check_and_unlock(warned_user_id, 'warn_free', 0)
+                    for a in unlocked:
+                        await notifier.notify(warned_user_id, a['id'])
+                    days_free = await db_manager.fetchval("""
+                        SELECT EXTRACT(DAY FROM NOW() - COALESCE(
+                            TO_TIMESTAMP((SELECT MAX(create_time) FROM warn WHERE user_id = $1)),
+                            (SELECT created_at FROM user_voice_data WHERE user_id = $1)
+                        ))::int
+                    """, warned_user_id) or 0
+                    unlocked = await achievement_manager.check_and_unlock(
+                        warned_user_id, 'warn_free_days', int(days_free)
+                    )
+                    for a in unlocked:
+                        await notifier.notify(warned_user_id, a['id'])
+        except Exception as e:
+            logger.warning(f"Warn achievement check failed: {e}")
 
 
 async def setup(bot):

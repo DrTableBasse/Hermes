@@ -99,12 +99,7 @@ JOIN achievements a ON a.condition_type = 'consecutive_voice_days'
 WHERE COALESCE(u.consecutive_voice_days, 0) >= a.condition_value
 ON CONFLICT DO NOTHING;
 
--- 14. articles_published / articles_written
-INSERT INTO user_achievements (user_id, achievement_id)
-SELECT sub.author_id, a.id
-FROM (SELECT author_id, COUNT(*) AS cnt FROM articles WHERE published=TRUE GROUP BY author_id) sub
-JOIN achievements a ON a.condition_type IN ('articles_published','articles_written') AND sub.cnt >= a.condition_value
-ON CONFLICT DO NOTHING;
+-- 14. articles_published / articles_written — SUPPRIMÉ (inaccessible aux utilisateurs normaux)
 
 -- 15. comments_posted
 INSERT INTO user_achievements (user_id, achievement_id)

@@ -22,9 +22,6 @@ async def _check_achievements(user_id: int, total_messages: int, voice_hours: fl
     quests_completed = await db.fetchval(
         "SELECT COUNT(*) FROM user_quest_progress WHERE user_id = $1 AND xp_claimed = TRUE", user_id
     ) or 0
-    articles_written = await db.fetchval(
-        "SELECT COUNT(*) FROM articles WHERE author_id = $1 AND published = TRUE", user_id
-    ) or 0
     comments_posted = await db.fetchval(
         "SELECT COUNT(*) FROM article_comments WHERE user_id = $1", user_id
     ) or 0
@@ -103,10 +100,12 @@ async def _check_achievements(user_id: int, total_messages: int, voice_hours: fl
             earned = int(vd.get('voice_morning_minutes') or 0) >= val
         elif ct in ('longest_session_minutes', 'long_session'):
             earned = int(vd.get('longest_session_minutes') or 0) >= val
-        elif ct in ('consecutive_voice_days', 'total_sessions'):
-            earned = int(vd.get('consecutive_voice_days') or 0) >= val
-        elif ct in ('articles_published', 'articles_written'):
-            earned = articles_written >= val
+        elif ct == 'consecutive_voice_days':
+            voice_max = max(
+                int(streak_data.get('current_streak') or 0),
+                int(streak_data.get('max_streak') or 0),
+            ) if streak_data else 0
+            earned = voice_max >= val
         elif ct == 'comments_posted':
             earned = comments_posted >= val
         elif ct == 'votes_cast':

@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from config import VOICE_LOG_CHANNEL_ID, VOICE_HOURS_FOR_ROLE, ROLE_BATMAN
 from utils.command_manager import command_enabled
-from utils.database import voice_manager, db_manager, streak_manager, quest_manager, notification_manager
+from utils.database import voice_manager, db_manager, streak_manager, quest_manager, notification_manager, achievement_manager
 from utils.logging import log_voice_event
 from utils.embed_style import hermes_embed, leaderboard_embed, Colors
 
@@ -89,6 +89,17 @@ class VoiceCog(commands.Cog):
 
             await streak_manager.update_voice_streak(member.id)
 
+            # Sync consecutive_voice_days avec le vrai streak vocal
+            streak_row = await streak_manager.get_streak(member.id)
+            voice_max_streak = max(
+                int(streak_row.get('current_streak') or 0),
+                int(streak_row.get('max_streak') or 0),
+            ) if streak_row else 0
+            await db_manager.execute(
+                "UPDATE user_voice_data SET consecutive_voice_days = $2 WHERE user_id = $1",
+                member.id, voice_max_streak,
+            )
+
             if minutes > 0:
                 completed_quests = await quest_manager.update_progress(member.id, 'voice_minutes', minutes)
                 if completed_quests:
@@ -97,15 +108,54 @@ class VoiceCog(commands.Cog):
                         for q in completed_quests:
                             await quest_cog.notify(member.id, q)
 
-            if ROLE_BATMAN:
-                data = await voice_manager.get_user(member.id)
-                if data and data['total_time'] >= VOICE_HOURS_FOR_ROLE * 3600:
+            # Fetch une seule fois pour ROLE_BATMAN et achievements
+            user_data = await voice_manager.get_user(member.id)
+
+            if ROLE_BATMAN and user_data:
+                if user_data['total_time'] >= VOICE_HOURS_FOR_ROLE * 3600:
                     role = discord.utils.get(member.guild.roles, name=ROLE_BATMAN)
                     if role and role not in member.roles:
                         await member.add_roles(role)
 
+            # Vérification achievements vocaux en temps réel (DM + rôle)
+            try:
+                notifier = self.bot.get_cog('AchievementsNotifier')
+                if notifier and user_data:
+                    for ct, val in [
+                        ('voice_hours',             int((user_data['total_time'] or 0) // 3600)),
+                        ('voice_night_minutes',     int(user_data.get('voice_night_minutes') or 0)),
+                        ('voice_morning_minutes',   int(user_data.get('voice_morning_minutes') or 0)),
+                        ('longest_session_minutes', int(user_data.get('longest_session_minutes') or 0)),
+                        ('unique_voice_channels',   int(user_data.get('unique_voice_channels_count') or 0)),
+                        ('consecutive_voice_days',  voice_max_streak),
+                    ]:
+                        unlocked = await achievement_manager.check_and_unlock(member.id, ct, val)
+                        for a in unlocked:
+                            await notifier.notify(member.id, a['id'])
+            except Exception as e:
+                logger.error(f"Voice achievement notify error for {member.id}: {e}")
+
         except Exception as e:
             logger.error(f"_update_time error: {e}", exc_info=True)
+
+    async def _check_pack_vocaux(self, channel: discord.VoiceChannel):
+        """Vérifie l'achievement Pack des Vocaux (3+ membres simultanément) pour tous les membres du salon."""
+        human = [m for m in channel.members if not m.bot]
+        if len(human) < 3:
+            return
+        notifier = self.bot.get_cog('AchievementsNotifier')
+        if not notifier:
+            return
+        count = len(human)
+        for m in human:
+            try:
+                unlocked = await achievement_manager.check_and_unlock(
+                    m.id, 'max_concurrent_members', count
+                )
+                for a in unlocked:
+                    await notifier.notify(m.id, a['id'])
+            except Exception as e:
+                logger.warning(f"Pack des Vocaux check failed for {m.id}: {e}")
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member,
@@ -123,6 +173,7 @@ class VoiceCog(commands.Cog):
             self._sessions[member.id] = now
             await log_voice_event(self.bot, 'voice_join', member.id,
                                   f"Rejoint **{after.channel.name}**", VOICE_LOG_CHANNEL_ID)
+            await self._check_pack_vocaux(after.channel)
 
         elif left:
             if member.id in self._sessions:
@@ -140,6 +191,7 @@ class VoiceCog(commands.Cog):
                 self._sessions[member.id] = now
             await log_voice_event(self.bot, 'voice_move', member.id,
                                   f"**{before.channel.name}** → **{after.channel.name}**", VOICE_LOG_CHANNEL_ID)
+            await self._check_pack_vocaux(after.channel)
 
     @app_commands.command(name="voicetime", description="Afficher le temps vocal d'un utilisateur")
     @command_enabled(guild_specific=True)

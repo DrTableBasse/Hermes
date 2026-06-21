@@ -78,6 +78,22 @@ class WeeklyQuestsCog(commands.Cog):
             ),
             ephemeral=True,
         )
+        # Achievement quests_completed
+        try:
+            from utils.database import achievement_manager, db_manager
+            notifier = self.bot.get_cog('AchievementsNotifier')
+            if notifier:
+                total = await db_manager.fetchval(
+                    "SELECT COUNT(*) FROM user_quest_progress WHERE user_id = $1 AND xp_claimed = TRUE",
+                    interaction.user.id,
+                ) or 0
+                unlocked = await achievement_manager.check_and_unlock(
+                    interaction.user.id, 'quests_completed', int(total)
+                )
+                for a in unlocked:
+                    await notifier.notify(interaction.user.id, a['id'])
+        except Exception as e:
+            logger.warning(f"Quest achievement check failed: {e}")
 
     async def notify(self, user_id: int, quest: dict):
         try:
