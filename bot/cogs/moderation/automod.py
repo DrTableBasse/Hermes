@@ -7,7 +7,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from utils.database import db_manager, warn_manager
-from utils.decorators import administration_only
+from utils.decorators import administration_only, ADMIN_ROLE_NAME
 from utils.command_manager import command_enabled
 from utils.embed_style import hermes_embed, Colors
 
@@ -178,8 +178,11 @@ class AutoModCog(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        # Bypass pour les admins
+        # Bypass pour les admins Discord et le rôle Administration
         if message.author.guild_permissions.administrator:
+            return
+        admin_role = discord.utils.get(message.guild.roles, name=ADMIN_ROLE_NAME)
+        if admin_role and admin_role in message.author.roles:
             return
 
         cfg = await self._get_config(message.guild.id)
