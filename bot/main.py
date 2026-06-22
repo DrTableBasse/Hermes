@@ -146,19 +146,6 @@ async def on_message(message: discord.Message):
     except Exception as e:
         logger.warning(f"Erreur tracking message stats: {e}")
 
-    # Reply when mentioned
-    if bot.user in message.mentions:
-        try:
-            video = 'src/ping.mp4'
-            if os.path.exists(video):
-                await message.reply("Arrête de me mentionner tocard ! Wouaf ! 🐶",
-                                    file=discord.File(video))
-            else:
-                await message.reply("Arrête de me mentionner tocard ! Wouaf ! 🐶")
-        except Exception as e:
-            logger.warning(f"Impossible de répondre à la mention: {e}")
-        return
-
     await bot.process_commands(message)
 
     # Award XP et tracking streak/quêtes pour chaque message

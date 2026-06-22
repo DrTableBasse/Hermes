@@ -1,4 +1,4 @@
-"""Auto-modération : anti-spam, mentions massives, mots bloqués, liens, doublons."""
+"""Auto-modération : mentions massives, mots bloqués, liens, doublons."""
 import re
 import logging
 from collections import defaultdict
@@ -26,9 +26,6 @@ class AutoModCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-        # {user_id: [timestamp, ...]}  — horodatages des messages dans la fenêtre
-        self._spam_tracker: dict[int, list[float]] = defaultdict(list)
-
         # {user_id: {'count': int, 'last': float}}  — violations progressives
         self._violations: dict[int, dict] = defaultdict(lambda: {'count': 0, 'last': 0.0})
 
@@ -51,8 +48,6 @@ class AutoModCog(commands.Cog):
             'enabled':                  True,
             'blocked_words':            [],
             'max_mentions':             10,
-            'spam_threshold':           3,
-            'spam_window_seconds':      5,
             'invite_links_enabled':     True,
             'duplicate_window_seconds': 30,
             'log_channel_id':           None,
@@ -160,7 +155,7 @@ class AutoModCog(commands.Cog):
                 pass
 
         # Log DB
-        await self._log_action(guild_id, user_id, 'spam' if level == 1 else 'timeout', reason, message.channel.id)
+        await self._log_action(guild_id, user_id, 'warning' if level == 1 else 'timeout', reason, message.channel.id)
 
     async def _log_action(self, guild_id: int, user_id: int, action: str, reason: str, channel_id: int = None):
         try:
@@ -192,32 +187,12 @@ class AutoModCog(commands.Cog):
         user_id = message.author.id
         now = datetime.now(timezone.utc).timestamp()
 
-        # 1. Anti-spam (fréquence)
-        window = cfg['spam_window_seconds']
-        self._spam_tracker[user_id] = [t for t in self._spam_tracker[user_id] if now - t < window]
-        self._spam_tracker[user_id].append(now)
-
-        if len(self._spam_tracker[user_id]) >= cfg['spam_threshold']:
-            # Récupérer les messages récents du burst pour tout supprimer
-            burst = []
-            try:
-                burst = [
-                    m async for m in message.channel.history(limit=20)
-                    if m.author.id == user_id and now - m.created_at.timestamp() < window
-                    and m.id != message.id
-                ]
-            except discord.Forbidden:
-                pass
-            self._spam_tracker[user_id] = []
-            await self._sanction(message, "Spam détecté (messages trop fréquents)", burst)
-            return
-
-        # 2. Liens Discord (discord.gg / discord.com/invite)
+        # 1. Liens Discord (discord.gg / discord.com/invite)
         if cfg.get('invite_links_enabled', True) and INVITE_RE.search(message.content):
             await self._sanction(message, "Lien d'invitation Discord non autorisé")
             return
 
-        # 3. Doublons (même message posté plusieurs fois rapidement)
+        # 2. Doublons (même message posté plusieurs fois rapidement)
         dup_window = cfg.get('duplicate_window_seconds', 30)
         content_key = message.content.strip().lower()
         if len(content_key) > 5:
@@ -241,7 +216,7 @@ class AutoModCog(commands.Cog):
                 return
             self._msg_cache[user_id][content_key] = now
 
-        # 4. Anti mentions massives
+        # 3. Anti mentions massives
         if len(message.mentions) >= cfg['max_mentions']:
             await self._sanction(
                 message,
@@ -249,7 +224,7 @@ class AutoModCog(commands.Cog):
             )
             return
 
-        # 5. Mots bloqués
+        # 4. Mots bloqués
         blocked = cfg.get('blocked_words') or []
         content_lower = message.content.lower()
         for word in blocked:
@@ -267,27 +242,22 @@ class AutoModCog(commands.Cog):
         interaction: discord.Interaction,
         enabled: bool = None,
         max_mentions: int = None,
-        spam_threshold: int = None,
-        spam_window: int = None,
         invite_links: bool = None,
         duplicate_window: int = None,
     ):
         guild_id = interaction.guild_id
         await db_manager.execute("""
             INSERT INTO automod_config (
-                guild_id, max_mentions, spam_threshold, spam_window_seconds,
-                enabled, invite_links_enabled, duplicate_window_seconds
+                guild_id, max_mentions, enabled, invite_links_enabled, duplicate_window_seconds
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id) DO UPDATE SET
                 max_mentions             = COALESCE($2, automod_config.max_mentions),
-                spam_threshold           = COALESCE($3, automod_config.spam_threshold),
-                spam_window_seconds      = COALESCE($4, automod_config.spam_window_seconds),
-                enabled                  = COALESCE($5, automod_config.enabled),
-                invite_links_enabled     = COALESCE($6, automod_config.invite_links_enabled),
-                duplicate_window_seconds = COALESCE($7, automod_config.duplicate_window_seconds),
+                enabled                  = COALESCE($3, automod_config.enabled),
+                invite_links_enabled     = COALESCE($4, automod_config.invite_links_enabled),
+                duplicate_window_seconds = COALESCE($5, automod_config.duplicate_window_seconds),
                 updated_at               = NOW()
-        """, guild_id, max_mentions, spam_threshold, spam_window, enabled, invite_links, duplicate_window)
+        """, guild_id, max_mentions, enabled, invite_links, duplicate_window)
 
         self._invalidate_cache(guild_id)
         cfg = await self._get_config(guild_id)
@@ -295,7 +265,6 @@ class AutoModCog(commands.Cog):
         embed = hermes_embed(title="🛡️  Configuration Auto-Mod", color=Colors.GREEN)
         embed.add_field(name="Statut",         value="✅ Activé" if cfg['enabled'] else "❌ Désactivé", inline=True)
         embed.add_field(name="Max mentions",   value=f"**{cfg['max_mentions']}**", inline=True)
-        embed.add_field(name="Anti-spam",      value=f"**{cfg['spam_threshold']}** msgs/**{cfg['spam_window_seconds']}**s", inline=True)
         embed.add_field(name="Liens Discord",  value="🚫 Bloqués" if cfg.get('invite_links_enabled') else "✅ Autorisés", inline=True)
         embed.add_field(name="Doublons",       value=f"Fenêtre **{cfg.get('duplicate_window_seconds', 30)}**s", inline=True)
         embed.add_field(
@@ -310,7 +279,6 @@ class AutoModCog(commands.Cog):
     @command_enabled(guild_specific=True)
     async def automod_reset(self, interaction: discord.Interaction, member: discord.Member):
         self._violations.pop(member.id, None)
-        self._spam_tracker.pop(member.id, None)
         self._msg_cache.pop(member.id, None)
         await interaction.response.send_message(
             embed=hermes_embed(
