@@ -2,13 +2,11 @@
 import asyncio
 import logging
 import os
-from datetime import datetime
-
 import discord
 from discord.ext import commands, tasks
 
 from utils.database import db_manager, notification_manager
-from utils.embed_style import Colors, FOOTER_TEXT
+from utils.embed_style import Colors
 
 logger = logging.getLogger(__name__)
 
@@ -118,11 +116,10 @@ class AchievementsNotifier(commands.Cog):
             if not ach:
                 return
 
-            color, tier_label = _tier(ach['points'])
+            _, tier_label = _tier(ach['points'])
             icon  = ach['icon'] or '🏆'
             name  = ach['name']
             desc  = ach['description'] or ''
-            pts   = ach['points']
 
             # ── Rôle achievement ──────────────────────────────────────────
             guild = self.bot.get_guild(GUILD_ID)
@@ -143,27 +140,6 @@ class AchievementsNotifier(commands.Cog):
                             logger.info(f"Rôle '{role_name}' attribué à {user_id}")
                         except discord.Forbidden:
                             logger.warning(f"Impossible d'attribuer le rôle '{role_name}' à {user_id}")
-
-            # ── DM ────────────────────────────────────────────────────────
-            embed = discord.Embed(
-                title=f"{icon}  {name}",
-                description=desc,
-                color=color,
-                timestamp=datetime.now(),
-            )
-            embed.add_field(name="✨ Points gagnés", value=f"**+{pts} pts**", inline=True)
-            embed.add_field(name="🎖️ Rareté",        value=tier_label,        inline=True)
-            if guild:
-                embed.add_field(name="🏷️ Rôle obtenu", value=f"`{icon} {name}`", inline=True)
-            embed.set_footer(text=f"Achievement débloqué  ·  {FOOTER_TEXT}")
-
-            discord_user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            try:
-                await discord_user.send(embed=embed)
-            except discord.Forbidden:
-                pass
-            except Exception as e:
-                logger.warning(f"DM achievement failed for {user_id}: {e}")
 
             await notification_manager.create(
                 user_id, 'achievement',
