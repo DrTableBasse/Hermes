@@ -14,10 +14,7 @@ class WelcomeCog(commands.Cog):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_member_join(self, member: discord.Member):
-        if member.bot:
-            return
-
+    async def on_member_join_tracked(self, member: discord.Member, used_invite: discord.Invite | None):
         channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
         if channel is None:
             logger.warning(f"Welcome channel {WELCOME_CHANNEL_ID} not found")
@@ -35,6 +32,14 @@ class WelcomeCog(commands.Cog):
             color=0x2ECC71,
         )
         embed.set_thumbnail(url=member.display_avatar.url)
+
+        if used_invite and used_invite.inviter:
+            embed.add_field(
+                name="Invitation",
+                value=f"Invité par {used_invite.inviter.mention} (code `{used_invite.code}`)",
+                inline=False,
+            )
+
         embed.set_footer(text=f"Nous sommes maintenant {member_count} membres.")
 
         try:

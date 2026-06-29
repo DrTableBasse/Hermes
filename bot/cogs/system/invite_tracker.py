@@ -38,26 +38,28 @@ class InviteTrackerCog(commands.Cog):
         if member.bot:
             return
         guild = member.guild
+        used_invite: discord.Invite | None = None
+
         try:
             current_invites = await guild.invites()
+            old_cache = self._cache.get(guild.id, {})
+
+            for inv in current_invites:
+                old_uses = old_cache.get(inv.code, 0)
+                if inv.uses > old_uses and inv.inviter and not inv.inviter.bot:
+                    used_invite = inv
+                    break
+
+            self._cache[guild.id] = {inv.code: inv.uses or 0 for inv in current_invites}
         except Exception as e:
             logger.warning(f"Cannot fetch invites on member join: {e}")
+
+        self.bot.dispatch('member_join_tracked', member, used_invite)
+
+        if used_invite is None:
             return
 
-        old_cache = self._cache.get(guild.id, {})
-        inviter_id: int | None = None
-
-        for inv in current_invites:
-            old_uses = old_cache.get(inv.code, 0)
-            if inv.uses > old_uses and inv.inviter and not inv.inviter.bot:
-                inviter_id = inv.inviter.id
-                break
-
-        self._cache[guild.id] = {inv.code: inv.uses or 0 for inv in current_invites}
-
-        if inviter_id is None:
-            return
-
+        inviter_id = used_invite.inviter.id
         from utils.database import invite_manager, quest_manager, achievement_manager
         await invite_manager.increment(inviter_id)
         completed_quests = await quest_manager.update_progress(inviter_id, 'invites', 1)
