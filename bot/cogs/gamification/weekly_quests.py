@@ -3,11 +3,11 @@ import logging
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-from datetime import date, datetime, time, timezone
+from datetime import date, time, timezone
 from utils.database import quest_manager, db_manager, notification_manager
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
-from utils.embed_style import hermes_embed, progress_bar, Colors, FOOTER_TEXT
+from utils.embed_style import hermes_embed, progress_bar, Colors
 
 logger = logging.getLogger(__name__)
 
@@ -97,22 +97,6 @@ class WeeklyQuestsCog(commands.Cog):
 
     async def notify(self, user_id: int, quest: dict):
         try:
-            embed = discord.Embed(
-                title=f"{quest['icon']}  Défi complété !",
-                description=f"**{quest['title']}**\n{quest.get('description', '')}",
-                color=Colors.GREEN,
-                timestamp=datetime.now(),
-            )
-            embed.add_field(name="🎁 Récompense", value=f"**+{quest['xp_reward']} XP**", inline=True)
-            embed.add_field(name="📋 Réclamer", value=f"`/quest-claim {quest['id']}`", inline=True)
-            embed.set_footer(text=FOOTER_TEXT)
-
-            discord_user = self.bot.get_user(user_id) or await self.bot.fetch_user(user_id)
-            try:
-                await discord_user.send(embed=embed)
-            except discord.Forbidden:
-                pass
-
             await notification_manager.create(
                 user_id, 'quest_complete',
                 f"Défi complété : {quest['title']}",
