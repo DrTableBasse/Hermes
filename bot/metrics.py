@@ -56,7 +56,7 @@ invites_uses_total     = Gauge('hermes_invites_uses_total',    'Utilisations d\'
 invites_uses_7d        = Gauge('hermes_invites_uses_7d',       'Membres ayant rejoint via invitation ces 7 derniers jours')
 
 # ── Avec labels — top 15 inviters ─────────────────────────────────────────────
-top_inviters           = Gauge('hermes_top_inviters',          'Membres ayant le plus invité', ['username', 'user_id'])
+top_inviters           = Gauge('hermes_top_inviters',          'Classement invitations (comme /classement et le site)', ['username', 'user_id', 'rank'])
 
 # ── Avec labels — liste des codes d'invitation actifs ─────────────────────────
 invite_codes_list      = Gauge('hermes_invite_codes',          'Invitations actives par code', ['code', 'host', 'expires_at'])
@@ -262,7 +262,8 @@ async def refresh(guild=None):
         for row in top_inv:
             top_inviters.labels(
                 username=row['username'] or str(row['inviter_id']),
-                user_id=str(row['inviter_id'])
+                user_id=str(row['inviter_id']),
+                rank=str(row['rank'])
             ).set(row['uses'])
 
         active_invites = await invite_manager.get_active_invites()

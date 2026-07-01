@@ -603,26 +603,35 @@
     },
     {
       "id": 35,
-      "type": "bargauge",
-      "title": "🤝 Top 15 inviters",
+      "type": "table",
+      "title": "🏆 Classement invitations",
       "gridPos": { "x": 0, "y": 58, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
-        "orientation": "horizontal",
-        "displayMode": "gradient",
-        "valueMode": "color",
-        "minVizHeight": 10
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [{ "displayName": "Invitations", "desc": true }]
       },
       "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "continuous-GrYlRd" },
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
-        },
-        "overrides": []
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Rang" }, "properties": [{ "id": "custom.width", "value": 80 }, { "id": "custom.align", "value": "center" }] },
+          { "matcher": { "id": "byName", "options": "Utilisateur" }, "properties": [{ "id": "custom.width", "value": 220 }] },
+          { "matcher": { "id": "byName", "options": "Invitations" }, "properties": [{ "id": "custom.width", "value": 140 }, { "id": "custom.align", "value": "center" }] }
+        ]
       },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "user_id": true, "__name__": true, "instance": true, "job": true },
+            "indexByName": { "rank": 0, "username": 1, "Value": 2 },
+            "renameByName": { "rank": "Rang", "username": "Utilisateur", "Value": "Invitations" }
+          }
+        }
+      ],
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_top_inviters)", "legendFormat": "{{username}}", "instant": true }
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_top_inviters)", "format": "table", "instant": true, "legendFormat": "__auto" }
       ]
     },
     {

@@ -659,11 +659,16 @@ class InviteManager:
         return {"total_codes": total_codes, "total_uses": total_uses, "uses_7d": uses_7d}
 
     async def get_top_inviters(self, limit: int = 15) -> List[Dict]:
+        """Classement invitations — même source/logique que /classement et
+        le leaderboard web (user_voice_data + user_invite_stats, RANK())."""
         return await self.db.fetch("""
-            SELECT v.username, uis.user_id AS inviter_id, uis.invite_count AS uses
-            FROM user_invite_stats uis
-            LEFT JOIN user_voice_data v ON v.user_id = uis.user_id
-            ORDER BY uis.invite_count DESC
+            SELECT u.user_id AS inviter_id, u.username,
+                   COALESCE(i.invite_count, 0) AS uses,
+                   RANK() OVER (ORDER BY COALESCE(i.invite_count, 0) DESC) AS rank
+            FROM user_voice_data u
+            LEFT JOIN user_invite_stats i ON u.user_id = i.user_id
+            WHERE u.is_member = TRUE
+            ORDER BY rank
             LIMIT $1
         """, limit)
 
