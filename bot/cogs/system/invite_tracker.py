@@ -20,18 +20,33 @@ class InviteTrackerCog(commands.Cog):
         try:
             invites = await guild.invites()
             self._cache[guild.id] = {inv.code: inv.uses or 0 for inv in invites}
+            from utils.database import invite_manager
+            await invite_manager.sync_all_invites(invites)
         except Exception as e:
             logger.warning(f"Cannot fetch invites for guild {guild.id}: {e}")
 
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite):
-        if invite.guild:
-            self._cache.setdefault(invite.guild.id, {})[invite.code] = invite.uses or 0
+        if not invite.guild:
+            return
+        self._cache.setdefault(invite.guild.id, {})[invite.code] = invite.uses or 0
+        if invite.inviter and not invite.inviter.bot:
+            from utils.database import invite_manager
+            await invite_manager.upsert_invite(
+                code=invite.code,
+                inviter_id=invite.inviter.id,
+                uses=invite.uses or 0,
+                max_uses=invite.max_uses or None,
+                expires_at=invite.expires_at,
+            )
 
     @commands.Cog.listener()
     async def on_invite_delete(self, invite: discord.Invite):
-        if invite.guild:
-            self._cache.get(invite.guild.id, {}).pop(invite.code, None)
+        if not invite.guild:
+            return
+        self._cache.get(invite.guild.id, {}).pop(invite.code, None)
+        from utils.database import invite_manager
+        await invite_manager.deactivate_invite(invite.code)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -62,6 +77,7 @@ class InviteTrackerCog(commands.Cog):
         inviter_id = used_invite.inviter.id
         from utils.database import invite_manager, quest_manager, achievement_manager
         await invite_manager.increment(inviter_id)
+        await invite_manager.record_use(used_invite.code, inviter_id, member.id)
         completed_quests = await quest_manager.update_progress(inviter_id, 'invites', 1)
         if completed_quests:
             quest_cog = self.bot.get_cog('WeeklyQuestsCog')

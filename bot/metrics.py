@@ -50,6 +50,14 @@ user_warn_count        = Gauge('hermes_user_warn_count',      'Avertissements pa
 # ── Avec labels — top 15 XP ───────────────────────────────────────────────────
 user_xp_top            = Gauge('hermes_user_xp_top',          'XP des 15 meilleurs membres', ['username', 'level'])
 
+# ── Scalaires — invitations ────────────────────────────────────────────────────
+invites_total          = Gauge('hermes_invites_total',         'Codes d\'invitation actifs')
+invites_uses_total     = Gauge('hermes_invites_uses_total',    'Utilisations d\'invitations — total cumulé')
+invites_uses_7d        = Gauge('hermes_invites_uses_7d',       'Membres ayant rejoint via invitation ces 7 derniers jours')
+
+# ── Avec labels — top 15 inviters ─────────────────────────────────────────────
+top_inviters           = Gauge('hermes_top_inviters',          'Membres ayant le plus invité', ['username', 'user_id'])
+
 
 async def refresh(guild=None):
     """Interroge la BDD et met à jour toutes les jauges. guild = discord.Guild or None."""
@@ -238,6 +246,21 @@ async def refresh(guild=None):
             user_xp_top.labels(
                 username=row['username'], level=str(row['current_level'])
             ).set(row['total_xp'])
+
+        # ── Invitations ───────────────────────────────────────────────────────
+        from utils.database import invite_manager
+        inv_stats = await invite_manager.get_invite_stats()
+        invites_total.set(inv_stats['total_codes'])
+        invites_uses_total.set(inv_stats['total_uses'])
+        invites_uses_7d.set(inv_stats['uses_7d'])
+
+        top_inv = await invite_manager.get_top_inviters(limit=15)
+        top_inviters._metrics.clear()
+        for row in top_inv:
+            top_inviters.labels(
+                username=row['username'] or str(row['inviter_id']),
+                user_id=str(row['inviter_id'])
+            ).set(row['uses'])
 
     except Exception as e:
         logger.warning("metrics refresh error: %s", e)

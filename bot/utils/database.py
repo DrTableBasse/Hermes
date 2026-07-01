@@ -603,6 +603,68 @@ class InviteManager:
             LIMIT $1
         """, limit)
 
+    async def upsert_invite(self, code: str, inviter_id: int, uses: int,
+                            max_uses: int | None = None,
+                            expires_at=None) -> None:
+        await self.db.execute("""
+            INSERT INTO invite_codes (code, inviter_id, uses, max_uses, expires_at, is_active)
+            VALUES ($1, $2, $3, $4, $5, TRUE)
+            ON CONFLICT (code) DO UPDATE
+                SET uses       = EXCLUDED.uses,
+                    max_uses   = EXCLUDED.max_uses,
+                    expires_at = EXCLUDED.expires_at,
+                    is_active  = TRUE,
+                    updated_at = NOW()
+        """, code, inviter_id, uses, max_uses, expires_at)
+
+    async def deactivate_invite(self, code: str) -> None:
+        await self.db.execute(
+            "UPDATE invite_codes SET is_active = FALSE, updated_at = NOW() WHERE code = $1",
+            code
+        )
+
+    async def sync_all_invites(self, invites: list) -> None:
+        for inv in invites:
+            if inv.inviter and not inv.inviter.bot:
+                await self.upsert_invite(
+                    code=inv.code,
+                    inviter_id=inv.inviter.id,
+                    uses=inv.uses or 0,
+                    max_uses=inv.max_uses or None,
+                    expires_at=inv.expires_at,
+                )
+
+    async def record_use(self, invite_code: str, inviter_id: int, invitee_id: int) -> None:
+        await self.db.execute("""
+            INSERT INTO invite_uses (invite_code, inviter_id, invitee_id)
+            VALUES ($1, $2, $3)
+        """, invite_code, inviter_id, invitee_id)
+        await self.db.execute("""
+            UPDATE invite_codes SET uses = uses + 1, updated_at = NOW() WHERE code = $1
+        """, invite_code)
+
+    async def get_invite_stats(self) -> Dict:
+        total_codes = await self.db.fetchval(
+            "SELECT COUNT(*) FROM invite_codes WHERE is_active = TRUE"
+        ) or 0
+        total_uses = await self.db.fetchval(
+            "SELECT COALESCE(SUM(uses), 0) FROM invite_codes"
+        ) or 0
+        uses_7d = await self.db.fetchval(
+            "SELECT COUNT(*) FROM invite_uses WHERE joined_at > NOW() - INTERVAL '7 days'"
+        ) or 0
+        return {"total_codes": total_codes, "total_uses": total_uses, "uses_7d": uses_7d}
+
+    async def get_top_inviters(self, limit: int = 15) -> List[Dict]:
+        return await self.db.fetch("""
+            SELECT v.username, iu.inviter_id, COUNT(*) AS uses
+            FROM invite_uses iu
+            LEFT JOIN user_voice_data v ON v.user_id = iu.inviter_id
+            GROUP BY iu.inviter_id, v.username
+            ORDER BY uses DESC
+            LIMIT $1
+        """, limit)
+
 
 # ── Singletons ────────────────────────────────────────────────────────────────
 db_manager            = DatabaseManager()
