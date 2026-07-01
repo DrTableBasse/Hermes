@@ -553,6 +553,96 @@
         { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_achievements_total", "legendFormat": "Succes" },
         { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_bumps_total",         "legendFormat": "Bumps" }
       ]
+    },
+
+    {
+      "id": 32,
+      "type": "stat",
+      "title": "Codes d'invitation actifs",
+      "gridPos": { "x": 0, "y": 54, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_total", "legendFormat": "" }]
+    },
+    {
+      "id": 33,
+      "type": "stat",
+      "title": "Invitations utilisées (total)",
+      "gridPos": { "x": 8, "y": 54, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "thresholds": { "mode": "absolute", "steps": [] } },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_total", "legendFormat": "" }]
+    },
+    {
+      "id": 34,
+      "type": "stat",
+      "title": "Joins via invite (7 jours)",
+      "gridPos": { "x": 16, "y": 54, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "super-light-green", "value": 5 },
+            { "color": "yellow", "value": 20 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_7d", "legendFormat": "" }]
+    },
+    {
+      "id": 35,
+      "type": "bargauge",
+      "title": "🤝 Top 15 inviters",
+      "gridPos": { "x": 0, "y": 58, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color",
+        "minVizHeight": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "continuous-GrYlRd" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_top_inviters)", "legendFormat": "{{username}}", "instant": true }
+      ]
+    },
+    {
+      "id": 36,
+      "type": "timeseries",
+      "title": "Invitations (evolution)",
+      "gridPos": { "x": 12, "y": 58, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": { "legend": { "displayMode": "list" }, "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Total" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "7 jours" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "teal" } }] }
+        ]
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_total", "legendFormat": "Total" },
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_7d",    "legendFormat": "7 jours" }
+      ]
     }
   ]
 }
