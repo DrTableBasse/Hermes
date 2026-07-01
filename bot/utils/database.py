@@ -647,8 +647,11 @@ class InviteManager:
         total_codes = await self.db.fetchval(
             "SELECT COUNT(*) FROM invite_codes WHERE is_active = TRUE"
         ) or 0
+        # Compteur DB canonique (incrémenté à chaque join réel), pas le miroir
+        # Discord par code — celui-ci se fige/rate des utilisations dès qu'un
+        # lien est régénéré ou supprimé.
         total_uses = await self.db.fetchval(
-            "SELECT COALESCE(SUM(uses), 0) FROM invite_codes"
+            "SELECT COALESCE(SUM(invite_count), 0) FROM user_invite_stats"
         ) or 0
         uses_7d = await self.db.fetchval(
             "SELECT COUNT(*) FROM invite_uses WHERE joined_at > NOW() - INTERVAL '7 days'"
@@ -657,11 +660,10 @@ class InviteManager:
 
     async def get_top_inviters(self, limit: int = 15) -> List[Dict]:
         return await self.db.fetch("""
-            SELECT v.username, iu.inviter_id, COUNT(*) AS uses
-            FROM invite_uses iu
-            LEFT JOIN user_voice_data v ON v.user_id = iu.inviter_id
-            GROUP BY iu.inviter_id, v.username
-            ORDER BY uses DESC
+            SELECT v.username, uis.user_id AS inviter_id, uis.invite_count AS uses
+            FROM user_invite_stats uis
+            LEFT JOIN user_voice_data v ON v.user_id = uis.user_id
+            ORDER BY uis.invite_count DESC
             LIMIT $1
         """, limit)
 
