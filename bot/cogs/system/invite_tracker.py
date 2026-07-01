@@ -30,7 +30,7 @@ class InviteTrackerCog(commands.Cog):
         if not invite.guild:
             return
         self._cache.setdefault(invite.guild.id, {})[invite.code] = invite.uses or 0
-        if invite.inviter and not invite.inviter.bot:
+        if invite.inviter:
             from utils.database import invite_manager
             await invite_manager.upsert_invite(
                 code=invite.code,

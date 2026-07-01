@@ -625,7 +625,7 @@ class InviteManager:
 
     async def sync_all_invites(self, invites: list) -> None:
         for inv in invites:
-            if inv.inviter and not inv.inviter.bot:
+            if inv.inviter:
                 await self.upsert_invite(
                     code=inv.code,
                     inviter_id=inv.inviter.id,
