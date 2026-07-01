@@ -665,6 +665,15 @@ class InviteManager:
             LIMIT $1
         """, limit)
 
+    async def get_active_invites(self) -> List[Dict]:
+        return await self.db.fetch("""
+            SELECT ic.code, ic.inviter_id, ic.uses, ic.max_uses, ic.expires_at, v.username
+            FROM invite_codes ic
+            LEFT JOIN user_voice_data v ON v.user_id = ic.inviter_id
+            WHERE ic.is_active = TRUE
+            ORDER BY ic.uses DESC
+        """)
+
 
 # ── Singletons ────────────────────────────────────────────────────────────────
 db_manager            = DatabaseManager()

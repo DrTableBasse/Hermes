@@ -643,6 +643,40 @@
         { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_total", "legendFormat": "Total" },
         { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_uses_7d",    "legendFormat": "7 jours" }
       ]
+    },
+    {
+      "id": 37,
+      "type": "table",
+      "title": "📋 Liens d'invitation actifs",
+      "gridPos": { "x": 0, "y": 66, "w": 24, "h": 10 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [{ "displayName": "Utilisations", "desc": true }]
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Hôte" }, "properties": [{ "id": "custom.width", "value": 260 }] },
+          { "matcher": { "id": "byName", "options": "Code d'invitation" }, "properties": [{ "id": "custom.width", "value": 200 }] },
+          { "matcher": { "id": "byName", "options": "Utilisations" }, "properties": [{ "id": "custom.width", "value": 150 }, { "id": "custom.align", "value": "center" }] },
+          { "matcher": { "id": "byName", "options": "Expiration" }, "properties": [{ "id": "custom.width", "value": 200 }] }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
+            "indexByName": { "host": 0, "code": 1, "Value": 2, "expires_at": 3 },
+            "renameByName": { "host": "Hôte", "code": "Code d'invitation", "Value": "Utilisations", "expires_at": "Expiration" }
+          }
+        }
+      ],
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_invite_codes)", "format": "table", "instant": true, "legendFormat": "__auto" }
+      ]
     }
   ]
 }

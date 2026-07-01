@@ -58,6 +58,9 @@ invites_uses_7d        = Gauge('hermes_invites_uses_7d',       'Membres ayant re
 # ── Avec labels — top 15 inviters ─────────────────────────────────────────────
 top_inviters           = Gauge('hermes_top_inviters',          'Membres ayant le plus invité', ['username', 'user_id'])
 
+# ── Avec labels — liste des codes d'invitation actifs ─────────────────────────
+invite_codes_list      = Gauge('hermes_invite_codes',          'Invitations actives par code', ['code', 'host', 'expires_at'])
+
 
 async def refresh(guild=None):
     """Interroge la BDD et met à jour toutes les jauges. guild = discord.Guild or None."""
@@ -260,6 +263,16 @@ async def refresh(guild=None):
             top_inviters.labels(
                 username=row['username'] or str(row['inviter_id']),
                 user_id=str(row['inviter_id'])
+            ).set(row['uses'])
+
+        active_invites = await invite_manager.get_active_invites()
+        invite_codes_list._metrics.clear()
+        for row in active_invites:
+            expires = row['expires_at'].strftime('%d/%m/%Y %H:%M') if row['expires_at'] else '∞'
+            invite_codes_list.labels(
+                code=row['code'],
+                host=row['username'] or str(row['inviter_id']),
+                expires_at=expires
             ).set(row['uses'])
 
     except Exception as e:
