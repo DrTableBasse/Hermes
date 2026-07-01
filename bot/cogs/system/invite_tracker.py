@@ -1,6 +1,6 @@
 import logging
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +10,19 @@ class InviteTrackerCog(commands.Cog):
         self.bot = bot
         # guild_id -> {invite_code: uses}
         self._cache: dict[int, dict[str, int]] = {}
+        self.initial_sync.start()
+
+    def cog_unload(self):
+        self.initial_sync.cancel()
+
+    @tasks.loop(count=1)
+    async def initial_sync(self):
+        # Chargé via load_cogs() APRES le premier événement on_ready du bot
+        # (voir main.py) : le listener on_ready ci-dessous ne se déclenche donc
+        # jamais au tout premier démarrage. wait_until_ready() rattrape ce cas.
+        await self.bot.wait_until_ready()
+        for guild in self.bot.guilds:
+            await self._refresh_cache(guild)
 
     @commands.Cog.listener()
     async def on_ready(self):
