@@ -7,6 +7,7 @@ Contrôle staff : /ticket close | /ticket add | /ticket remove | /ticket list
 import io
 import html
 import asyncio
+import logging
 import unicodedata
 import re
 import discord
@@ -15,6 +16,8 @@ from discord.ext import commands, tasks
 from datetime import datetime
 
 from utils.database import db_manager
+
+logger = logging.getLogger(__name__)
 
 # ── Configuration pré-câblée ──────────────────────────────────────────────────
 
@@ -300,26 +303,37 @@ class Tickets(commands.Cog):
 
     @tasks.loop(minutes=10)
     async def _cleanup_closed_tickets(self):
-        rows = await db_manager.fetch(
-            "SELECT guild_id, channel_id FROM tickets "
-            "WHERE status = 'closed' AND closed_at IS NOT NULL "
-            "AND closed_at + interval '48 hours' <= NOW() AND channel_id IS NOT NULL"
-        )
-        for row in rows:
-            guild = self.bot.get_guild(row["guild_id"])
-            if not guild:
-                continue
-            channel = guild.get_channel(row["channel_id"])
-            if channel:
-                try:
-                    await channel.delete(reason="Ticket fermé depuis 48h")
-                except (discord.NotFound, discord.Forbidden):
-                    pass
-            # Marquer channel_id comme nul pour ne plus tenter de supprimer
-            await db_manager.execute(
-                "UPDATE tickets SET channel_id = NULL WHERE channel_id = $1",
-                row["channel_id"],
+        try:
+            rows = await db_manager.fetch(
+                "SELECT guild_id, channel_id FROM tickets "
+                "WHERE status = 'closed' AND closed_at IS NOT NULL "
+                "AND closed_at + interval '48 hours' <= NOW() AND channel_id IS NOT NULL"
             )
+            for row in rows:
+                try:
+                    guild = self.bot.get_guild(row["guild_id"])
+                    if not guild:
+                        continue
+                    channel = guild.get_channel(row["channel_id"])
+                    if channel:
+                        try:
+                            await channel.delete(reason="Ticket fermé depuis 48h")
+                        except (discord.NotFound, discord.Forbidden):
+                            pass
+                    # Marquer channel_id comme nul pour ne plus tenter de supprimer
+                    await db_manager.execute(
+                        "UPDATE tickets SET channel_id = NULL WHERE channel_id = $1",
+                        row["channel_id"],
+                    )
+                except Exception:
+                    logger.error(
+                        "_cleanup_closed_tickets: échec traitement channel_id=%s",
+                        row["channel_id"], exc_info=True,
+                    )
+        except Exception:
+            # Sans ce catch-all, discord.ext.tasks arrête définitivement la boucle
+            # au premier incident (ex: hoquet DB) et plus aucun salon n'est nettoyé.
+            logger.error("_cleanup_closed_tickets: itération échouée", exc_info=True)
 
     @_cleanup_closed_tickets.before_loop
     async def _before_cleanup(self):
