@@ -307,7 +307,7 @@ class Tickets(commands.Cog):
             rows = await db_manager.fetch(
                 "SELECT guild_id, channel_id FROM tickets "
                 "WHERE status = 'closed' AND closed_at IS NOT NULL "
-                "AND closed_at + interval '48 hours' <= NOW() AND channel_id IS NOT NULL"
+                "AND closed_at + interval '48 hours' <= NOW() AND channel_deleted_at IS NULL"
             )
             for row in rows:
                 try:
@@ -318,11 +318,18 @@ class Tickets(commands.Cog):
                     if channel:
                         try:
                             await channel.delete(reason="Ticket fermé depuis 48h")
-                        except (discord.NotFound, discord.Forbidden):
+                        except discord.NotFound:
                             pass
-                    # Marquer channel_id comme nul pour ne plus tenter de supprimer
+                        except discord.Forbidden:
+                            # On retentera au prochain passage une fois la permission corrigée
+                            logger.warning(
+                                "_cleanup_closed_tickets: permission refusée pour supprimer channel_id=%s",
+                                row["channel_id"],
+                            )
+                            continue
+                    # channel_id est conservé pour l'historique : on marque le salon supprimé
                     await db_manager.execute(
-                        "UPDATE tickets SET channel_id = NULL WHERE channel_id = $1",
+                        "UPDATE tickets SET channel_deleted_at = NOW() WHERE channel_id = $1",
                         row["channel_id"],
                     )
                 except Exception:
