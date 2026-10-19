@@ -62,6 +62,13 @@ class BumpTrackerCog(commands.Cog):
         elif message.author.id != DISBOARD_ID:
             return
 
+        # Démarre le compte à rebours des rappels (/rappel-bump), quel que soit l'auteur
+        try:
+            from utils.database import bump_reminder_manager
+            await bump_reminder_manager.record_bump(message.created_at)
+        except Exception as e:
+            logger.error("BumpTracker: enregistrement du bump pour les rappels échoué: %s", e)
+
         bumper_id = _extract_bumper_id(message)
         if bumper_id is None:
             logger.warning(

@@ -577,6 +577,57 @@ class BumpManager:
         """, limit)
 
 
+class BumpReminderManager:
+    def __init__(self, db: DatabaseManager):
+        self.db = db
+
+    async def subscribe(self, user_id: int) -> bool:
+        """True si l'inscription est nouvelle."""
+        result = await self.db.execute(
+            "INSERT INTO bump_reminder_subscribers (user_id) VALUES ($1) ON CONFLICT DO NOTHING",
+            user_id
+        )
+        return result.endswith(" 1")
+
+    async def unsubscribe(self, user_id: int) -> bool:
+        """True si le membre était inscrit."""
+        result = await self.db.execute(
+            "DELETE FROM bump_reminder_subscribers WHERE user_id = $1", user_id
+        )
+        return result.endswith(" 1")
+
+    async def is_subscribed(self, user_id: int) -> bool:
+        return bool(await self.db.fetchval(
+            "SELECT 1 FROM bump_reminder_subscribers WHERE user_id = $1", user_id
+        ))
+
+    async def get_subscribers(self) -> List[int]:
+        rows = await self.db.fetch("SELECT user_id FROM bump_reminder_subscribers")
+        return [r['user_id'] for r in rows]
+
+    async def record_bump(self, bumped_at: datetime):
+        await self.db.execute("""
+            INSERT INTO bump_reminder_state (id, last_bump_at, reminded)
+            VALUES (1, $1, FALSE)
+            ON CONFLICT (id) DO UPDATE SET last_bump_at = EXCLUDED.last_bump_at, reminded = FALSE
+        """, bumped_at)
+
+    async def get_last_bump(self) -> Optional[datetime]:
+        return await self.db.fetchval(
+            "SELECT last_bump_at FROM bump_reminder_state WHERE id = 1"
+        )
+
+    async def claim_due_reminder(self, delay) -> Optional[datetime]:
+        """Marque atomiquement le rappel comme envoyé s'il est dû (bump + delay
+        dépassé). Retourne l'heure du bump concerné, ou None si rien à faire."""
+        return await self.db.fetchval("""
+            UPDATE bump_reminder_state
+               SET reminded = TRUE
+             WHERE id = 1 AND reminded = FALSE AND last_bump_at <= NOW() - $1::interval
+            RETURNING last_bump_at
+        """, delay)
+
+
 class InviteManager:
     def __init__(self, db: DatabaseManager):
         self.db = db
@@ -693,6 +744,7 @@ quest_manager         = QuestManager(db_manager)
 notification_manager  = NotificationManager(db_manager)
 command_stats_manager = CommandStatsManager(db_manager)
 bump_manager          = BumpManager(db_manager)
+bump_reminder_manager = BumpReminderManager(db_manager)
 invite_manager        = InviteManager(db_manager)
 achievement_manager   = AchievementManager(db_manager)
 

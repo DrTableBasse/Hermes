@@ -449,6 +449,17 @@ CREATE TABLE IF NOT EXISTS user_bump_stats (
 );
 CREATE INDEX IF NOT EXISTS idx_bump_stats_count ON user_bump_stats(bump_count DESC);
 
+-- ─── Rappels de bump (MP) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS bump_reminder_subscribers (
+    user_id     BIGINT PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS bump_reminder_state (
+    id            SMALLINT PRIMARY KEY CHECK (id = 1),
+    last_bump_at  TIMESTAMPTZ NOT NULL,
+    reminded      BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 -- ─── Invite stats ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS user_invite_stats (
     user_id       BIGINT PRIMARY KEY REFERENCES user_voice_data(user_id) ON DELETE CASCADE,
