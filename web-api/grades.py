@@ -1,8 +1,13 @@
 """Grades charcutiers : palier de niveau → grade (lecture en base, cache mémoire)."""
+import logging
 import time
 from typing import Optional, TypedDict
 
+import asyncpg
+
 import database as db
+
+log = logging.getLogger(__name__)
 
 CACHE_TTL = 600  # 10 minutes
 
@@ -14,12 +19,24 @@ class Grade(TypedDict):
     color: str
 
 
+# Repli si la table est vide ou absente : identique aux lignes de la migration 014.
+DEFAULT_GRADES: list[Grade] = [
+    Grade(level_min=m, name=n, slug=s, color=c) for m, n, s, c in [
+        (1, "Recrue Cocktail", "recrue", "#9A97B8"),
+        (3, "Caporal Chipolata", "caporal", "#3BD16F"),
+        (8, "Sergent Merguez", "sergent", "#FF8A3D"),
+        (15, "Lieutenant Toulouse", "lieutenant", "#4D7CFF"),
+        (25, "Colonel Saucisson", "colonel", "#3FE0F0"),
+        (45, "Général Saucisse", "general", "#9B6BFF"),
+    ]
+]
+
 _cache: Optional[tuple[float, list[Grade]]] = None
 
 
 def grade_for_level(level: int, grades: list[Grade]) -> Grade:
     """Dernier grade dont ``level_min <= max(level, 1)`` (``grades`` trié par ``level_min``)."""
-    level = max(level, 1)
+    level = max(int(level or 0), 1)
     current = grades[0]
     for grade in grades:
         if grade["level_min"] <= level:
@@ -32,7 +49,14 @@ async def get_grades() -> list[Grade]:
     now = time.monotonic()
     if _cache is not None and now - _cache[0] < CACHE_TTL:
         return _cache[1]
-    rows = await db.fetch("SELECT level_min, name, slug, color FROM grades ORDER BY level_min")
+    try:
+        rows = await db.fetch("SELECT level_min, name, slug, color FROM grades ORDER BY level_min")
+    except asyncpg.PostgresError as exc:
+        log.warning("Lecture des grades impossible (%s) : repli sur les grades par défaut", exc)
+        return list(DEFAULT_GRADES)
+    if not rows:
+        log.warning("Table grades vide : repli sur les grades par défaut")
+        return list(DEFAULT_GRADES)
     grades = [Grade(level_min=r["level_min"], name=r["name"], slug=r["slug"], color=r["color"]) for r in rows]
     _cache = (now, grades)
     return grades

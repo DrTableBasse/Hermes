@@ -268,7 +268,7 @@ async def get_user_public_stats(request: Request, user_id: int):
         """, user_id),
     )
 
-    current_level = xp_row["current_level"] if xp_row else 0
+    current_level = int(xp_row["current_level"] or 0) if xp_row else 0
     grade = public_grade(current_level, await get_grades())
 
     s = voice_row["total_time"] if voice_row else 0

@@ -365,10 +365,10 @@ async def leaderboard_levels(request: Request, page: int = 1, limit: int = 10, s
                 "user_id":        str(r["user_id"]),
                 "username":       r["username"],
                 "discord_avatar": r["discord_avatar"],
-                "current_level":  int(r["current_level"]),
+                "current_level":  int(r["current_level"] or 0),
                 "total_xp":       int(r["total_xp"]),
                 "global_rank":    int(r["global_rank"]),
-                "grade":          public_grade(int(r["current_level"]), grades),
+                "grade":          public_grade(int(r["current_level"] or 0), grades),
             }
             for r in rows
         ],

@@ -1,11 +1,9 @@
 import pytest
 
 import grades
-from grades import grade_for_level
+from grades import DEFAULT_GRADES, grade_for_level
 
-GRADES = [{"level_min": m, "name": n, "slug": s, "color": "#000"} for m, n, s in [
-    (1, "Recrue Cocktail", "recrue"), (3, "Caporal Chipolata", "caporal"), (8, "Sergent Merguez", "sergent"),
-    (15, "Lieutenant Toulouse", "lieutenant"), (25, "Colonel Saucisson", "colonel"), (45, "Général Saucisse", "general")]]
+GRADES = DEFAULT_GRADES
 
 
 @pytest.fixture(autouse=True)
@@ -66,3 +64,25 @@ def test_xp_user_has_grade(client, fake_db):
     fake_db.rules.clear()
     fake_db.on("FROM grades", GRADES)
     assert client.get("/xp/8").json()["grade"]["slug"] == "recrue"
+
+
+def test_empty_table_falls_back(client, fake_db, caplog):
+    fake_db.on("FROM grades", [])
+    r = client.get("/grades")
+    assert r.status_code == 200 and len(r.json()["grades"]) == 6
+    assert "Table grades vide" in caplog.text
+
+
+def test_empty_not_cached(client, fake_db):
+    fake_db.on("FROM grades", [])
+    client.get("/grades")
+    fake_db.rules.clear()
+    fake_db.on("FROM grades", [{"level_min": 1, "name": "X", "slug": "x", "color": "#000"}])
+    assert [g["slug"] for g in client.get("/grades").json()["grades"]] == ["x"]
+
+
+def test_null_level(client, fake_db):
+    fake_db.on("FROM grades", GRADES)
+    fake_db.on("FROM user_xp WHERE", {"user_id": 7, "total_xp": 0, "weekly_xp": 0, "current_level": None})
+    assert client.get("/xp/7").json()["grade"]["slug"] == "recrue"
+    assert grade_for_level(None, GRADES)["slug"] == "recrue"
