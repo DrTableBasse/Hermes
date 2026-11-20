@@ -15,13 +15,16 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import datetime
 
+from utils import settings
 from utils.database import db_manager
 
 logger = logging.getLogger(__name__)
 
 # ── Configuration pré-câblée ──────────────────────────────────────────────────
 
-TICKET_CATEGORY_ID    = 777139814599491584
+# Catégorie des tickets : réglage ``ticket_category`` ; cette valeur historique
+# s'applique tant que le réglage est vide.
+DEFAULT_TICKET_CATEGORY_ID = 777139814599491584
 TICKET_TRANSCRIPT_ID  = 777140940053151774
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -153,7 +156,7 @@ class Tickets(commands.Cog):
     async def _create_ticket(self, interaction: discord.Interaction, sujet: str, description: str):
         guild = interaction.guild
 
-        category = guild.get_channel(TICKET_CATEGORY_ID)
+        category = guild.get_channel(settings.get_int('ticket_category', DEFAULT_TICKET_CATEGORY_ID))
         if not category:
             return await interaction.followup.send(
                 "❌ Catégorie de tickets introuvable. Contactez un administrateur.", ephemeral=True

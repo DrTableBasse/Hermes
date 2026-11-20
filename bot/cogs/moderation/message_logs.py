@@ -3,10 +3,10 @@ import os
 import logging
 import discord
 from discord.ext import commands
+from utils import settings
 from utils.embed_style import hermes_embed, Colors
 
 logger = logging.getLogger(__name__)
-MESSAGE_LOG_CHANNEL_ID = int(os.getenv('MESSAGE_LOG_CHANNEL_ID', '777133504634945627'))
 FIELD_LIMIT = 1024
 
 
@@ -29,9 +29,10 @@ class MessageLogsCog(commands.Cog):
         self.bot = bot
 
     async def _send(self, embed: discord.Embed, file: discord.File | None = None):
-        channel = self.bot.get_channel(MESSAGE_LOG_CHANNEL_ID)
+        guild = self.bot.get_guild(int(os.getenv('GUILD_ID', '0') or '0'))
+        channel = await settings.configured_channel(guild, 'message_log_channel')
         if channel is None:
-            logger.warning("MessageLogs: canal log %s introuvable", MESSAGE_LOG_CHANNEL_ID)
+            logger.warning("MessageLogs: canal log %s introuvable", settings.get('message_log_channel'))
             return
         try:
             if file is not None:
@@ -42,7 +43,7 @@ class MessageLogsCog(commands.Cog):
             logger.warning("MessageLogs: envoi impossible: %s", e)
 
     def _ignored(self, guild_id: int | None, channel_id: int) -> bool:
-        return guild_id is None or channel_id == MESSAGE_LOG_CHANNEL_ID
+        return guild_id is None or channel_id == settings.get_int('message_log_channel')
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent):

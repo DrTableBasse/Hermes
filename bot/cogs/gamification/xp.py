@@ -5,16 +5,18 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from utils.database import xp_manager, db_manager, streak_manager, notification_manager, achievement_manager
+from utils import settings
 from utils.command_manager import command_enabled
 from utils.embed_style import hermes_embed, leaderboard_embed, progress_bar, Colors
 
 logger = logging.getLogger(__name__)
 
-LEVEL_ROLES: dict[int, str] = {
-    5:  os.getenv('ROLE_LEVEL_5', ''),
-    10: os.getenv('ROLE_LEVEL_10', ''),
-    20: os.getenv('ROLE_LEVEL_20', ''),
-    50: os.getenv('ROLE_LEVEL_50', ''),
+# niveau -> clé du réglage (rôle stocké par identifiant, lu à l'usage)
+LEVEL_ROLE_KEYS: dict[int, str] = {
+    5:  'role_level_5',
+    10: 'role_level_10',
+    20: 'role_level_20',
+    50: 'role_level_50',
 }
 
 XP_MESSAGE = xp_manager.XP_MESSAGE
@@ -29,13 +31,13 @@ class XPCog(commands.Cog):
         self.weekly_reset.cancel()
 
     async def _grant_level_role(self, member: discord.Member, new_level: int):
-        for threshold, role_name in sorted(LEVEL_ROLES.items()):
-            if new_level >= threshold and role_name:
-                role = discord.utils.get(member.guild.roles, name=role_name)
+        for threshold, key in sorted(LEVEL_ROLE_KEYS.items()):
+            if new_level >= threshold:
+                role = settings.get_role(member.guild, key)
                 if role and role not in member.roles:
                     try:
                         await member.add_roles(role)
-                        logger.info(f"Granted level role '{role_name}' to {member.id}")
+                        logger.info(f"Granted level role '{role.name}' to {member.id}")
                     except discord.Forbidden:
                         pass
 

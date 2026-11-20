@@ -3,6 +3,7 @@
 Ne dépend pas de ``config``. Le cache est rechargé sur ``POST /settings/reload``
 (modification depuis le site) et toutes les 5 minutes.
 """
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -124,35 +125,57 @@ def _env_to_value(definition, raw: str, guild: Optional[discord.Guild]) -> Optio
 
 # ── Création de salon ─────────────────────────────────────────────────────────
 
+_channel_locks: dict[str, asyncio.Lock] = {}
+
+
 async def ensure_channel(guild: discord.Guild, key: str) -> discord.abc.GuildChannel:
     """Renvoie le salon réglé ; le crée (nom et type du registre) s'il manque."""
     definition = SETTINGS.get(key)
     if definition is None or not definition.channel_name:
         raise ValueError(f"{key} n'est pas un salon créable")
 
-    stored = get(key)
-    existing = {c.id for c in guild.channels}
-    if not needs_channel_creation(stored, existing):
-        return guild.get_channel(int(stored))
+    # Verrou par clé : deux événements simultanés ne créent pas deux salons.
+    async with _channel_locks.setdefault(key, asyncio.Lock()):
+        stored = get(key)
+        existing = {c.id for c in guild.channels}
+        if not needs_channel_creation(stored, existing):
+            return guild.get_channel(int(stored))
 
-    kind = definition.channel_type or "text"
-    reason = "Salon créé par Hermes (réglage manquant)"
-    if kind == "category":
-        channel = await guild.create_category(definition.channel_name, reason=reason)
-    elif kind == "forum":
-        channel = await guild.create_forum(definition.channel_name, reason=reason)
-    else:
-        channel = await guild.create_text_channel(definition.channel_name, reason=reason)
+        kind = definition.channel_type or "text"
+        reason = "Salon créé par Hermes (réglage manquant)"
+        if kind == "category":
+            channel = await guild.create_category(definition.channel_name, reason=reason)
+        elif kind == "forum":
+            channel = await guild.create_forum(definition.channel_name, reason=reason)
+        else:
+            channel = await guild.create_text_channel(definition.channel_name, reason=reason)
 
-    await _db().execute(
-        """INSERT INTO bot_settings (key, value, updated_at) VALUES ($1, $2, NOW())
-           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
-        key, str(channel.id),
-    )
-    _cache[key] = str(channel.id)
+        # Cache d'abord : si l'écriture en base échoue, le salon n'est pas recréé
+        # à chaque événement jusqu'au redémarrage.
+        _cache[key] = str(channel.id)
+        await _db().execute(
+            """INSERT INTO bot_settings (key, value, updated_at) VALUES ($1, $2, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+            key, str(channel.id),
+        )
     logger.info("Salon %s créé pour le réglage %s", channel.id, key)
     await _announce_creation(guild, definition, channel)
     return channel
+
+
+async def configured_channel(guild: Optional[discord.Guild], key: str):
+    """Salon réglé, recréé par ``ensure_channel`` s'il a été supprimé.
+
+    ``None`` si le réglage est vide (fonction désactivée, comme avant avec une
+    variable d'environnement absente) ou si Discord refuse la création.
+    """
+    if guild is None or not get(key):
+        return None
+    try:
+        return await ensure_channel(guild, key)
+    except discord.HTTPException as e:
+        logger.warning("Salon du réglage %s indisponible : %s", key, e)
+        return None
 
 
 async def _announce_creation(guild: discord.Guild, definition, channel) -> None:

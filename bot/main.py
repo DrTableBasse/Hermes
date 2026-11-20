@@ -65,8 +65,7 @@ async def on_ready():
         console.print(f"[red]❌ Config: {e}[/red]")
         return
 
-    GUILD_ID         = int(os.getenv('GUILD_ID'))
-    BOT_CHANNEL_START = int(os.getenv('BOT_CHANNEL_START'))
+    GUILD_ID = int(os.getenv('GUILD_ID'))
 
     guild = bot.get_guild(GUILD_ID)
     if not guild:
@@ -116,7 +115,8 @@ async def on_ready():
 
     # Startup message
     try:
-        channel = guild.get_channel(BOT_CHANNEL_START)
+        from utils import settings
+        channel = await settings.configured_channel(guild, 'bot_start_channel')
         if channel:
             bot_avatar = bot.user.avatar.url if bot.user.avatar else bot.user.default_avatar.url
             embed = hermes_embed(

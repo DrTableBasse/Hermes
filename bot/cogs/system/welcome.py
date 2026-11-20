@@ -1,12 +1,11 @@
 import logging
-import os
 
 import discord
 from discord.ext import commands
 
-logger = logging.getLogger(__name__)
+from utils import settings
 
-WELCOME_CHANNEL_ID = int(os.getenv("WELCOME_CHANNEL_ID", 0))
+logger = logging.getLogger(__name__)
 
 
 class WelcomeCog(commands.Cog):
@@ -15,9 +14,9 @@ class WelcomeCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join_tracked(self, member: discord.Member, used_invite: discord.Invite | None):
-        channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+        channel = await settings.configured_channel(member.guild, 'welcome_channel')
         if channel is None:
-            logger.warning(f"Welcome channel {WELCOME_CHANNEL_ID} not found")
+            logger.warning(f"Welcome channel {settings.get('welcome_channel')} not found")
             return
 
         member_count = member.guild.member_count
@@ -45,7 +44,7 @@ class WelcomeCog(commands.Cog):
         try:
             await channel.send(embed=embed)
         except discord.Forbidden:
-            logger.error(f"Missing permissions to send welcome message in channel {WELCOME_CHANNEL_ID}")
+            logger.error(f"Missing permissions to send welcome message in channel {channel.id}")
         except Exception as e:
             logger.error(f"Failed to send welcome message: {e}")
 
@@ -54,9 +53,9 @@ class WelcomeCog(commands.Cog):
         if member.bot:
             return
 
-        channel = member.guild.get_channel(WELCOME_CHANNEL_ID)
+        channel = await settings.configured_channel(member.guild, 'welcome_channel')
         if channel is None:
-            logger.warning(f"Welcome channel {WELCOME_CHANNEL_ID} not found")
+            logger.warning(f"Welcome channel {settings.get('welcome_channel')} not found")
             return
 
         member_count = member.guild.member_count
@@ -75,7 +74,7 @@ class WelcomeCog(commands.Cog):
         try:
             await channel.send(embed=embed)
         except discord.Forbidden:
-            logger.error(f"Missing permissions to send goodbye message in channel {WELCOME_CHANNEL_ID}")
+            logger.error(f"Missing permissions to send goodbye message in channel {channel.id}")
         except Exception as e:
             logger.error(f"Failed to send goodbye message: {e}")
 

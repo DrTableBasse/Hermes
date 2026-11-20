@@ -258,13 +258,13 @@ async def toggle_command(req: CommandToggleRequest):
                                          actor_name=actor_name)
 
     if ok and req.moderator_id and _bot:
-        channel_id = int(os.getenv('ADMIN_LOG_CHANNEL_ID', '0') or '0')
-        if channel_id:
+        from utils import settings
+        if settings.get('admin_log_channel'):
             try:
-                channel = _bot.get_channel(channel_id)
+                guild = _get_guild()
+                channel = await settings.configured_channel(guild, 'admin_log_channel')
                 if channel:
                     from utils.embed_style import hermes_embed, Colors
-                    guild = _get_guild()
                     mod = guild.get_member(req.moderator_id)
                     mod_display = mod.mention if mod else f"<@{req.moderator_id}>"
                     status = "activée ✅" if req.enabled else "désactivée ❌"

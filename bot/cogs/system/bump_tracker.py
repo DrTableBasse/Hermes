@@ -1,17 +1,13 @@
-import os
 import re
 import logging
 import discord
 from discord.ext import commands
+from utils import settings
 from utils.embed_style import hermes_embed, Colors
 
 logger = logging.getLogger(__name__)
-BUMP_CHANNEL_ID     = int(os.getenv('BUMP_CHANNEL_ID', '1068608173310754886'))
-BUMP_LOG_CHANNEL_ID = int(os.getenv('BUMP_LOG_CHANNEL_ID', '777124592552116234'))
 DISBOARD_ID         = 302050872383242240
 CARLGG_ID           = 235148962103951360
-BUMP_ROLE_NAME      = os.getenv('BUMP_ROLE_NAME', 'Bumper Fou')
-BUMP_ROLE_THRESHOLD = int(os.getenv('BUMP_ROLE_THRESHOLD', '20'))
 
 
 def _extract_bumper_id(message: discord.Message) -> int | None:
@@ -54,7 +50,7 @@ class BumpTrackerCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.channel.id != BUMP_CHANNEL_ID:
+        if message.channel.id != settings.get_int('bump_channel'):
             return
         if message.author.id == CARLGG_ID:
             if 'bumped this server' not in message.content:
@@ -114,21 +110,22 @@ class BumpTrackerCog(commands.Cog):
         new_count = await bump_manager.get_count(bumper_id)
 
         # Give role if threshold reached
+        threshold = settings.get_int('bump_role_threshold', 20)
+        role = settings.get_role(guild, 'bump_role')
+        role_label = role.name if role else "Bumper Fou"
         role_just_given = False
-        if BUMP_ROLE_NAME and new_count >= BUMP_ROLE_THRESHOLD:
-            role = discord.utils.get(guild.roles, name=BUMP_ROLE_NAME)
-            if role and role not in member.roles:
-                try:
-                    await member.add_roles(role, reason=f"Bumper Fou — {new_count} bumps")
-                    role_just_given = True
-                    logger.info("BumpTracker: rôle '%s' attribué à %s", BUMP_ROLE_NAME, bumper_id)
-                except Exception as e:
-                    logger.warning("BumpTracker: impossible d'ajouter le rôle à %s: %s", bumper_id, e)
+        if role and new_count >= threshold and role not in member.roles:
+            try:
+                await member.add_roles(role, reason=f"Bumper Fou — {new_count} bumps")
+                role_just_given = True
+                logger.info("BumpTracker: rôle '%s' attribué à %s", role.name, bumper_id)
+            except Exception as e:
+                logger.warning("BumpTracker: impossible d'ajouter le rôle à %s: %s", bumper_id, e)
 
-        if new_count >= BUMP_ROLE_THRESHOLD:
-            progression = f"Rôle **{BUMP_ROLE_NAME}** obtenu 🎉 ({new_count} bumps au total)"
+        if new_count >= threshold:
+            progression = f"Rôle **{role_label}** obtenu 🎉 ({new_count} bumps au total)"
         else:
-            progression = f"{new_count}/{BUMP_ROLE_THRESHOLD} vers le rôle **{BUMP_ROLE_NAME}**"
+            progression = f"{new_count}/{threshold} vers le rôle **{role_label}**"
 
         embed = hermes_embed(title="📣 Commande /bump détectée !", color=Colors.BLUE)
         embed.add_field(name="Utilisateur",     value=member.mention,  inline=True)
@@ -137,15 +134,15 @@ class BumpTrackerCog(commands.Cog):
         embed.add_field(name="Bumps total 🏅",  value=f"{new_count} bump{'s' if new_count != 1 else ''}", inline=True)
         embed.add_field(name="Progression 🎖️", value=progression, inline=True)
         if role_just_given:
-            embed.add_field(name="🎊 Rôle obtenu", value=f"**{BUMP_ROLE_NAME}** attribué !", inline=False)
+            embed.add_field(name="🎊 Rôle obtenu", value=f"**{role_label}** attribué !", inline=False)
         source = "carl.gg" if message.author.id == CARLGG_ID else "DISBOARD"
         embed.set_footer(text=f"Message {source} ID : {message.id}")
         try:
-            log_channel = message.guild.get_channel(BUMP_LOG_CHANNEL_ID)
+            log_channel = await settings.configured_channel(message.guild, 'bump_log_channel')
             if log_channel:
                 await log_channel.send(embed=embed)
             else:
-                logger.warning("BumpTracker: canal log %s introuvable", BUMP_LOG_CHANNEL_ID)
+                logger.warning("BumpTracker: canal log %s introuvable", settings.get('bump_log_channel'))
         except Exception as e:
             logger.warning("BumpTracker: envoi embed échoué: %s", e)
 

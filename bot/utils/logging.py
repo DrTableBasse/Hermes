@@ -3,27 +3,42 @@ import discord
 import functools
 import os
 from dotenv import load_dotenv
+from utils import settings
 from utils.embed_style import hermes_embed, Colors
 
 load_dotenv()
 
 
-def _get_channel_id(env_var: str, fallback: str = 'LOG_CHANNEL_ID') -> int | None:
-    raw = os.getenv(env_var) or os.getenv(fallback)
+def _env_channel_id(env_var: str) -> int | None:
+    """Journaux spécialisés hors registre (COMMAND_LOG_CHANNEL_ID, ...) : restent dans .env."""
+    raw = os.getenv(env_var)
     if raw and raw.strip().isdigit():
         return int(raw.strip())
     return None
 
 
-async def _send_embed(bot, channel_id: int | None, embed: discord.Embed):
-    if not channel_id:
+async def _log_channel(bot, setting_key: str | None = None, env_var: str | None = None):
+    """Salon de journal : réglage spécialisé, sinon variable spécialisée, sinon journal général.
+
+    Les salons réglés passent par ``ensure_channel`` (recréés s'ils ont été supprimés).
+    """
+    guild = bot.get_guild(int(os.getenv('GUILD_ID', '0') or '0'))
+    if setting_key and settings.get(setting_key):
+        return await settings.configured_channel(guild, setting_key)
+    if env_var:
+        ch_id = _env_channel_id(env_var)
+        if ch_id:
+            return bot.get_channel(ch_id)
+    return await settings.configured_channel(guild, 'log_channel')
+
+
+async def _send_embed(channel, embed: discord.Embed):
+    if channel is None:
         return
     try:
-        channel = bot.get_channel(channel_id)
-        if channel:
-            await channel.send(embed=embed)
+        await channel.send(embed=embed)
     except Exception as e:
-        print(f"[logging] Could not send embed to {channel_id}: {e}")
+        print(f"[logging] Could not send embed to {channel.id}: {e}")
 
 
 def log_command():
@@ -32,7 +47,6 @@ def log_command():
         async def wrapper(self, interaction: discord.Interaction, *args, **kwargs):
             result = await func(self, interaction, *args, **kwargs)
             try:
-                ch_id = _get_channel_id('COMMAND_LOG_CHANNEL_ID')
                 cmd = getattr(interaction.command, 'name', func.__name__)
                 embed = hermes_embed(
                     title="📝  Commande utilisée",
@@ -48,7 +62,7 @@ def log_command():
                         else interaction.user.default_avatar.url
                     ),
                 )
-                await _send_embed(self.bot, ch_id, embed)
+                await _send_embed(await _log_channel(self.bot, env_var='COMMAND_LOG_CHANNEL_ID'), embed)
             except Exception:
                 pass
             return result
@@ -58,7 +72,6 @@ def log_command():
 
 async def log_admin_action(bot, action: str, moderator: discord.Member, target,
                            reason: str = None, duration: str = None):
-    ch_id = _get_channel_id('ADMIN_LOG_CHANNEL_ID')
     colors = {
         'warn': Colors.ORANGE, 'kick': Colors.RED,
         'ban': Colors.DARK_RED, 'mute': Colors.GREY,
@@ -80,11 +93,10 @@ async def log_admin_action(bot, action: str, moderator: discord.Member, target,
         embed.add_field(name="⏱️ Durée", value=f"**{duration}**", inline=True)
     if reason:
         embed.add_field(name="📝 Raison", value=reason, inline=False)
-    await _send_embed(bot, ch_id, embed)
+    await _send_embed(await _log_channel(bot, setting_key='admin_log_channel'), embed)
 
 
-async def log_voice_event(bot, event_type: str, user_id: int, detail: str, channel_id: int | None):
-    ch_id = channel_id or _get_channel_id('VOICE_LOG_CHANNEL_ID')
+async def log_voice_event(bot, event_type: str, user_id: int, detail: str):
     colors = {
         'voice_join': Colors.GREEN, 'voice_leave': Colors.RED, 'voice_move': Colors.ORANGE,
     }
@@ -97,11 +109,10 @@ async def log_voice_event(bot, event_type: str, user_id: int, detail: str, chann
         description=f"<@{user_id}> — {detail}",
         color=colors.get(event_type, Colors.BLUE),
     )
-    await _send_embed(bot, ch_id, embed)
+    await _send_embed(await _log_channel(bot, setting_key='voice_log_channel'), embed)
 
 
 async def log_sanction(bot, action: str, moderator: discord.Member, target, reason: str):
-    ch_id = _get_channel_id('SANCTION_LOG_CHANNEL_ID')
     embed = hermes_embed(
         title=f"⚖️  Sanction  ─  {action.upper()}",
         color=Colors.RED,
@@ -110,22 +121,20 @@ async def log_sanction(bot, action: str, moderator: discord.Member, target, reas
     embed.add_field(name="Modérateur", value=moderator.mention, inline=True)
     embed.add_field(name="Cible", value=target.mention if hasattr(target, 'mention') else str(target), inline=True)
     embed.add_field(name="📝 Raison", value=reason, inline=False)
-    await _send_embed(bot, ch_id, embed)
+    await _send_embed(await _log_channel(bot, env_var='SANCTION_LOG_CHANNEL_ID'), embed)
 
 
 async def log_confession(bot, author_id: int, content: str):
-    ch_id = _get_channel_id('CONFESSION_LOG_CHANNEL_ID')
     embed = hermes_embed(
         title="🤫  Confession reçue",
         description=f">>> {content[:1000]}",
         color=Colors.PURPLE,
     )
     embed.add_field(name="Auteur (ID)", value=f"`{author_id}`", inline=True)
-    await _send_embed(bot, ch_id, embed)
+    await _send_embed(await _log_channel(bot, env_var='CONFESSION_LOG_CHANNEL_ID'), embed)
 
 
 async def log_role_event(bot, user: discord.Member, role: discord.Role, action: str = "ajouté"):
-    ch_id = _get_channel_id('ROLE_LOG_CHANNEL_ID')
     is_add = action == "ajouté"
     embed = hermes_embed(
         title=f"{'🏷️' if is_add else '🗑️'}  Rôle {action}",
@@ -133,4 +142,4 @@ async def log_role_event(bot, user: discord.Member, role: discord.Role, action: 
         color=Colors.GREEN if is_add else Colors.GREY,
         thumbnail_url=user.display_avatar.url,
     )
-    await _send_embed(bot, ch_id, embed)
+    await _send_embed(await _log_channel(bot, env_var='ROLE_LOG_CHANNEL_ID'), embed)

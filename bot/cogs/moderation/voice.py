@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from config import VOICE_LOG_CHANNEL_ID, VOICE_HOURS_FOR_ROLE, ROLE_BATMAN
+from utils import settings
 from utils.command_manager import command_enabled
 from utils.database import voice_manager, db_manager, streak_manager, quest_manager, notification_manager, achievement_manager
 from utils.logging import log_voice_event
@@ -127,14 +127,14 @@ class VoiceCog(commands.Cog):
                         for q in completed_quests:
                             await quest_cog.notify(member.id, q)
 
-            # Fetch une seule fois pour ROLE_BATMAN et achievements
+            # Fetch une seule fois pour le rôle Batman et achievements
             user_data = await voice_manager.get_user(member.id)
 
-            if ROLE_BATMAN and user_data:
-                if user_data['total_time'] >= VOICE_HOURS_FOR_ROLE * 3600:
-                    role = discord.utils.get(member.guild.roles, name=ROLE_BATMAN)
-                    if role and role not in member.roles:
-                        await member.add_roles(role)
+            batman_role = settings.get_role(member.guild, 'role_batman')
+            if batman_role and user_data:
+                hours_for_role = settings.get_int('voice_hours_for_role', 100)
+                if user_data['total_time'] >= hours_for_role * 3600 and batman_role not in member.roles:
+                    await member.add_roles(batman_role)
 
             # Vérification achievements vocaux en temps réel (DM + rôle)
             try:
@@ -191,7 +191,7 @@ class VoiceCog(commands.Cog):
         if joined:
             self._sessions[member.id] = now
             await log_voice_event(self.bot, 'voice_join', member.id,
-                                  f"Rejoint **{after.channel.name}**", VOICE_LOG_CHANNEL_ID)
+                                  f"Rejoint **{after.channel.name}**")
             await self._check_pack_vocaux(after.channel)
 
         elif left:
@@ -200,7 +200,7 @@ class VoiceCog(commands.Cog):
                 if secs > 0:
                     await self._update_time(member, secs, before.channel.id)
             await log_voice_event(self.bot, 'voice_leave', member.id,
-                                  f"Quitté **{before.channel.name}**", VOICE_LOG_CHANNEL_ID)
+                                  f"Quitté **{before.channel.name}**")
 
         elif moved:
             if member.id in self._sessions:
@@ -209,7 +209,7 @@ class VoiceCog(commands.Cog):
                     await self._update_time(member, secs, before.channel.id)
                 self._sessions[member.id] = now
             await log_voice_event(self.bot, 'voice_move', member.id,
-                                  f"**{before.channel.name}** → **{after.channel.name}**", VOICE_LOG_CHANNEL_ID)
+                                  f"**{before.channel.name}** → **{after.channel.name}**")
             await self._check_pack_vocaux(after.channel)
 
     @app_commands.command(name="voicetime", description="Afficher le temps vocal d'un utilisateur")

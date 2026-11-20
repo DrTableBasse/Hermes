@@ -3,7 +3,6 @@
 Le bump est enregistré par BumpTrackerCog (bump_reminder_manager.record_bump) ;
 ce cog vérifie chaque minute si le délai est écoulé et prévient les inscrits.
 """
-import os
 import asyncio
 import logging
 from datetime import timedelta
@@ -13,14 +12,21 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from utils import settings
 from utils.database import bump_reminder_manager
 from utils.command_manager import command_enabled
 from utils.logging import log_command
 from utils.embed_style import hermes_embed, Colors
 
 logger = logging.getLogger(__name__)
-BUMP_CHANNEL_ID = int(os.getenv('BUMP_CHANNEL_ID', '1068608173310754886'))
-REMINDER_DELAY  = timedelta(minutes=int(os.getenv('BUMP_REMINDER_DELAY_MINUTES', '120')))
+
+
+def _bump_channel_id() -> int | None:
+    return settings.get_int('bump_channel')
+
+
+def _reminder_delay() -> timedelta:
+    return timedelta(minutes=settings.get_int('bump_reminder_delay_minutes', 120))
 
 
 class BumpReminderCog(commands.Cog):
@@ -52,7 +58,7 @@ class BumpReminderCog(commands.Cog):
                     title="🔔  Rappel de bump activé",
                     description=(
                         f"Je t'enverrai un message ici dès que le bump sera de nouveau "
-                        f"disponible dans <#{BUMP_CHANNEL_ID}>.\n\n"
+                        f"disponible dans <#{_bump_channel_id()}>.\n\n"
                         f"Pour arrêter : `/rappel-bump désactiver`."
                     ),
                     color=Colors.GREEN,
@@ -81,11 +87,11 @@ class BumpReminderCog(commands.Cog):
             lines = ["🔔 Rappel **activé**." if subscribed else "🔕 Rappel **désactivé**."]
             last_bump = await bump_reminder_manager.get_last_bump()
             if last_bump:
-                next_bump = last_bump + REMINDER_DELAY
+                next_bump = last_bump + _reminder_delay()
                 if next_bump > discord.utils.utcnow():
                     lines.append(f"Prochain bump disponible {discord.utils.format_dt(next_bump, 'R')}.")
                 else:
-                    lines.append(f"Le bump est disponible maintenant dans <#{BUMP_CHANNEL_ID}> !")
+                    lines.append(f"Le bump est disponible maintenant dans <#{_bump_channel_id()}> !")
             await self._reply(interaction, "\n".join(lines), Colors.BLUE)
 
     @staticmethod
@@ -97,7 +103,7 @@ class BumpReminderCog(commands.Cog):
     @tasks.loop(minutes=1)
     async def check_reminder(self):
         try:
-            bumped_at = await bump_reminder_manager.claim_due_reminder(REMINDER_DELAY)
+            bumped_at = await bump_reminder_manager.claim_due_reminder(_reminder_delay())
         except Exception as e:
             logger.error("BumpReminder: lecture de l'état échouée: %s", e)
             return
@@ -112,7 +118,7 @@ class BumpReminderCog(commands.Cog):
             title="⏰  Le bump est disponible !",
             description=(
                 f"Le serveur peut de nouveau être bumpé.\n"
-                f"Rends-toi dans <#{BUMP_CHANNEL_ID}> et tape `/bump` 🚀"
+                f"Rends-toi dans <#{_bump_channel_id()}> et tape `/bump` 🚀"
             ),
             color=Colors.GOLD,
             footer_extra="/rappel-bump désactiver pour ne plus être prévenu",

@@ -6,12 +6,12 @@ import os
 import discord
 from discord.ext import commands, tasks
 
+from utils import settings
 from utils.embed_style import Colors, FOOTER_TEXT, hermes_embed
 
 logger = logging.getLogger(__name__)
 
 GUILD_ID = int(os.getenv('GUILD_ID', '0'))
-REACTION_ROLE_CHANNEL_ID = int(os.getenv('REACTION_ROLE_CHANNEL_ID', '836712775194771486'))
 
 EMBED_TITLE = "🎮 Rôles par Réaction"
 
@@ -69,9 +69,9 @@ class ReactionRoles(commands.Cog):
             logger.warning("ReactionRoles: guild introuvable")
             return
 
-        channel = guild.get_channel(REACTION_ROLE_CHANNEL_ID)
+        channel = await settings.configured_channel(guild, 'reaction_role_channel')
         if not channel or not isinstance(channel, discord.TextChannel):
-            logger.warning(f"ReactionRoles: salon {REACTION_ROLE_CHANNEL_ID} introuvable ou mauvais type")
+            logger.warning(f"ReactionRoles: salon {settings.get('reaction_role_channel')} introuvable ou mauvais type")
             return
 
         await self._ensure_roles(guild)

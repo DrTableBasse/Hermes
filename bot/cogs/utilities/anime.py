@@ -12,13 +12,10 @@ import requests
 from bs4 import BeautifulSoup
 from PIL import Image
 
+from utils import settings
 from utils.command_manager import command_enabled
 
 logger = logging.getLogger(__name__)
-
-ANIME_NEWS_CHANNEL_ID = int(os.getenv('ANIME_NEWS_CHANNEL_ID', '0') or '0')
-ANIME_THUMBNAIL_URL = os.getenv('ANIME_THUMBNAIL_URL', '')
-ANIME_AUTHOR_AVATAR_URL = os.getenv('ANIME_AUTHOR_AVATAR_URL', '')
 
 MONTHS_EN_FR = {
     "January": "janvier", "February": "février", "March": "mars",
@@ -81,7 +78,14 @@ class AnimeCog(commands.Cog):
     def cog_unload(self):
         self.anime_check.cancel()
 
+    async def _news_channel(self):
+        """Salon des actualités ; ``None`` si le réglage est vide (fonction désactivée)."""
+        guild = self.bot.get_guild(int(os.getenv('GUILD_ID', '0') or '0'))
+        return await settings.configured_channel(guild, 'anime_news_channel')
+
     async def _send_articles(self, channel: discord.TextChannel, articles: list):
+        thumbnail_url = settings.get('anime_thumbnail_url')
+        author_avatar_url = settings.get('anime_author_avatar_url')
         anime_keywords = {"anime", "épisode", "episode", "épisodes", "episodes"}
         for title, link, date, thumbnail in articles:
             title_lower = title.lower()
@@ -103,23 +107,23 @@ class AnimeCog(commands.Cog):
             embed.set_author(
                 name="Yù",
                 url="https://github.com/YuToutCourt",
-                icon_url=ANIME_AUTHOR_AVATAR_URL or discord.utils.MISSING,
+                icon_url=author_avatar_url or discord.utils.MISSING,
             )
             if thumbnail:
                 embed.set_image(url=thumbnail)
-            if ANIME_THUMBNAIL_URL:
-                embed.set_thumbnail(url=ANIME_THUMBNAIL_URL)
+            if thumbnail_url:
+                embed.set_thumbnail(url=thumbnail_url)
             embed.set_footer(text=f"📰 Date de publication : {date}\nFonctionnalité développée par Yù")
 
             await channel.send(embed=embed)
 
     @tasks.loop(hours=24)
     async def anime_check(self):
-        if not ANIME_NEWS_CHANNEL_ID:
+        if not settings.get('anime_news_channel'):
             return
-        channel = self.bot.get_channel(ANIME_NEWS_CHANNEL_ID)
+        channel = await self._news_channel()
         if not channel:
-            logger.warning("AnimeCog: canal ANIME_NEWS_CHANNEL_ID introuvable")
+            logger.warning("AnimeCog: salon des actualités anime introuvable")
             return
         try:
             articles = await asyncio.to_thread(_fetch_articles)
@@ -138,10 +142,10 @@ class AnimeCog(commands.Cog):
     @command_enabled()
     async def check_articles(self, interaction: discord.Interaction):
         await interaction.response.send_message("🔍 Vérification des articles d'hier...", ephemeral=True)
-        if not ANIME_NEWS_CHANNEL_ID:
-            await interaction.followup.send("⚠️ ANIME_NEWS_CHANNEL_ID non configuré.", ephemeral=True)
+        if not settings.get('anime_news_channel'):
+            await interaction.followup.send("⚠️ Salon des actualités anime non configuré.", ephemeral=True)
             return
-        channel = self.bot.get_channel(ANIME_NEWS_CHANNEL_ID)
+        channel = await self._news_channel()
         if not channel:
             await interaction.followup.send("⚠️ Canal introuvable.", ephemeral=True)
             return

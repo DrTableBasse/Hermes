@@ -8,13 +8,13 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from utils import settings
 from utils.command_manager import command_enabled
 from utils.embed_style import Colors, hermes_embed
 
 logger = logging.getLogger(__name__)
 
 GUILD_ID = int(os.getenv('GUILD_ID', '0'))
-GAME_FORUMS_CATEGORY_ID = int(os.getenv('GAME_FORUMS_CATEGORY_ID', '0') or '0') or None
 
 COOLDOWN_SECONDS = 3600  # 1 heure
 
@@ -105,9 +105,11 @@ class GameLFG(commands.Cog):
                     logger.error(f"Erreur création rôle '{role_name}': {e}")
 
     async def _ensure_game_forums(self, guild: discord.Guild):
+        # Catégorie facultative : pas de création si le réglage est vide (comme avant).
         category: discord.CategoryChannel | None = None
-        if GAME_FORUMS_CATEGORY_ID:
-            category = guild.get_channel(GAME_FORUMS_CATEGORY_ID)
+        category_id = settings.get_int('game_forums_category')
+        if category_id:
+            category = guild.get_channel(category_id)
             if not isinstance(category, discord.CategoryChannel):
                 category = None
 
