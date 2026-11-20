@@ -4,7 +4,7 @@ Les signatures d'image reprennent celles de ``web-api/routes/media.py``.
 """
 import re
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 Mo, comme l'upload du site
 
@@ -29,33 +29,56 @@ def accept_attachment(size: int, data: bytes) -> bool:
     return size <= MAX_IMAGE_BYTES and sniff_image(data) is not None
 
 
-def classify_clip(url: str) -> Optional[str]:
-    """``youtube|twitch|medal`` selon l'hôte exact (pas de simple sous-chaîne), sinon ``None``."""
+_YT_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+_SLUG = re.compile(r"[A-Za-z0-9_-]+")
+_UNSAFE = re.compile(r"[\\@\"'\s\x00-\x1f\x7f]")
+
+
+def canonical_clip(url: str) -> Optional[tuple[str, str]]:
+    """``(fournisseur, URL canonique)`` reconstruite, ``None`` si l'URL n'est pas un clip sûr.
+
+    Jamais le texte brut : une barre oblique inverse ou un ``@`` trompe ``urlparse`` (les
+    navigateurs lisent l'hôte autrement), donc toute URL qui en contient est refusée.
+    """
+    url = url.strip()
+    if _UNSAFE.search(url):
+        return None
     try:
-        parsed = urlparse(url.strip())
+        parsed = urlparse(url)
         host = (parsed.hostname or "").lower()
     except ValueError:
         return None
-    if parsed.scheme not in ("http", "https"):
-        return None
-    path = parsed.path or ""
-    if host in ("youtube.com", "www.youtube.com", "m.youtube.com"):
-        return "youtube" if path.startswith("/watch") else None
-    if host == "youtu.be":
-        return "youtube" if len(path) > 1 else None
-    if host == "clips.twitch.tv":
-        return "twitch" if len(path) > 1 else None
-    if host in ("twitch.tv", "www.twitch.tv", "m.twitch.tv"):
-        return "twitch" if "/clip/" in path else None
-    if host in ("medal.tv", "www.medal.tv"):
-        return "medal" if len(path) > 1 else None
+    if parsed.scheme not in ("http", "https") or parsed.netloc.lower() != host:
+        return None  # identifiants (user@) ou port : refusés
+    segments = [seg for seg in parsed.path.split("/") if seg]
+    if host in ("youtube.com", "www.youtube.com", "m.youtube.com") and parsed.path == "/watch":
+        ids = parse_qs(parsed.query).get("v", [])
+        if len(ids) == 1 and _YT_ID.fullmatch(ids[0]):
+            return "youtube", f"https://www.youtube.com/watch?v={ids[0]}"
+    elif host == "youtu.be" and len(segments) == 1 and _YT_ID.fullmatch(segments[0]):
+        return "youtube", f"https://www.youtube.com/watch?v={segments[0]}"
+    elif host == "clips.twitch.tv" and len(segments) == 1 and _SLUG.fullmatch(segments[0]):
+        return "twitch", f"https://clips.twitch.tv/{segments[0]}"
+    elif (host in ("twitch.tv", "www.twitch.tv", "m.twitch.tv") and len(segments) == 3
+          and segments[1] == "clip" and _SLUG.fullmatch(segments[0])
+          and _SLUG.fullmatch(segments[2])):
+        return "twitch", f"https://clips.twitch.tv/{segments[2]}"
+    elif (host in ("medal.tv", "www.medal.tv") and segments
+          and all(_SLUG.fullmatch(seg) for seg in segments)):
+        return "medal", "https://medal.tv/" + "/".join(segments)
     return None
 
 
+def classify_clip(url: str) -> Optional[str]:
+    """``youtube|twitch|medal`` si l'URL est un clip sûr, sinon ``None``."""
+    clip = canonical_clip(url)
+    return clip[0] if clip else None
+
+
 def find_clip_url(text: Optional[str]) -> Optional[str]:
-    """Premier lien de clip reconnu dans le texte du message."""
+    """URL canonique du premier lien de clip sûr du message."""
     for match in _URL_RE.finditer(text or ""):
-        url = match.group(0).rstrip(".,;:!?)>")
-        if classify_clip(url):
-            return url
+        clip = canonical_clip(match.group(0).rstrip(".,;:!?)>"))
+        if clip:
+            return clip[1]
     return None

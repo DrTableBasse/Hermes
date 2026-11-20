@@ -25,8 +25,8 @@ def test_sniff_rejects_fake_png():
 
 
 def test_classify_clip_youtube():
-    assert classify_clip("https://www.youtube.com/watch?v=abc123") == "youtube"
-    assert classify_clip("https://youtu.be/abc123") == "youtube"
+    assert classify_clip("https://www.youtube.com/watch?v=abcdefghijk") == "youtube"
+    assert classify_clip("https://youtu.be/abcdefghijk") == "youtube"
 
 
 def test_classify_clip_twitch():
@@ -45,8 +45,8 @@ def test_classify_clip_unknown():
 
 
 def test_find_clip_url_first_valid():
-    text = "regardez https://example.com puis https://youtu.be/abc123 et https://medal.tv/x"
-    assert find_clip_url(text) == "https://youtu.be/abc123"
+    text = "regardez https://example.com puis https://youtu.be/abcdefghijk et https://medal.tv/x"
+    assert find_clip_url(text) == "https://www.youtube.com/watch?v=abcdefghijk"
     assert find_clip_url("rien ici") is None
     assert find_clip_url(None) is None
 
@@ -55,3 +55,22 @@ def test_oversize_rejected():
     assert accept_attachment(MAX_IMAGE_BYTES + 1, PNG) is False
     assert accept_attachment(len(PNG), PNG) is True
     assert accept_attachment(len(PNG), b"<?php") is False
+
+
+def test_classify_rejects_backslash_bypass():
+    assert classify_clip("https://evil.com\\@youtu.be/abcdefghijk") is None
+    assert find_clip_url("https://evil.com\\@youtu.be/abcdefghijk") is None
+    assert classify_clip("https://user@youtu.be/abcdefghijk") is None
+
+
+def test_find_clip_url_rejects_quotes():
+    assert find_clip_url("https://youtu.be/abcdefghijk\"onmouseover=1") is None
+    assert find_clip_url("https://www.youtube.com/watch?v=abcdefghijk'x") is None
+
+
+def test_clip_urls_are_canonical():
+    assert find_clip_url("https://youtu.be/abcdefghijk?t=3") == "https://www.youtube.com/watch?v=abcdefghijk"
+    assert find_clip_url("http://m.youtube.com/watch?v=abcdefghijk&list=x") == "https://www.youtube.com/watch?v=abcdefghijk"
+    assert find_clip_url("https://www.twitch.tv/saucisse/clip/Funny-Clip_1?filter=x") == "https://clips.twitch.tv/Funny-Clip_1"
+    assert find_clip_url("https://clips.twitch.tv/FunnyClip#a") == "https://clips.twitch.tv/FunnyClip"
+    assert find_clip_url("https://medal.tv/games/dbd/clips/abc?x=1") == "https://medal.tv/games/dbd/clips/abc"

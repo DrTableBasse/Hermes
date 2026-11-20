@@ -1,4 +1,5 @@
 """Admin routes — proxy to the bot's internal API."""
+import asyncio
 import json
 import logging
 import os
@@ -567,7 +568,8 @@ async def delete_gallery_item(item_id: int, user: dict = Depends(get_current_use
     if row["file_name"]:
         try:
             # .name : le nom vient de la base, jamais un chemin hors du dossier.
-            (gallery.GALLERY_DIR / Path(row["file_name"]).name).unlink(missing_ok=True)
+            await asyncio.to_thread(
+                (gallery.GALLERY_DIR / Path(row["file_name"]).name).unlink, missing_ok=True)
         except OSError as exc:
             logger.warning("Fichier de galerie non supprimé (%s) : %s", row["file_name"], exc)
     return Response(status_code=204)
