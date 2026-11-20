@@ -42,8 +42,8 @@ export interface LiveState {
   members: number
   online: number
   in_voice: number
-  /** Avatars des membres en vocal, transmis tels quels par le bot. */
-  voice_avatars: unknown[]
+  /** URL des avatars des membres en vocal. */
+  voice_avatars: string[]
   /** Joueurs par clé de jeu, transmis tels quels par le bot. */
   game_players: Record<string, number>
   /** `true` : le bot est muet, valeurs du dernier relevé en base. */
@@ -79,25 +79,29 @@ export interface EventOrganizer {
 }
 
 /**
- * Event programmé Discord. Les champs `id`, `start`, `creator_id`, `xp_reward` et
- * `organizer` sont garantis par web-api ; le reste est transmis tel quel par le bot.
+ * Event programmé Discord : charge utile du bot (`bot/api.py::_event_payload`)
+ * enrichie par web-api (`xp_reward`, `organizer`).
  */
 export interface DiscordEvent {
   id: string
+  name: string
+  description: string | null
   /** Début, ISO 8601. */
   start: string
+  end: string | null
+  /** Le bot ne relaie que les events à venir ou en cours. */
+  status: "scheduled" | "active"
+  /** Lieu, ou nom du salon ; `null` sinon. */
+  location: string | null
+  /** Inscrits ; `null` si Discord ne le fournit pas. */
+  user_count: number | null
   creator_id: Snowflake | null
+  image: string | null
+  url: string
   /** Récompense lue dans la description (`XP: 200`), `null` si absente. */
   xp_reward: number | null
   /** `null` : pas d'organisateur, ou base indisponible. */
   organizer: EventOrganizer | null
-  name?: string
-  description?: string | null
-  end?: string | null
-  location?: string | null
-  url?: string | null
-  image?: string | null
-  [key: string]: unknown
 }
 
 export interface EventsResponse {
