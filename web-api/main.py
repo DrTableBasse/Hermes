@@ -14,7 +14,7 @@ load_dotenv()
 
 import database as db
 from routes import auth, users, leaderboard, articles, tags, media, admin
-from routes import xp, notifications, endorsements, activity, quests, comments, tickets, settings, grades, live, events, hermes, gallery, staff, content
+from routes import xp, notifications, endorsements, activity, quests, comments, tickets, settings, grades, live, events, hermes, gallery, staff, content, achievements
 
 
 @asynccontextmanager
@@ -60,6 +60,7 @@ app.include_router(hermes.router)
 app.include_router(gallery.router)
 app.include_router(staff.router)
 app.include_router(content.router)
+app.include_router(achievements.router)
 app.mount("/media", StaticFiles(directory="/app/media"), name="media")
 
 
