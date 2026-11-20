@@ -4,7 +4,6 @@ import os
 import re
 import unicodedata
 from typing import Any, Optional
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
@@ -22,11 +21,12 @@ NAME_MAX = 60
 TITLE_MAX = 200
 BODY_MAX = 50_000
 IMAGE_MAX = 500
+TAGLINE_MAX = 120
 KEY_PATTERN = r"^[a-z0-9-]{1,32}$"
 SLUG_PATTERN = r"^[a-z0-9-]{1,64}$"
 COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 MEDIA_RE = re.compile(r"^/media/[A-Za-z0-9._-]+$")
-GAME_FIELDS = ("name", "color", "image", "discord_role_id", "forum_channel_id", "position", "active")
+GAME_FIELDS = ("name", "color", "image", "tagline", "discord_role_id", "forum_channel_id", "position", "active")
 
 
 def _has_control(text: str) -> bool:
@@ -63,14 +63,14 @@ def _forum_url(forum_channel_id) -> Optional[str]:
 async def list_games(request: Request):
     try:
         rows = await db.fetch(
-            "SELECT key, name, color, image, forum_channel_id FROM site_games "
+            "SELECT key, name, color, image, tagline, forum_channel_id FROM site_games "
             "WHERE active ORDER BY position, key")
     except Exception as exc:
         log.warning("Lecture des jeux impossible : %s", exc)
         return {"games": [], "stale": True}
     players = await cached("games-live", LIVE_TTL, _players)
     return {"games": [
-        {"key": r["key"], "name": r["name"], "color": r["color"], "image": r["image"],
+        {"key": r["key"], "name": r["name"], "color": r["color"], "image": r["image"], "tagline": r["tagline"],
          "players": _count(players, r["key"]), "forum_url": _forum_url(r["forum_channel_id"])}
         for r in rows
     ]}
@@ -96,12 +96,23 @@ def _clean_image(value: Any) -> Optional[str]:
         return None
     if not isinstance(value, str) or len(value) > IMAGE_MAX:
         _bad("Visuel invalide")
+    # Chemin local seulement : la CSP du site (img-src) n'autorise pas d'hôte d'images arbitraire.
     if MEDIA_RE.fullmatch(value) and ".." not in value:
         return value
-    parsed = urlparse(value)
-    if parsed.scheme == "https" and parsed.netloc and not any(c.isspace() or _has_control(c) for c in value):
-        return value
-    _bad("Visuel : chemin /media/ ou URL https attendu")
+    _bad("Visuel : chemin /media/… attendu")
+
+
+def _clean_tagline(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _bad("Accroche invalide")
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > TAGLINE_MAX or _has_control(value):
+        _bad(f"Accroche : {TAGLINE_MAX} caractères maximum, sur une ligne")
+    return value
 
 
 def _clean_snowflake(value: Any, label: str) -> Optional[int]:
@@ -131,6 +142,7 @@ _CLEANERS = {
     "name": _clean_name,
     "color": _clean_color,
     "image": _clean_image,
+    "tagline": _clean_tagline,
     "discord_role_id": lambda v: _clean_snowflake(v, "Rôle"),
     "forum_channel_id": lambda v: _clean_snowflake(v, "Forum"),
     "position": _clean_position,
@@ -162,10 +174,11 @@ async def create_game(body: dict, user: dict = Depends(get_current_user)):
     if position is None:
         position = int(await db.fetchval("SELECT COALESCE(MAX(position), 0) + 1 FROM site_games") or 1)
     await db.execute(
-        """INSERT INTO site_games (key, name, color, image, discord_role_id, forum_channel_id, position, active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)""",
+        """INSERT INTO site_games (key, name, color, image, discord_role_id, forum_channel_id, position, active,
+                                   tagline)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8)""",
         key, fields["name"], fields["color"], fields.get("image"), fields.get("discord_role_id"),
-        fields.get("forum_channel_id"), position)
+        fields.get("forum_channel_id"), position, fields.get("tagline"))
     return {"ok": True, "key": key}
 
 

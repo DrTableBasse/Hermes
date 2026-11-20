@@ -632,6 +632,9 @@ CREATE TABLE IF NOT EXISTS site_games (
     active           BOOLEAN DEFAULT TRUE
 );
 
+-- Migration 019 : accroche éditable des jeux (accueil), NULL tant que l'admin ne l'a pas saisie.
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS tagline TEXT;
+
 -- Clés alignées sur GAMES de bot/cogs/fun/game_lfg.py ; War Dogs n'y figure pas.
 INSERT INTO site_games (key, name, color, position) VALUES
     ('war-dogs',  'War Dogs',          '#A12D2F', 1),

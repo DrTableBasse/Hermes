@@ -47,10 +47,10 @@ def _writes(fake_db):
 
 TABLE = [  # volontairement dans le désordre ; "old" est désactivé
     {"key": "lol", "name": "League of Legends", "color": "#F5A623", "image": "/media/a.png",
-     "forum_channel_id": 555, "position": 3, "active": True},
-    {"key": "old", "name": "Ancien", "color": "#000000", "image": None,
+     "tagline": "Toxicité laissée au vestiaire.", "forum_channel_id": 555, "position": 3, "active": True},
+    {"key": "old", "name": "Ancien", "color": "#000000", "image": None, "tagline": None,
      "forum_channel_id": None, "position": 1, "active": False},
-    {"key": "war-dogs", "name": "War Dogs", "color": "#A12D2F", "image": None,
+    {"key": "war-dogs", "name": "War Dogs", "color": "#A12D2F", "image": None, "tagline": None,
      "forum_channel_id": None, "position": 2, "active": True},
 ]
 
@@ -75,6 +75,7 @@ def test_games_ordered_by_position(client, fake_db, monkeypatch):
     assert lol["players"] == 12
     assert lol["forum_url"] == "https://discord.com/channels/999/555"
     assert lol["image"] == "/media/a.png"
+    assert lol["tagline"] == "Toxicité laissée au vestiaire." and war["tagline"] is None
 
 
 def test_inactive_game_hidden(client, fake_db, monkeypatch):
@@ -141,6 +142,12 @@ def test_create_game_duplicate_key_409(client, fake_db, as_user):
     {"key": "ok", "name": "x", "color": "#FFFFFF", "image": "http://insecure/a.png"},
     {"key": "ok", "name": "x", "color": "#FFFFFF", "image": "/media/../etc/passwd"},
     {"key": "ok", "name": "x", "color": "#FFFFFF", "image": "//evil.test/a.png"},
+    # La CSP n'autorise aucun hôte d'images arbitraire : plus d'URL https.
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "image": "https://cdn.test/a.png"},
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "tagline": "a" * 121},
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "tagline": "deux\nlignes"},
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "tagline": "tab\tulation"},
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "tagline": 42},
     {"key": "ok", "name": "x", "color": "#FFFFFF", "forum_channel_id": "abc"},
     {"key": "ok", "name": "x", "color": "#FFFFFF", "forum_channel_id": 2 ** 63},
 ])
@@ -150,12 +157,31 @@ def test_create_game_rejects_bad_input(client, fake_db, as_user, body):
     assert not _writes(fake_db)
 
 
-@pytest.mark.parametrize("image", [None, "", "/media/a-b_1.png", "https://cdn.test/a.png"])
+@pytest.mark.parametrize("image", [None, "", "/media/a-b_1.png"])
 def test_game_image_accepted(client, fake_db, as_user, image):
     as_user()
     fake_db.on("SELECT 1 FROM site_games", None)
     r = client.post("/admin/games", json={"key": "ok", "name": "x", "color": "#FFFFFF", "image": image})
     assert r.status_code == 201
+
+
+def test_create_game_with_tagline(client, fake_db, as_user):
+    as_user()
+    r = client.post("/admin/games", json={"key": "apex", "name": "Apex", "color": "#AABBCC",
+                                          "tagline": "  " + "a" * 120 + " "})
+    assert r.status_code == 201
+    sql, args = _writes(fake_db)[0][1], _writes(fake_db)[0][2]
+    assert "tagline" in sql and args[7] == "a" * 120  # 120 caractères inclus, espaces retirés
+
+
+@pytest.mark.parametrize("tagline, stored", [("Le soutien, c'est un mode de vie.", "Le soutien, c'est un mode de vie."),
+                                              ("   ", None), (None, None)])
+def test_update_game_tagline(client, fake_db, as_user, tagline, stored):
+    as_user()
+    fake_db.on("SELECT 1 FROM site_games", 1)
+    assert client.put("/admin/games/lol", json={"tagline": tagline}).status_code == 200
+    sql, args = _writes(fake_db)[0][1], _writes(fake_db)[0][2]
+    assert "tagline = $2" in sql and args == ("lol", stored)
 
 
 def test_update_game_partial(client, fake_db, as_user):
