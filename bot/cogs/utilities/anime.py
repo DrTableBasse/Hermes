@@ -137,6 +137,7 @@ class AnimeCog(commands.Cog):
     @anime_check.before_loop
     async def before_anime_check(self):
         await self.bot.wait_until_ready()
+        await settings.ready.wait()  # salon et URL lus dès le premier tour
 
     @app_commands.command(name="check_articles", description="Vérifie et envoie les articles anime/manga d'hier")
     @command_enabled()

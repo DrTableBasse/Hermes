@@ -64,6 +64,7 @@ class ReactionRoles(commands.Cog):
     @tasks.loop(count=1)
     async def _setup(self):
         await self.bot.wait_until_ready()
+        await settings.ready.wait()  # salon des rôles lu en base, pas le défaut du registre
         guild = self.bot.get_guild(GUILD_ID)
         if not guild:
             logger.warning("ReactionRoles: guild introuvable")

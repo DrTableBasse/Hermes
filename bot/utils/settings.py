@@ -11,11 +11,20 @@ from typing import Optional
 import discord
 from discord.ext import tasks
 
+from utils.settings_backoff import CreationBackoff
 from utils.settings_registry import SETTINGS, needs_channel_creation
 
 logger = logging.getLogger(__name__)
 
 _cache: dict[str, str] = {}
+
+# Posé par main.on_ready une fois le premier load() tenté (réussi ou non) : les
+# tâches de démarrage des cogs l'attendent avant de lire un réglage.
+ready = asyncio.Event()
+
+# Créations de salon refusées par Discord (403) : pas de nouvel essai avant 10 min
+# ni avant le prochain load().
+_creation_backoff = CreationBackoff()
 
 
 def _db():
@@ -63,6 +72,7 @@ async def load() -> None:
     rows = await _db().fetch("SELECT key, value FROM bot_settings")
     _cache.clear()
     _cache.update({r["key"]: r["value"] for r in rows if r["value"]})
+    _creation_backoff.clear()
     logger.info("%d réglages chargés", len(_cache))
 
 
@@ -167,15 +177,35 @@ async def configured_channel(guild: Optional[discord.Guild], key: str):
     """Salon réglé, recréé par ``ensure_channel`` s'il a été supprimé.
 
     ``None`` si le réglage est vide (fonction désactivée, comme avant avec une
-    variable d'environnement absente) ou si Discord refuse la création.
+    variable d'environnement absente) ou si Discord refuse la création. Ne lève
+    jamais : appelé depuis des journaux et des listeners.
     """
     if guild is None or not get(key):
         return None
+    if _creation_backoff.is_blocked(key):
+        # Création refusée récemment : on ne renvoie que le salon s'il existe.
+        return _cached_channel(guild, key)
     try:
         return await ensure_channel(guild, key)
+    except discord.Forbidden as e:
+        _creation_backoff.block(key)
+        logger.warning("Création du salon %s refusée, nouvel essai dans 10 min : %s", key, e)
+        return None
     except discord.HTTPException as e:
         logger.warning("Salon du réglage %s indisponible : %s", key, e)
         return None
+    except Exception:
+        # Erreur de base après la création (pool absent, asyncpg…) : le cache pointe
+        # déjà sur le nouveau salon, on le renvoie.
+        logger.error("Enregistrement du salon %s impossible", key, exc_info=True)
+        return _cached_channel(guild, key)
+
+
+def _cached_channel(guild: discord.Guild, key: str):
+    stored = get(key)
+    if stored and stored.isdigit():
+        return guild.get_channel(int(stored))
+    return None
 
 
 async def _announce_creation(guild: discord.Guild, definition, channel) -> None:

@@ -79,6 +79,7 @@ class GameLFG(commands.Cog):
     @tasks.loop(count=1)
     async def _setup(self):
         await self.bot.wait_until_ready()
+        await settings.ready.wait()  # catégorie des forums lue en base
         guild = self.bot.get_guild(GUILD_ID)
         if not guild:
             logger.warning("GameLFG: guild introuvable")

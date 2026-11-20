@@ -141,6 +141,7 @@ class BumpReminderCog(commands.Cog):
     @check_reminder.before_loop
     async def before_check_reminder(self):
         await self.bot.wait_until_ready()
+        await settings.ready.wait()  # délai du rappel lu en base
 
 
 async def setup(bot: commands.Bot):

@@ -89,14 +89,18 @@ async def on_ready():
         return
 
     # Réglages du serveur : amorçage depuis l'environnement puis chargement (avant les cogs)
+    from utils import settings
     try:
-        from utils import settings
         await settings.seed_from_env(guild)
         await settings.load()
         settings.start_refresh()
         console.print("[green]✅ Réglages chargés[/green]")
     except Exception as e:
         console.print(f"[yellow]⚠️ Réglages: {e} (migration 013 appliquée ?)[/yellow]")
+    finally:
+        # Débloque les tâches de démarrage des cogs, même si le chargement a échoué
+        # (elles retombent alors sur les valeurs par défaut du registre).
+        settings.ready.set()
 
     # Sync members — reset is_member first so leavers are marked FALSE
     try:
@@ -115,7 +119,6 @@ async def on_ready():
 
     # Startup message
     try:
-        from utils import settings
         channel = await settings.configured_channel(guild, 'bot_start_channel')
         if channel:
             bot_avatar = bot.user.avatar.url if bot.user.avatar else bot.user.default_avatar.url
