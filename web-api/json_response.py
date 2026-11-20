@@ -32,4 +32,5 @@ class SnowflakeJSONResponse(JSONResponse):
             ensure_ascii=False,
             separators=(",", ":"),
             default=str,
+            allow_nan=False,
         ).encode("utf-8")

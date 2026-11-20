@@ -1,3 +1,5 @@
+import pytest
+
 from json_response import stringify_big_ints, SnowflakeJSONResponse
 
 
@@ -17,3 +19,8 @@ def test_nested_lists():
 def test_response_body():
     body = SnowflakeJSONResponse({"id": 2**60}).body
     assert body == b'{"id":"1152921504606846976"}'
+
+
+def test_nan_is_rejected():
+    with pytest.raises(ValueError):
+        SnowflakeJSONResponse({"x": float("nan")})
