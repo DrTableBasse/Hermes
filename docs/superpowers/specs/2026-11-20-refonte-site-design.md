@@ -157,8 +157,11 @@ découpage des grosses routes web-api, nettoyage des logiques d'achievements dup
   L'attribution automatique d'XP de présence est un chantier ultérieur.
 - **État-major** : membres portant le rôle d'administration (`ADMIN_ROLE_NAME`) ou le rôle de
   modération. Chaque membre du staff édite sa propre phrase et ses jeux ; l'admin édite tout.
-- **Domaine** : le site a un domaine public (à préciser) ; un sous-domaine de test servira web-v2,
-  avec sa propre URL de redirection Discord OAuth ajoutée par le propriétaire.
+- **Domaine** : le site a un domaine public, volontairement non exposé pendant le chantier. web-v2
+  n'a ni domaine ni sous-domaine : il tourne uniquement sur le réseau local
+  (`http://192.168.10.62:3002`), avec sa propre URL de redirection Discord OAuth
+  (`http://192.168.10.62:3002/api/auth/callback/discord`) ajoutée par le propriétaire. Le domaine
+  n'intervient qu'à la bascule, où web-v2 reprend la configuration actuelle du port 3000.
 
 ### Choix du constructeur (validés ici, modifiables)
 - **better-auth** : ancien et nouveau site sont tous deux en 1.7.27 (montée faite le 2026-11-20),
