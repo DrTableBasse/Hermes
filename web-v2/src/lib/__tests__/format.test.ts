@@ -3,6 +3,9 @@ import {
   formatAgo,
   formatClock,
   formatCountdown,
+  formatEventDay,
+  formatEventHour,
+  formatEventWhen,
   formatNumber,
   formatSince,
   xpForLevel,
@@ -107,5 +110,22 @@ describe("formatAgo", () => {
 
   it("traite une date future (horloges décalées) comme l'instant présent", () => {
     expect(formatAgo(ago(-90_000), now)).toBe("À l'instant")
+  })
+})
+
+describe("dates des events (heure de Paris)", () => {
+  it("formatEventWhen : jour, date et heure ; minutes seulement si non nulles", () => {
+    expect(formatEventWhen("2026-11-21T20:00:00Z")).toBe("Samedi 21 novembre, 21 h")
+    expect(formatEventWhen("2026-07-04T18:30:00Z")).toBe("Samedi 4 juillet, 20 h 30")
+  })
+
+  it("formatEventHour : « 20 h » ou « 20 h 05 »", () => {
+    expect(formatEventHour("2026-11-22T19:00:00Z")).toBe("20 h")
+    expect(formatEventHour("2026-11-22T19:05:00Z")).toBe("20 h 05")
+  })
+
+  it("formatEventDay : jour abrégé et numéro, à Paris même près de minuit UTC", () => {
+    expect(formatEventDay("2026-11-22T23:30:00Z")).toEqual({ weekday: "LUN", day: "23" })
+    expect(formatEventDay("2026-11-22T14:00:00Z")).toEqual({ weekday: "DIM", day: "22" })
   })
 })

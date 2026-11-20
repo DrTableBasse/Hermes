@@ -78,3 +78,42 @@ export function xpProgress(totalXp: number): XpProgress {
   const ratio = Math.min(1, Math.max(0, (xp - floor) / (next - floor)))
   return { level, floor, next, ratio }
 }
+
+const eventParts = new Intl.DateTimeFormat("fr-FR", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Europe/Paris",
+})
+
+function parisParts(iso: string): Record<string, string> {
+  const parts: Record<string, string> = {}
+  for (const p of eventParts.formatToParts(new Date(iso))) parts[p.type] = p.value
+  return parts
+}
+
+function hourText(p: Record<string, string>): string {
+  const h = Number(p.hour)
+  return p.minute === "00" ? `${h} h` : `${h} h ${p.minute}`
+}
+
+/** « 20 h » ou « 20 h 05 », heure de Paris. */
+export function formatEventHour(iso: string): string {
+  return hourText(parisParts(iso))
+}
+
+/** « Samedi 21 novembre, 21 h », heure de Paris. */
+export function formatEventWhen(iso: string): string {
+  const p = parisParts(iso)
+  const weekday = p.weekday.charAt(0).toUpperCase() + p.weekday.slice(1)
+  return `${weekday} ${p.day} ${p.month}, ${hourText(p)}`
+}
+
+/** Pavé de date d'un event : « SAM » et « 22 », à Paris. */
+export function formatEventDay(iso: string): { weekday: string; day: string } {
+  const p = parisParts(iso)
+  return { weekday: p.weekday.slice(0, 3).toUpperCase(), day: p.day }
+}
