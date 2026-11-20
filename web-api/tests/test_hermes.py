@@ -60,12 +60,11 @@ def test_hermes_online(client, fake_db, monkeypatch):
     fake_db.on("FROM user_command_stats", 1234)
     fake_db.on("FROM user_achievements", 5)
     fake_db.on("FROM tickets", 2)
-    fake_db.on("FROM bump_reminder_state", 1)
     body = client.get("/hermes/status").json()
     assert body["online"] is True and body["latency_ms"] == 42
     assert body["commands_served"] == 1234
     assert body["availability"]["percent"] is None
-    assert body["today"] == {"xp_distributed": None, "achievements": 5, "tickets": 2, "bump_reminders": 1}
+    assert body["today"] == {"xp_distributed": None, "achievements": 5, "tickets": 2, "bump_reminders": None}
     assert isinstance(body["daily_curve"], list)
 
 
@@ -84,8 +83,29 @@ def test_hermes_db_down_never_500(client, fake_db, monkeypatch):
     r = client.get("/hermes/status")
     assert r.status_code == 200
     body = r.json()
-    assert body["online"] is True and body["commands_served"] is None
-    assert body["availability"]["percent"] is None
+    assert body["stale"] is True and body["online"] is True
+    assert body["commands_served"] is None and body["availability"]["percent"] is None
+    assert body["today"] == {"xp_distributed": None, "achievements": None, "tickets": None,
+                             "bump_reminders": None}
+    assert hermes._last_good is None  # le dégradé n'est pas promu
+
+
+def test_hermes_db_down_serves_last_good_and_not_cached(client, fake_db, monkeypatch):
+    _bot(monkeypatch, {"ready": True, "latency_ms": 30, "started_at": NOW.isoformat(), "guilds": 1})
+    fake_db.on("FROM user_command_stats", 777)
+    good = client.get("/hermes/status").json()
+    assert good["commands_served"] == 777 and "stale" not in good
+
+    bot_client.clear_cache()  # TTL écoulé
+
+    def boom(sql, *args):
+        raise RuntimeError("base indisponible")
+
+    fake_db.rules.insert(0, ("from", boom))
+    body = client.get("/hermes/status").json()
+    assert body["stale"] is True and body["commands_served"] == 777
+    assert "hermes-status" not in bot_client._cache  # dégradé jamais mis en cache
+    assert hermes._last_good["commands_served"] == 777
 
 
 def test_hermes_malformed_bot_payload(client, fake_db, monkeypatch):

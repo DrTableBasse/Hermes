@@ -28,12 +28,21 @@ def availability(heartbeat_minutes: int, since: datetime, now: datetime) -> dict
     return {"percent": round(percent, 2), "since": since.isoformat()}
 
 
-async def _safe(label: str, coro_factory, default=None):
-    """Une requête de la page ne doit jamais faire tomber la route : repli sur ``default``."""
+class _Degraded(Exception):
+    """Au moins une requête a échoué : le payload partiel n'est ni mis en cache ni promu."""
+
+    def __init__(self, payload: dict):
+        super().__init__("statut dégradé")
+        self.payload = payload
+
+
+async def _safe(failed: list, label: str, coro_factory, default=None):
+    """Une requête de la page ne doit jamais faire tomber la route : ``default`` (None) et trace de l'échec."""
     try:
         return await coro_factory()
     except Exception as exc:
         log.warning("Statut Hermes — %s indisponible : %s", label, exc)
+        failed.append(label)
         return default
 
 
@@ -78,27 +87,29 @@ async def _build_status() -> dict:
     midnight = datetime.now(PARIS).replace(hour=0, minute=0, second=0, microsecond=0)
     bot = await bot_get("/status")
     online = bool(isinstance(bot, dict) and bot.get("ready"))
-    return {
+    failed: list = []
+    payload = {
         "online": online,
         "latency_ms": _latency(bot) if online else None,
-        "availability": await _safe("disponibilité", lambda: _availability(now),
+        "availability": await _safe(failed, "disponibilité", lambda: _availability(now),
                                     {"percent": None, "since": None}),
-        "commands_served": await _safe(
-            "commandes", lambda: _count("SELECT COALESCE(SUM(usage_count), 0) FROM user_command_stats")),
+        "commands_served": await _safe(failed, "commandes", lambda: _count(
+            "SELECT COALESCE(SUM(usage_count), 0) FROM user_command_stats")),
         "today": {
-            # Aucune table ne journalise l'XP distribuée : jamais inventée.
+            # Aucune table ne journalise l'XP distribuée ni les rappels de bump envoyés
+            # (bump_reminder_state = une seule ligne, réécrite à chaque bump) : jamais inventés.
             "xp_distributed": None,
-            "achievements": await _safe("succès", lambda: _count(
-                "SELECT COUNT(*) FROM user_achievements WHERE unlocked_at >= $1", midnight), 0),
-            "tickets": await _safe("tickets", lambda: _count(
-                "SELECT COUNT(*) FROM tickets WHERE created_at >= $1", midnight), 0),
-            # Rappel de bump envoyé aujourd'hui : bump d'aujourd'hui dont le rappel est parti.
-            "bump_reminders": await _safe("rappels de bump", lambda: _count(
-                "SELECT COUNT(*) FROM bump_reminder_state WHERE reminded AND last_bump_at >= $1",
-                midnight), 0),
+            "achievements": await _safe(failed, "succès", lambda: _count(
+                "SELECT COUNT(*) FROM user_achievements WHERE unlocked_at >= $1", midnight)),
+            "tickets": await _safe(failed, "tickets", lambda: _count(
+                "SELECT COUNT(*) FROM tickets WHERE created_at >= $1", midnight)),
+            "bump_reminders": None,
         },
-        "daily_curve": await _safe("courbe", lambda: _curve(now), []),
+        "daily_curve": await _safe(failed, "courbe", lambda: _curve(now), []),
     }
+    if failed:
+        raise _Degraded(payload)
+    return payload
 
 
 @router.get("/hermes/status")
@@ -107,15 +118,19 @@ async def get_status(request: Request):
     global _last_good
     try:
         payload = await cached("hermes-status", STATUS_TTL, _build_status)
+    except _Degraded as degraded:
+        # Requête SQL en échec : dernières bonnes valeurs si on les a, sinon le partiel (valeurs None).
+        return {**(_last_good or degraded.payload), "stale": True}
     except Exception:
-        log.exception("Statut Hermes : construction impossible, repli sur le dernier état connu")
+        log.exception("Statut Hermes : construction impossible")
         payload = None
     if payload is None:
         if _last_good is not None:
             return {**_last_good, "stale": True}
         return {"online": False, "latency_ms": None, "availability": {"percent": None, "since": None},
                 "commands_served": None,
-                "today": {"xp_distributed": None, "achievements": 0, "tickets": 0, "bump_reminders": 0},
+                "today": {"xp_distributed": None, "achievements": None, "tickets": None,
+                          "bump_reminders": None},
                 "daily_curve": [], "stale": True}
     _last_good = payload
     return payload
