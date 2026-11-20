@@ -31,6 +31,13 @@ def _bot(monkeypatch, payload):
 
 
 
+@pytest.fixture(autouse=True)
+def _site_games(fake_db):
+    """Jeux actifs connus de ``site_games`` (la vérification filtre sur ``key = ANY``)."""
+    active = {"dbd", "lol", "minecraft"}
+    fake_db.on("FROM site_games", lambda sql, keys: [{"key": k} for k in keys if k in active])
+
+
 @pytest.fixture
 def as_user(client, monkeypatch):
     def _as(discord_id, is_admin=False):
@@ -101,11 +108,11 @@ def test_put_me_forbidden_for_member(client, fake_db, monkeypatch, as_user):
 def test_put_me_ok_for_staff(client, fake_db, monkeypatch, as_user):
     _bot(monkeypatch, BOT_STAFF)
     as_user("2")
-    r = client.put("/staff/me", json={"motto": " Salut ", "games": ["Valorant", " Minecraft "]})
+    r = client.put("/staff/me", json={"motto": " Salut ", "games": ["lol", " minecraft "]})
     assert r.status_code == 200
     writes = [c for c in fake_db.calls if c[0] == "execute"]
     assert len(writes) == 1
-    assert writes[0][2] == (2, "Salut", ["Valorant", "Minecraft"])
+    assert writes[0][2] == (2, "Salut", ["lol", "minecraft"])
     assert "staff" not in bot_client._cache  # cache invalidé
 
 
@@ -151,10 +158,10 @@ def test_admin_put_requires_admin(client, fake_db, monkeypatch, as_user):
 def test_admin_put_ok(client, fake_db, monkeypatch, as_user):
     _bot(monkeypatch, BOT_STAFF)
     as_user("1", is_admin=True)
-    r = client.put("/admin/staff/2", json={"motto": "Boss", "games": ["Valorant"]})
+    r = client.put("/admin/staff/2", json={"motto": "Boss", "games": ["lol"]})
     assert r.status_code == 200
     writes = [c for c in fake_db.calls if c[0] == "execute"]
-    assert writes[0][2] == (2, "Boss", ["Valorant"])
+    assert writes[0][2] == (2, "Boss", ["lol"])
 
 
 def test_admin_put_unknown_member_404(client, fake_db, monkeypatch, as_user):
@@ -182,15 +189,14 @@ def test_game_length_limit(client, fake_db, monkeypatch, as_user):
     _bot(monkeypatch, BOT_STAFF)
     as_user("1")
     assert client.put("/staff/me", json={"motto": None, "games": ["a" * 41]}).status_code == 422
-    assert client.put("/staff/me", json={"motto": None, "games": ["a" * 40]}).status_code == 200
 
 
 def test_games_deduplicated(client, fake_db, monkeypatch, as_user):
     _bot(monkeypatch, BOT_STAFF)
     as_user("1")
-    r = client.put("/staff/me", json={"motto": None, "games": ["Valorant", " valorant ", "Minecraft"]})
+    r = client.put("/staff/me", json={"motto": None, "games": ["lol", " LOL ", "minecraft"]})
     assert r.status_code == 200
-    assert [c for c in fake_db.calls if c[0] == "execute"][0][2] == (1, None, ["Valorant", "Minecraft"])
+    assert [c for c in fake_db.calls if c[0] == "execute"][0][2] == (1, None, ["lol", "minecraft"])
 
 
 @pytest.mark.parametrize("bad", ["a" + chr(c) + "b" for c in (10, 9, 0, 0x2028, 0x7f)])
@@ -200,3 +206,12 @@ def test_control_chars_rejected(client, fake_db, monkeypatch, as_user, bad):
     assert client.put("/staff/me", json={"motto": bad, "games": []}).status_code == 422
     assert client.put("/staff/me", json={"motto": None, "games": [bad]}).status_code == 422
     assert not [c for c in fake_db.calls if c[0] == "execute"]
+
+
+def test_staff_games_must_exist(client, fake_db, monkeypatch, as_user):
+    _bot(monkeypatch, BOT_STAFF)
+    as_user("1", is_admin=True)
+    for url in ("/staff/me", "/admin/staff/2"):
+        assert client.put(url, json={"motto": None, "games": ["lol", "valorant"]}).status_code == 422
+        assert client.put(url, json={"motto": None, "games": ["lol", "dbd"]}).status_code == 200
+    assert len([c for c in fake_db.calls if c[0] == "execute"]) == 2  # les refus n'écrivent rien

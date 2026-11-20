@@ -133,6 +133,20 @@ def _clean_profile(body: Any) -> tuple[Optional[str], list[str]]:
     return motto, cleaned
 
 
+async def _check_games(games: list[str]) -> None:
+    """Chaque jeu doit être la clé d'un jeu actif de ``site_games`` ; 422 sinon."""
+    if not games:
+        return
+    try:
+        rows = await db.fetch("SELECT key FROM site_games WHERE active AND key = ANY($1::text[])", games)
+    except Exception as exc:
+        log.warning("Vérification des jeux impossible : %s", exc)
+        raise HTTPException(503, "Liste des jeux indisponible")
+    unknown = [g for g in games if g not in {r["key"] for r in rows}]
+    if unknown:
+        raise HTTPException(422, f"Jeu inconnu ou désactivé : {unknown[0]}")
+
+
 async def _save(user_id: int, motto: Optional[str], games: list[str]) -> None:
     await db.execute(
         """INSERT INTO staff_profiles (user_id, motto, games, updated_at) VALUES ($1, $2, $3, NOW())
@@ -147,6 +161,7 @@ async def _save(user_id: int, motto: Optional[str], games: list[str]) -> None:
 @limiter.limit("20/minute")
 async def put_my_profile(request: Request, body: dict, user: dict = Depends(get_current_user)):
     motto, games = _clean_profile(body)
+    await _check_games(games)
     raw, _ = await _bot_staff()
     if raw is None:
         raise HTTPException(503, "Liste du staff indisponible")
@@ -162,6 +177,7 @@ async def put_staff_profile(body: dict, user_id: int = Path(gt=0, lt=2**63),
                             user: dict = Depends(get_current_user)):
     require_admin(user)
     motto, games = _clean_profile(body)
+    await _check_games(games)
     raw, _ = await _bot_staff()
     if raw is None:
         raise HTTPException(503, "Liste du staff indisponible")
