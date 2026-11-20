@@ -57,12 +57,13 @@ async def _bot_staff() -> tuple[Optional[list], bool]:
     return raw, False
 
 
-def _member(m: dict, profile: Optional[dict], level: Optional[int], grade: Optional[dict]) -> dict:
+def _member(m: dict, profile: Optional[dict], level: Optional[int], grade: Optional[dict],
+            active: frozenset = frozenset()) -> dict:
     return {
         "id": str(m["id"]), "name": m["name"], "avatar": m.get("avatar"), "role": m.get("role"),
         "grade": grade, "level": level,
         "motto": profile["motto"] if profile else None,
-        "games": list(profile["games"] or []) if profile else [],
+        "games": [g for g in (profile["games"] or []) if g in active] if profile else [],
     }
 
 
@@ -77,12 +78,13 @@ async def _build() -> dict:
         levels = {int(r["user_id"]): int(r["current_level"] or 0) for r in await db.fetch(
             "SELECT user_id, current_level FROM user_xp WHERE user_id = ANY($1::bigint[])", ids)}
         grades = await get_grades()
+        active = {r["key"] for r in await db.fetch("SELECT key FROM site_games WHERE active")}
     except Exception as exc:
         # Aucun chiffre inventé : niveau et grade restent ``None``.
         log.warning("Profils du staff indisponibles : %s", exc)
         raise _Uncacheable({"staff": [_member(m, None, None, None) for m in raw], "stale": True})
     staff = [_member(m, profiles.get(int(m["id"])), levels.get(int(m["id"]), 0),
-                     public_grade(levels.get(int(m["id"]), 0), grades)) for m in raw]
+                     public_grade(levels.get(int(m["id"]), 0), grades), active) for m in raw]
     if stale:
         raise _Uncacheable({"staff": staff, "stale": True})
     return {"staff": staff}
@@ -133,18 +135,29 @@ def _clean_profile(body: Any) -> tuple[Optional[str], list[str]]:
     return motto, cleaned
 
 
-async def _check_games(games: list[str]) -> None:
-    """Chaque jeu doit être la clé d'un jeu actif de ``site_games`` ; 422 sinon."""
+async def _check_games(user_id: int, games: list[str]) -> list[str]:
+    """Jeux à enregistrer : toute clé *ajoutée* doit être un jeu actif de ``site_games`` (422 sinon).
+
+    Une clé déjà enregistrée mais désactivée ou inconnue (jeu retiré, ancien nom libre) est retirée en silence.
+    """
     if not games:
-        return
+        return []
     try:
         rows = await db.fetch("SELECT key FROM site_games WHERE active AND key = ANY($1::text[])", games)
+        active = {r["key"] for r in rows}
+        kept = [g for g in games if g in active]
+        if len(kept) < len(games):
+            row = await db.fetchrow("SELECT games FROM staff_profiles WHERE user_id = $1", user_id)
+            existing = set(row["games"] or []) if row else set()
+            added_invalid = [g for g in games if g not in active and g not in existing]
+            if added_invalid:
+                raise HTTPException(422, f"Jeu inconnu ou désactivé : {added_invalid[0]}")
+    except HTTPException:
+        raise
     except Exception as exc:
         log.warning("Vérification des jeux impossible : %s", exc)
         raise HTTPException(503, "Liste des jeux indisponible")
-    unknown = [g for g in games if g not in {r["key"] for r in rows}]
-    if unknown:
-        raise HTTPException(422, f"Jeu inconnu ou désactivé : {unknown[0]}")
+    return kept
 
 
 async def _save(user_id: int, motto: Optional[str], games: list[str]) -> None:
@@ -161,11 +174,11 @@ async def _save(user_id: int, motto: Optional[str], games: list[str]) -> None:
 @limiter.limit("20/minute")
 async def put_my_profile(request: Request, body: dict, user: dict = Depends(get_current_user)):
     motto, games = _clean_profile(body)
-    await _check_games(games)
+    me = int(user["sub"])
+    games = await _check_games(me, games)
     raw, _ = await _bot_staff()
     if raw is None:
         raise HTTPException(503, "Liste du staff indisponible")
-    me = int(user["sub"])
     if me not in {int(m["id"]) for m in raw}:
         raise HTTPException(403, "Réservé à l'état-major")
     await _save(me, motto, games)
@@ -177,7 +190,7 @@ async def put_staff_profile(body: dict, user_id: int = Path(gt=0, lt=2**63),
                             user: dict = Depends(get_current_user)):
     require_admin(user)
     motto, games = _clean_profile(body)
-    await _check_games(games)
+    games = await _check_games(user_id, games)
     raw, _ = await _bot_staff()
     if raw is None:
         raise HTTPException(503, "Liste du staff indisponible")

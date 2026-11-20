@@ -8,13 +8,6 @@ import grades
 from middleware import auth_middleware
 from routes import content
 
-GAMES = [
-    {"key": "war-dogs", "name": "War Dogs", "color": "#A12D2F", "image": None, "forum_channel_id": None},
-    {"key": "lol", "name": "League of Legends", "color": "#F5A623", "image": "/media/a.png",
-     "forum_channel_id": 555},
-]
-
-
 @pytest.fixture(autouse=True)
 def _fresh(monkeypatch):
     from limiter import limiter
@@ -52,14 +45,32 @@ def _writes(fake_db):
 
 # ── GET /games ────────────────────────────────────────────────────────────────
 
+TABLE = [  # volontairement dans le désordre ; "old" est désactivé
+    {"key": "lol", "name": "League of Legends", "color": "#F5A623", "image": "/media/a.png",
+     "forum_channel_id": 555, "position": 3, "active": True},
+    {"key": "old", "name": "Ancien", "color": "#000000", "image": None,
+     "forum_channel_id": None, "position": 1, "active": False},
+    {"key": "war-dogs", "name": "War Dogs", "color": "#A12D2F", "image": None,
+     "forum_channel_id": None, "position": 2, "active": True},
+]
+
+
+def _site_games(fake_db):
+    """``site_games`` simulée : le fake applique ``WHERE active`` et ``ORDER BY position`` demandés par le SQL."""
+    def select(sql, *args):
+        low = sql.lower()
+        rows = [r for r in TABLE if r["active"] or "where active" not in low]
+        return sorted(rows, key=lambda r: (r["position"], r["key"])) if "order by position" in low else rows
+
+    fake_db.on("FROM site_games", select)
+
+
 def test_games_ordered_by_position(client, fake_db, monkeypatch):
     _live(monkeypatch, {"game_players": {"lol": 12}})
-    fake_db.on("FROM site_games", GAMES)
-    body = client.get("/games").json()
-    assert [g["key"] for g in body["games"]] == ["war-dogs", "lol"]
-    sql = [c for c in fake_db.calls if "site_games" in c[1]][0][1].lower()
-    assert "order by position" in sql
-    war, lol = body["games"]
+    _site_games(fake_db)
+    games = client.get("/games").json()["games"]
+    assert [g["key"] for g in games] == ["war-dogs", "lol"]
+    war, lol = games
     assert war["players"] is None and war["forum_url"] is None  # absent de /live, sans forum
     assert lol["players"] == 12
     assert lol["forum_url"] == "https://discord.com/channels/999/555"
@@ -68,14 +79,13 @@ def test_games_ordered_by_position(client, fake_db, monkeypatch):
 
 def test_inactive_game_hidden(client, fake_db, monkeypatch):
     _live(monkeypatch, None)
-    fake_db.on("FROM site_games", GAMES[:1])
-    client.get("/games")
-    assert "where active" in [c for c in fake_db.calls if "site_games" in c[1]][0][1].lower()
+    _site_games(fake_db)
+    assert "old" not in [g["key"] for g in client.get("/games").json()["games"]]
 
 
 def test_games_bot_down_players_null(client, fake_db, monkeypatch):
     _live(monkeypatch, None)
-    fake_db.on("FROM site_games", GAMES)
+    _site_games(fake_db)
     r = client.get("/games")
     assert r.status_code == 200 and [g["players"] for g in r.json()["games"]] == [None, None]
 
@@ -94,7 +104,7 @@ def test_games_db_down_never_500(client, fake_db, monkeypatch):
 def test_forum_url_null_without_guild(client, fake_db, monkeypatch):
     monkeypatch.delenv("GUILD_ID")
     _live(monkeypatch, None)
-    fake_db.on("FROM site_games", GAMES)
+    _site_games(fake_db)
     assert client.get("/games").json()["games"][1]["forum_url"] is None
 
 
@@ -118,6 +128,9 @@ def test_create_game_duplicate_key_409(client, fake_db, as_user):
 
 @pytest.mark.parametrize("body", [
     {"key": "Bad Key", "name": "x", "color": "#FFFFFF"},
+    {"key": "ok\n", "name": "x", "color": "#FFFFFF"},
+    {"key": "ok", "name": "x", "color": "#AABBCC\n"},
+    {"key": "ok", "name": "x", "color": "#FFFFFF", "image": "/media/a.png\n"},
     {"key": "", "name": "x", "color": "#FFFFFF"},
     {"key": "a" * 33, "name": "x", "color": "#FFFFFF"},
     {"key": "ok", "name": "x", "color": "red"},
@@ -215,6 +228,12 @@ def test_page_body_limit_inclusive(client, fake_db, as_user):
     assert client.put("/admin/pages/reglement", json={"title": "t", "body_md": "x" * 50_000}).status_code == 200
 
 
+def test_game_path_key_with_newline_rejected(client, fake_db, as_user):
+    as_user()
+    assert client.put("/admin/games/lol%0A", json={"name": "x"}).status_code == 422
+    assert client.get("/pages/reglement%0A").status_code == 422
+
+
 # ── Grades ────────────────────────────────────────────────────────────────────
 
 def test_grade_update(client, fake_db, as_user):
@@ -226,11 +245,30 @@ def test_grade_update(client, fake_db, as_user):
     assert fake_db.calls[-1][2] == ("caporal", "Caporal", "#3BD16F", 4)
 
 
+def _levels(fake_db):
+    """Niveaux de ``grades`` simulés : le fake applique ``slug <> $2`` quand le SQL le demande."""
+    levels = {"recrue": 1, "caporal": 3, "sergent": 8}
+
+    def taken(sql, level, *rest):
+        others = {k: v for k, v in levels.items() if "slug <> $2" not in sql or k != rest[0]}
+        return 1 if level in others.values() else None
+
+    fake_db.on("SELECT 1 FROM grades", taken)
+    fake_db.on("UPDATE grades", 1)
+
+
 def test_grade_update_rejects_duplicate_level(client, fake_db, as_user):
     as_user()
-    fake_db.on("SELECT 1 FROM grades", 1)
+    _levels(fake_db)
     r = client.put("/admin/grades/caporal", json={"name": "C", "color": "#3BD16F", "level_min": 8})
     assert r.status_code == 409 and not _writes(fake_db)
+
+
+def test_grade_resave_same_level_ok(client, fake_db, as_user):
+    as_user()
+    _levels(fake_db)  # caporal garde son propre niveau 3 : pas un doublon
+    r = client.put("/admin/grades/caporal", json={"name": "Caporal+", "color": "#3BD16F", "level_min": 3})
+    assert r.status_code == 200 and any("update grades" in c[1].lower() for c in fake_db.calls)
 
 
 def test_grade_unique_violation_race_409(client, fake_db, as_user):
@@ -257,6 +295,7 @@ def test_grade_recrue_must_stay_level_1(client, fake_db, as_user):
     {"name": "n", "color": "#FFFFFF", "level_min": 0}, {"name": "n", "color": "#FFFFFF", "level_min": "3"},
     {"name": "n", "color": "#FFFFFF", "level_min": True}, {"name": "n", "color": "#FFFFFF", "level_min": 1001},
     {"name": "a" * 41, "color": "#FFFFFF", "level_min": 3}, {"name": "n", "color": "#FFFFFF"},
+    {"name": "n", "color": "#3BD16F\n", "level_min": 3},
 ])
 def test_grade_update_rejects_bad_input(client, fake_db, as_user, body):
     as_user()

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 
+import bot_client
 import database as db
 from bot_client import bot_get, cached
 from limiter import limiter
@@ -76,7 +77,7 @@ async def list_games(request: Request):
 
 
 def _clean_color(value: Any) -> str:
-    if not isinstance(value, str) or not COLOR_RE.match(value):
+    if not isinstance(value, str) or not COLOR_RE.fullmatch(value):
         _bad("Couleur invalide (format #RRGGBB)")
     return value.upper()
 
@@ -95,7 +96,7 @@ def _clean_image(value: Any) -> Optional[str]:
         return None
     if not isinstance(value, str) or len(value) > IMAGE_MAX:
         _bad("Visuel invalide")
-    if MEDIA_RE.match(value) and ".." not in value:
+    if MEDIA_RE.fullmatch(value) and ".." not in value:
         return value
     parsed = urlparse(value)
     if parsed.scheme == "https" and parsed.netloc and not any(c.isspace() or _has_control(c) for c in value):
@@ -152,7 +153,7 @@ def _clean_game(body: Any, *, partial: bool) -> dict:
 async def create_game(body: dict, user: dict = Depends(get_current_user)):
     require_admin(user)
     key = body.get("key")
-    if not isinstance(key, str) or not re.match(KEY_PATTERN, key):
+    if not isinstance(key, str) or not re.fullmatch(KEY_PATTERN, key):
         _bad("Clé invalide ([a-z0-9-], 1 à 32 caractères)")
     fields = _clean_game(body, partial=False)
     if await db.fetchval("SELECT 1 FROM site_games WHERE key = $1", key):
@@ -178,6 +179,7 @@ async def update_game(body: dict, key: str = Path(pattern=KEY_PATTERN),
     if fields:
         sets = ", ".join(f"{col} = ${i}" for i, col in enumerate(fields, start=2))  # colonnes : liste blanche
         await db.execute(f"UPDATE site_games SET {sets} WHERE key = $1", key, *fields.values())
+        bot_client._cache.pop("staff", None)  # l'état-major n'affiche que les jeux actifs
     return {"ok": True}
 
 
@@ -186,6 +188,7 @@ async def deactivate_game(key: str = Path(pattern=KEY_PATTERN), user: dict = Dep
     require_admin(user)
     if not await db.fetchval("UPDATE site_games SET active = FALSE WHERE key = $1 RETURNING 1", key):
         raise HTTPException(404, "Jeu inconnu")
+    bot_client._cache.pop("staff", None)
     return {"ok": True}
 
 

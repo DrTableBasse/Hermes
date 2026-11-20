@@ -32,7 +32,7 @@ async def update_grade(body: dict, slug: str = Path(pattern=r"^[a-z0-9-]{1,32}$"
     name, color, level_min = body.get("name"), body.get("color"), body.get("level_min")
     if not isinstance(name, str) or not name.strip() or len(name.strip()) > NAME_MAX             or any(unicodedata.category(c) in ("Cc", "Zl", "Zp") for c in name):
         raise HTTPException(422, f"Nom requis ({NAME_MAX} caractères maximum, sur une ligne)")
-    if not isinstance(color, str) or not _COLOR_RE.match(color):
+    if not isinstance(color, str) or not _COLOR_RE.fullmatch(color):
         raise HTTPException(422, "Couleur invalide (format #RRGGBB)")
     if isinstance(level_min, bool) or not isinstance(level_min, int) or not 1 <= level_min <= LEVEL_MAX:
         raise HTTPException(422, f"Niveau minimum invalide (1 à {LEVEL_MAX})")

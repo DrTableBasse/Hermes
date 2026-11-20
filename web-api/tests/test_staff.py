@@ -31,11 +31,24 @@ def _bot(monkeypatch, payload):
 
 
 
+SITE_GAMES = {"dbd": True, "lol": True, "minecraft": True, "old": False}  # clé -> active
+
+
 @pytest.fixture(autouse=True)
 def _site_games(fake_db):
-    """Jeux actifs connus de ``site_games`` (la vérification filtre sur ``key = ANY``)."""
-    active = {"dbd", "lol", "minecraft"}
-    fake_db.on("FROM site_games", lambda sql, keys: [{"key": k} for k in keys if k in active])
+    """``site_games`` simulée : le fake applique réellement le filtre ``active`` et la liste ``ANY``.
+
+    Renvoie le dict des jeux déjà enregistrés au profil (``existing["games"]``) pour la relecture du profil.
+    """
+    def games(sql, *args):
+        keys = args[0] if args else list(SITE_GAMES)
+        active_only = "where active" in sql.lower()
+        return [{"key": k} for k in keys if k in SITE_GAMES and (SITE_GAMES[k] or not active_only)]
+
+    existing = {"games": []}
+    fake_db.on("FROM site_games", games)
+    fake_db.on("FROM staff_profiles WHERE user_id = $1", lambda sql, uid: {"games": existing["games"]})
+    return existing
 
 
 @pytest.fixture
@@ -51,13 +64,13 @@ def as_user(client, monkeypatch):
 
 def test_staff_merge_profile(client, fake_db, monkeypatch):
     _bot(monkeypatch, BOT_STAFF)
-    fake_db.on("FROM staff_profiles", [{"user_id": 1, "motto": "Tout schuss", "games": ["Valorant"]}])
+    fake_db.on("FROM staff_profiles", [{"user_id": 1, "motto": "Tout schuss", "games": ["lol", "old", "Valorant"]}])
     fake_db.on("FROM user_xp", [{"user_id": 1, "current_level": 30}, {"user_id": 2, "current_level": None}])
     body = client.get("/staff").json()
     assert "stale" not in body
     chef, modo = body["staff"]
     assert chef["id"] == "1" and chef["role"] == "Administration"
-    assert chef["motto"] == "Tout schuss" and chef["games"] == ["Valorant"]
+    assert chef["motto"] == "Tout schuss" and chef["games"] == ["lol"]  # inactif et nom libre masqués
     assert chef["level"] == 30 and chef["grade"]["slug"] == "colonel"
     assert modo["motto"] is None and modo["games"] == [] and modo["level"] == 0
 
@@ -208,10 +221,28 @@ def test_control_chars_rejected(client, fake_db, monkeypatch, as_user, bad):
     assert not [c for c in fake_db.calls if c[0] == "execute"]
 
 
-def test_staff_games_must_exist(client, fake_db, monkeypatch, as_user):
+@pytest.mark.parametrize("url", ["/staff/me", "/admin/staff/2"])
+@pytest.mark.parametrize("added", ["valorant", "old"])  # inconnu, puis désactivé
+def test_staff_games_must_exist(client, fake_db, monkeypatch, as_user, url, added):
     _bot(monkeypatch, BOT_STAFF)
-    as_user("1", is_admin=True)
-    for url in ("/staff/me", "/admin/staff/2"):
-        assert client.put(url, json={"motto": None, "games": ["lol", "valorant"]}).status_code == 422
-        assert client.put(url, json={"motto": None, "games": ["lol", "dbd"]}).status_code == 200
-    assert len([c for c in fake_db.calls if c[0] == "execute"]) == 2  # les refus n'écrivent rien
+    as_user("2", is_admin=True)
+    assert client.put(url, json={"motto": None, "games": ["lol", added]}).status_code == 422
+    assert not [c for c in fake_db.calls if c[0] == "execute"]
+    assert client.put(url, json={"motto": None, "games": ["lol", "dbd"]}).status_code == 200
+
+
+@pytest.mark.parametrize("url", ["/staff/me", "/admin/staff/2"])
+def test_staff_already_saved_inactive_games_dropped(client, fake_db, monkeypatch, as_user, _site_games, url):
+    _bot(monkeypatch, BOT_STAFF)
+    as_user("2", is_admin=True)
+    _site_games["games"] = ["lol", "old", "Valorant"]  # jeu désactivé et ancien nom libre déjà au profil
+    r = client.put(url, json={"motto": "x", "games": ["lol", "old", "Valorant", "dbd"]})
+    assert r.status_code == 200
+    assert [c for c in fake_db.calls if c[0] == "execute"][0][2] == (2, "x", ["lol", "dbd"])
+
+
+def test_staff_inactive_game_not_newly_addable_even_if_listed_elsewhere(client, fake_db, monkeypatch, as_user, _site_games):
+    _bot(monkeypatch, BOT_STAFF)
+    as_user("2")
+    _site_games["games"] = ["lol"]  # "old" n'est pas déjà au profil : refus
+    assert client.put("/staff/me", json={"motto": None, "games": ["lol", "old"]}).status_code == 422
