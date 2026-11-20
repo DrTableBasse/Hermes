@@ -12,7 +12,8 @@ describe("matcher du proxy", () => {
   )
 
   // /_kit a son propre layout racine, hors [locale] : next-intl ne doit pas le réécrire en /fr/_kit.
-  it.each(["/favicon.ico", "/api/x", "/_next/static/a.js", "/_kit", "/_kit/x"])(
+  // Fichiers relayés vers web-api (rewrite /media) : next-intl ne doit pas les préfixer en /fr/media.
+  it.each(["/favicon.ico", "/api/x", "/_next/static/a.js", "/_kit", "/_kit/x", "/media/gallery/1f3c.webp"])(
     "ignore %s",
     path => expect(matches(path)).toBe(false),
   )

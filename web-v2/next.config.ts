@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 import createNextIntlPlugin from "next-intl/plugin"
+import { mediaRewrites } from "./src/lib/media-rewrites"
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts")
 
@@ -47,6 +48,9 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  async rewrites() {
+    return mediaRewrites()
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }]
