@@ -7,6 +7,7 @@ vi.mock("next/headers", () => ({
 }))
 
 const api = vi.hoisted(() => ({
+  getAchievementCatalog: vi.fn(),
   getGrades: vi.fn(),
   getSessionUser: vi.fn(),
   getUserAchievementsAll: vi.fn(),
@@ -32,6 +33,10 @@ beforeEach(() => {
     page: 1,
     limit: 10,
   })
+  api.getAchievementCatalog.mockResolvedValue({
+    achievements: [{ id: 1, name: "Bavard", description: "100 messages", icon: "💬", points: 25, condition_type: "messages", unlocked_count: 6 }],
+    members_total: 200,
+  })
   api.getUserAchievementsAll.mockResolvedValue([
     { id: 1, name: "Bavard", description: "100 messages", icon: "💬", points: 25, condition_type: "messages", unlocked: false, unlocked_at: null },
   ])
@@ -46,7 +51,7 @@ afterEach(() => {
 })
 
 describe("page /progression", () => {
-  it("rend toutes les sections pour un visiteur, avec le catalogue de succès anonyme", async () => {
+  it("rend toutes les sections pour un visiteur, avec le catalogue public des succès", async () => {
     render(await ProgressionPage())
     expect(screen.getByRole("heading", { level: 1, name: "Ta fiche de Général" })).toBeTruthy()
     expect(screen.getByRole("list", { name: "Échelle des grades" })).toBeTruthy()
@@ -56,7 +61,8 @@ describe("page /progression", () => {
     expect(screen.getByRole("link", { name: "Kéfir" }).getAttribute("href")).toBe("/u/7")
     expect(api.getSessionUser).not.toHaveBeenCalled()
     expect(api.getWeeklyQuests).not.toHaveBeenCalled()
-    expect(api.getUserAchievementsAll).toHaveBeenCalledWith("0")
+    expect(screen.getByText(/débloqué par 3 % des membres/)).toBeTruthy()
+    expect(api.getUserAchievementsAll).not.toHaveBeenCalled()
     expect(api.leaderboardLevels).toHaveBeenCalledWith(1, 10)
   })
 
@@ -75,7 +81,7 @@ describe("page /progression", () => {
     api.getGrades.mockResolvedValue(null)
     api.getSessionUser.mockResolvedValue(null)
     api.leaderboardLevels.mockRejectedValue(new Error("fetch failed"))
-    api.getUserAchievementsAll.mockRejectedValue(new Error("fetch failed"))
+    api.getAchievementCatalog.mockResolvedValue(null)
     render(await ProgressionPage())
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy()
     expect(screen.queryByRole("list", { name: "Échelle des grades" })).toBeNull()

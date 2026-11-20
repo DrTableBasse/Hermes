@@ -1,11 +1,11 @@
 import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
-import { AchievementsShowcase, rarityOf } from "@/components/progression/achievements-showcase"
+import { AchievementsShowcase, rarityOf, shareText } from "@/components/progression/achievements-showcase"
 import { CharacterSheet } from "@/components/progression/character-sheet"
 import { GradeLadder } from "@/components/progression/grade-ladder"
 import { LeaderboardTable } from "@/components/progression/leaderboard-table"
 import { WeeklyQuests } from "@/components/progression/weekly-quests"
-import type { AchievementWithStatus, Grade, LevelEntry, Quest } from "@/lib/api/types"
+import type { AchievementCatalog, Grade, LevelEntry, Quest } from "@/lib/api/types"
 
 afterEach(cleanup)
 
@@ -34,17 +34,6 @@ const quest = (id: number, extra: Partial<Quest> = {}): Quest => ({
   week_end: "2026-11-22",
   is_active: true,
   ...extra,
-})
-
-const achievement = (id: number, name: string, points: number, unlocked = false): AchievementWithStatus => ({
-  id,
-  name,
-  description: `Description de ${name}`,
-  icon: "🏆",
-  points,
-  condition_type: "messages",
-  unlocked,
-  unlocked_at: unlocked ? "2026-11-01T10:00:00Z" : null,
 })
 
 const entry = (rank: number, id: string, name: string, level: number, xp: number, grade: Grade): LevelEntry => ({
@@ -152,56 +141,80 @@ describe("WeeklyQuests", () => {
 // ── Vitrine de succès ──
 
 describe("AchievementsShowcase", () => {
-  const ALL = [
-    achievement(1, "Premier message", 10),
-    achievement(2, "Bavard", 25),
-    achievement(3, "Moulin à paroles", 50),
-    achievement(4, "Légende du chat", 100),
-    achievement(5, "Nocturne", 15),
-  ]
+  // 200 membres actifs : 1 → 0,5 %, 6 → 3 %, 30 → 15 %, 120 → 60 %.
+  const catalogOf = (rows: Array<[number, string, number]>, members_total = 200): AchievementCatalog => ({
+    achievements: rows.map(([id, name, unlocked_count]) => ({
+      id,
+      name,
+      description: `Description de ${name}`,
+      icon: "🏆",
+      points: 10,
+      condition_type: "messages",
+      unlocked_count,
+    })),
+    members_total,
+  })
+  const CATALOG = catalogOf([
+    [1, "Premier message", 120],
+    [2, "Bavard", 30],
+    [3, "Moulin à paroles", 6],
+    [4, "Légende du chat", 1],
+    [5, "Nocturne", 0],
+  ])
 
-  it("classe la rareté selon les points", () => {
-    expect(rarityOf(10).label).toBe("Commun")
-    expect(rarityOf(15).label).toBe("Commun")
-    expect(rarityOf(20).label).toBe("Rare")
-    expect(rarityOf(35).label).toBe("Rare")
-    expect(rarityOf(40).label).toBe("Épique")
-    expect(rarityOf(60).label).toBe("Épique")
-    expect(rarityOf(75).label).toBe("Légendaire")
+  it("classe la rareté selon la part réelle des membres", () => {
+    expect(rarityOf(0).label).toBe("Légendaire")
+    expect(rarityOf(0.0099).label).toBe("Légendaire")
+    expect(rarityOf(0.01).label).toBe("Épique")
+    expect(rarityOf(0.049).label).toBe("Épique")
+    expect(rarityOf(0.05).label).toBe("Rare")
+    expect(rarityOf(0.199).label).toBe("Rare")
+    expect(rarityOf(0.2).label).toBe("Commun")
   })
 
-  it("groupe les vrais succès du plus rare au plus commun", () => {
-    render(<AchievementsShowcase achievements={ALL} personal={false} />)
+  it("formule la part des membres sans jamais afficher « 0 % »", () => {
+    expect(shareText(0, 0)).toBe("encore jamais débloqué")
+    expect(shareText(1, 0.0005)).toBe("débloqué par moins de 0,1 % des membres")
+    expect(shareText(1, 0.005)).toBe("débloqué par 0,5 % des membres")
+    expect(shareText(6, 0.03)).toBe("débloqué par 3 % des membres")
+    expect(shareText(120, 0.604)).toBe("débloqué par 60 % des membres")
+  })
+
+  it("groupe les vrais succès du plus rare au plus commun, avec leur pourcentage", () => {
+    render(<AchievementsShowcase catalog={CATALOG} unlockedIds={null} />)
     const groups = screen.getAllByTestId("rarity-group")
     expect(groups.map(g => g.getAttribute("data-rarity"))).toEqual(["legendaire", "epique", "rare", "commun"])
+    expect(within(groups[0]).getByText("Nocturne")).toBeTruthy()
+    expect(within(groups[0]).getByText("Légende du chat")).toBeTruthy()
+    expect(groups[1].textContent).toContain("Moulin à paroles")
+    expect(groups[1].textContent).toContain("débloqué par 3 % des membres")
     expect(within(groups[3]).getByText("Premier message")).toBeTruthy()
-    expect(within(groups[3]).getByText("Nocturne")).toBeTruthy()
+    expect(screen.getByText(/part des 200 membres/)).toBeTruthy()
     // Aucun succès inventé : les noms provisoires de la maquette n'apparaissent pas s'ils manquent en base.
     expect(screen.queryByText("Général du dimanche")).toBeNull()
     expect(screen.queryByText("Moutarde au nez")).toBeNull()
     expect(screen.queryByText("Chipolata nocturne")).toBeNull()
+    expect(screen.queryByText(/débloqués/)).toBeNull()
   })
 
   it("affiche un succès de la maquette dès qu'il existe en base", () => {
-    render(<AchievementsShowcase achievements={[...ALL, achievement(9, "Général du dimanche", 100)]} personal={false} />)
+    render(<AchievementsShowcase catalog={catalogOf([[9, "Général du dimanche", 1]])} unlockedIds={null} />)
     expect(screen.getByText("Général du dimanche")).toBeTruthy()
   })
 
   it("marque les succès débloqués du membre connecté", () => {
-    render(
-      <AchievementsShowcase
-        achievements={[achievement(1, "Premier message", 10, true), achievement(2, "Bavard", 25)]}
-        personal
-      />,
-    )
-    expect(screen.getByText(/1 sur 2 débloqués/)).toBeTruthy()
-    const locked = screen.getByText("Bavard").closest("[data-locked]")
-    expect(locked?.getAttribute("data-locked")).toBe("true")
+    render(<AchievementsShowcase catalog={CATALOG} unlockedIds={new Set([1])} />)
+    expect(screen.getByText(/1 sur 5 débloqués/)).toBeTruthy()
+    expect(screen.getByText("Bavard").closest("[data-locked]")?.getAttribute("data-locked")).toBe("true")
+    expect(screen.getByText("Premier message").closest("[data-locked]")?.getAttribute("data-locked")).toBe("false")
   })
 
-  it("se masque sans succès (API indisponible)", () => {
-    const { container } = render(<AchievementsShowcase achievements={null} personal={false} />)
-    expect(container.innerHTML).toBe("")
+  it("se masque sans catalogue, catalogue vide ou sans membre (API indisponible)", () => {
+    for (const catalog of [null, catalogOf([]), catalogOf([[1, "Bavard", 0]], 0)]) {
+      const { container } = render(<AchievementsShowcase catalog={catalog} unlockedIds={null} />)
+      expect(container.innerHTML).toBe("")
+      cleanup()
+    }
   })
 })
 
@@ -224,6 +237,18 @@ describe("LeaderboardTable", () => {
     expect(rows[0].textContent).toContain("niv. 90")
     expect(rows[0].textContent).toMatch(/812\s000 XP/)
     expect(within(rows[1]).getByText("Sergent Merguez")).toBeTruthy()
+  })
+
+  it("affiche l'avatar Discord en direct, réduit à 64 px, sans initiale de secours", () => {
+    const withAvatar = {
+      ...entry(1, "111", "Merguez_Royale", 90, 812_000, GRADES[5]),
+      discord_avatar: "https://cdn.discordapp.com/avatars/111/abc.png?size=1024",
+    }
+    render(<LeaderboardTable entries={[withAvatar]} />)
+    const row = screen.getAllByRole("row")[1]
+    const img = row.querySelector("img")
+    expect(img?.getAttribute("src")).toBe("https://cdn.discordapp.com/avatars/111/abc.png?size=64")
+    expect(within(row).queryByText("M")).toBeNull()
   })
 
   it("signale un classement indisponible ou vide", () => {

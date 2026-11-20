@@ -44,7 +44,8 @@ export function LeaderboardTable({ entries }: { entries: LevelEntry[] | null }) 
                 >
                   {e.global_rank}
                 </td>
-                <td className="max-w-0 py-3.5 pr-4">
+                {/* `w-full max-w-0` : la colonne prend la place libre, et seul le pseudo se tronque. */}
+                <td className="w-full max-w-0 py-3.5 pr-4">
                   <span className="flex min-w-0 items-center gap-3 font-semibold">
                     <Avatar name={e.username} src={e.discord_avatar} />
                     <Link

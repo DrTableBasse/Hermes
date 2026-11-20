@@ -404,6 +404,26 @@ export interface AchievementWithStatus {
   unlocked_at: string | null
 }
 
+/** Ligne du catalogue public `/achievements`. */
+export interface CatalogAchievement {
+  id: number
+  name: string
+  description: string | null
+  icon: string | null
+  points: number
+  condition_type: string
+  /** Membres actifs (`is_member`) qui l'ont débloqué. */
+  unlocked_count: number
+}
+
+export interface AchievementCatalog {
+  achievements: CatalogAchievement[]
+  /** Membres actifs : dénominateur de la rareté. */
+  members_total: number
+  /** Présent (`true`) quand la base est illisible : liste vide. */
+  stale?: boolean
+}
+
 /** `/users/{id}/stats` (connecté). */
 export interface UserStats {
   user: {

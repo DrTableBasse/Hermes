@@ -7,6 +7,7 @@ import { LeaderboardTable } from "@/components/progression/leaderboard-table"
 import { WeeklyQuests } from "@/components/progression/weekly-quests"
 import { SectionHeading } from "@/components/ui/section-heading"
 import {
+  getAchievementCatalog,
   getGrades,
   getSessionUser,
   getUserAchievementsAll,
@@ -22,9 +23,6 @@ export const metadata: Metadata = {
 // En HTTPS, BetterAuth préfixe son cookie par `__Secure-` (même liste que `src/proxy.ts`).
 const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"]
 
-// Identifiant qu'aucun membre ne porte : `/users/0/achievements` rend le catalogue, tout verrouillé.
-const NOBODY = "0"
-
 async function sessionToken(): Promise<string | null> {
   const jar = await cookies()
   for (const name of SESSION_COOKIES) {
@@ -39,15 +37,18 @@ export default async function ProgressionPage() {
   const me = token ? await getSessionUser(token) : null
 
   // Chaque bloc tolère sa source absente (`null`) : une API muette ne casse pas la page.
-  const [grades, levels, quests, achievements] = await Promise.all([
+  const [grades, levels, quests, catalog, mine] = await Promise.all([
     getGrades(),
     leaderboardLevels(1, 10).then(
       page => page.leaderboard,
       () => null,
     ),
     token && me ? getWeeklyQuests(token) : Promise.resolve(null),
-    getUserAchievementsAll(me?.user_id ?? NOBODY).catch(() => null),
+    getAchievementCatalog(),
+    // Succès du membre connecté, pour griser ceux qui lui manquent ; échec → vitrine sans grisé.
+    me ? getUserAchievementsAll(me.user_id).catch(() => null) : Promise.resolve(null),
   ])
+  const unlockedIds = mine ? new Set(mine.filter(a => a.unlocked).map(a => a.id)) : null
 
   return (
     <main className="relative pt-10 pb-24">
@@ -71,7 +72,7 @@ export default async function ProgressionPage() {
           </div>
         </div>
 
-        <AchievementsShowcase achievements={achievements} personal={me !== null} />
+        <AchievementsShowcase catalog={catalog} unlockedIds={unlockedIds} />
         <LeaderboardTable entries={levels} />
       </div>
     </main>

@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}))
 import {
   apiGet,
   apiGetOrNull,
+  getAchievementCatalog,
   getEvents,
   getGrades,
   getLive,
@@ -175,6 +176,16 @@ describe("fonctions nommées", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://web-api:8000/leaderboard/levels?page=2&limit=5&search=j%26k",
     )
+  })
+
+  it("getAchievementCatalog lit /achievements en cache 5 min, null si web-api est muette", async () => {
+    const catalog = { achievements: [], members_total: 140 }
+    fetchMock.mockResolvedValueOnce(reply(200, catalog))
+    await expect(getAchievementCatalog()).resolves.toEqual(catalog)
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/achievements")
+    expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: 300 })
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"))
+    await expect(getAchievementCatalog()).resolves.toBeNull()
   })
 
   it("getWeeklyQuests transmet la session, déballe la clé quests et renvoie null sur un 401", async () => {

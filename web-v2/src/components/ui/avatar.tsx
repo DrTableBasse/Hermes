@@ -15,6 +15,24 @@ type AvatarProps = {
   className?: string
 }
 
+const DISCORD_SIZES = [64, 128, 256, 512, 1024]
+
+/**
+ * Avatar du CDN Discord à la plus petite taille servie qui couvre `size` (web-api renvoie `?size=1024`,
+ * bien trop lourd pour 34 px) ; toute autre URL est rendue telle quelle.
+ */
+export function avatarSrc(src: string, size: number): string {
+  let url: URL
+  try {
+    url = new URL(src)
+  } catch {
+    return src
+  }
+  if (url.hostname !== "cdn.discordapp.com") return src
+  url.searchParams.set("size", String(DISCORD_SIZES.find(s => s >= size) ?? 1024))
+  return url.toString()
+}
+
 export function Avatar({
   name,
   src,
@@ -44,7 +62,16 @@ export function Avatar({
       aria-hidden={labelled ? undefined : true}
     >
       {src ? (
-        <Image src={src} alt="" width={size} height={size} className="size-full object-cover" />
+        // `unoptimized`, comme les autres images distantes : le navigateur lit le CDN directement (CSP
+        // `img-src`), sans faire passer chaque avatar par `/_next/image` et le conteneur web.
+        <Image
+          src={avatarSrc(src, size)}
+          alt=""
+          width={size}
+          height={size}
+          unoptimized
+          className="size-full object-cover"
+        />
       ) : (
         name.trim().charAt(0).toUpperCase() || "?"
       )}

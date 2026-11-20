@@ -1,6 +1,7 @@
 import "server-only"
 
 import type {
+  AchievementCatalog,
   AchievementEntry,
   AchievementWithStatus,
   ActivityDay,
@@ -103,6 +104,9 @@ export async function getGrades(): Promise<Grade[] | null> {
   const data = await apiGetOrNull<GradesResponse>("/grades", { revalidate: 600 })
   return data ? data.grades : null
 }
+
+export const getAchievementCatalog = () =>
+  apiGetOrNull<AchievementCatalog>("/achievements", { revalidate: 300 })
 
 export const getGames = () => apiGetOrNull<GamesResponse>("/games", { revalidate: 30 })
 
