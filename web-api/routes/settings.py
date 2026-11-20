@@ -72,13 +72,17 @@ async def put_setting(key: str, body: SettingValue, user: dict = Depends(get_cur
         value = validate(key, body.value)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    await db.execute(
-        """INSERT INTO bot_settings (key, value, updated_by, updated_at)
-           VALUES ($1, $2, $3, NOW())
-           ON CONFLICT (key) DO UPDATE
-           SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()""",
-        key, value, int(user["sub"]),
-    )
+    if value == "":
+        # Valeur vide = réglage effacé : pas de chaîne vide en base, le défaut du registre s'applique.
+        await db.execute("DELETE FROM bot_settings WHERE key = $1", key)
+    else:
+        await db.execute(
+            """INSERT INTO bot_settings (key, value, updated_by, updated_at)
+               VALUES ($1, $2, $3, NOW())
+               ON CONFLICT (key) DO UPDATE
+               SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by, updated_at = NOW()""",
+            key, value, int(user["sub"]),
+        )
     # Le bot relit la base ; s'il est injoignable, il se resynchronise sous 5 min.
     reloaded = await bot_client.bot_post("/settings/reload") is not None
     return {"key": key, "value": value, "bot_reloaded": reloaded}

@@ -68,3 +68,18 @@ def test_public_settings_only_public(client, fake_db, monkeypatch):
         "invite_url": "https://discord.gg/abc",
         "ticket_panel_url": "https://discord.com/channels/999/77",
     }
+
+
+def test_put_empty_value_deletes_row(client, fake_db, monkeypatch):
+    _login(client, fake_db, ADMIN)
+
+    async def fake_post(path, json=None, timeout=1.5):
+        return {"ok": True}
+
+    monkeypatch.setattr(bot_client, "bot_post", fake_post)
+    r = client.put("/admin/settings/welcome_channel", json={"value": "  "})
+    assert r.status_code == 200
+    assert r.json()["value"] == ""
+    deletes = [c for c in fake_db.calls if c[1].lower().startswith("delete from bot_settings")]
+    assert deletes and deletes[0][2] == ("welcome_channel",)
+    assert not [c for c in fake_db.calls if "insert into bot_settings" in c[1].lower()]
