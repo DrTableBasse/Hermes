@@ -31,6 +31,9 @@
      par `animate-marquee` (durée et sens réglés en style par le composant). */
   --animate-marquee: defile 45s linear infinite;
   --animate-pulse-ring: pulse-ring 1.8s ease-out infinite;
+  /* Console d'Hermes : arrivée d'une ligne et curseur clignotant. */
+  --animate-log-in: log-in 0.35s ease-out;
+  --animate-blink: blink 1s steps(1) infinite;
 
   @keyframes float {
     50% { translate: 0 -10px; }
@@ -41,6 +44,12 @@
   }
   @keyframes defile {
     to { transform: translateX(-50%); }
+  }
+  @keyframes log-in {
+    from { opacity: 0; transform: translateY(6px); }
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
   }
 }
 
