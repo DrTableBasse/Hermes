@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  formatAgo,
+  formatClock,
   formatCountdown,
   formatNumber,
   formatSince,
@@ -82,5 +84,28 @@ describe("xpProgress", () => {
   it("traite une valeur négative ou invalide comme zéro", () => {
     expect(xpProgress(-50)).toEqual(xpProgress(0))
     expect(xpProgress(Number.NaN)).toEqual(xpProgress(0))
+  })
+})
+
+describe("formatClock", () => {
+  it("donne l'heure de Paris en HH:MM, été comme hiver", () => {
+    expect(formatClock("2026-11-20T20:04:00Z")).toBe("21:04")
+    expect(formatClock("2026-07-01T07:05:00Z")).toBe("09:05")
+  })
+})
+
+describe("formatAgo", () => {
+  const now = new Date("2026-11-20T21:00:00Z")
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString()
+
+  it("passe de l'instant aux minutes, heures puis jours", () => {
+    expect(formatAgo(ago(20_000), now)).toBe("À l'instant")
+    expect(formatAgo(ago(2 * 60_000), now)).toBe("Il y a 2 min")
+    expect(formatAgo(ago(3 * 3_600_000), now)).toBe("Il y a 3 h")
+    expect(formatAgo(ago(2 * 86_400_000), now)).toBe("Il y a 2 j")
+  })
+
+  it("traite une date future (horloges décalées) comme l'instant présent", () => {
+    expect(formatAgo(ago(-90_000), now)).toBe("À l'instant")
   })
 })

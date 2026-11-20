@@ -37,6 +37,27 @@ export function formatSince(iso: string): string {
   return `depuis le ${dayMonth.format(new Date(iso))}`
 }
 
+const clock = new Intl.DateTimeFormat("fr-FR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Paris",
+})
+
+/** « 21:04 », heure de Paris. */
+export function formatClock(iso: string): string {
+  return clock.format(new Date(iso))
+}
+
+/** « Il y a 6 min », relatif à `now` ; une date future (horloges décalées) vaut « À l'instant ». */
+export function formatAgo(iso: string, now: Date): string {
+  const minutes = Math.floor((now.getTime() - new Date(iso).getTime()) / 60_000)
+  if (!(minutes >= 1)) return "À l'instant"
+  if (minutes < 60) return `Il y a ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Il y a ${hours} h`
+  return `Il y a ${Math.floor(hours / 24)} j`
+}
+
 /** XP totale pour atteindre `level` : N² × 100. */
 export function xpForLevel(level: number): number {
   return level * level * 100
