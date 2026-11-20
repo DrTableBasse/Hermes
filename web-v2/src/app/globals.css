@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 /* Identité SaucisseLand : sombre uniquement. Valeurs reprises de la maquette validée
-   (docs/superpowers/specs/assets/saucisseland-vitrine.html). */
-@theme {
+   (docs/superpowers/specs/assets/saucisseland-vitrine.html).
+   `static` : tous les tokens restent émis, y compris ceux lus seulement en style (var(--color-…)). */
+@theme static {
   --color-bg: #0C0E1A;
   --color-panel: #13162A;
   --color-panel-2: #171A2E;
@@ -26,6 +27,9 @@
   --color-blue-deep: #3A62E0;
 
   --animate-float: float 7s ease-in-out infinite;
+  /* Tailwind n'émet un keyframe que s'il est référencé par un --animate-* utilisé : le bandeau passe
+     par `animate-marquee` (durée et sens réglés en style par le composant). */
+  --animate-marquee: defile 45s linear infinite;
   --animate-pulse-ring: pulse-ring 1.8s ease-out infinite;
 
   @keyframes float {
@@ -111,9 +115,6 @@ body {
   .marquee-track {
     display: flex;
     width: max-content;
-    animation-name: defile;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
   }
   /* Chaque moitié porte son espacement de fin : -50 % retombe pile sur le début de la copie. */
   .marquee-group {

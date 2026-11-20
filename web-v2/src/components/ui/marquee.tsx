@@ -38,7 +38,7 @@ export function Marquee({
       // élément interactif dans le bandeau.
       tabIndex={ariaLabel ? 0 : undefined}
     >
-      <div className="marquee-track" style={trackStyle} data-marquee-track>
+      <div className="marquee-track animate-marquee" style={trackStyle} data-marquee-track>
         <div className="marquee-group" data-marquee-group>
           {items}
         </div>

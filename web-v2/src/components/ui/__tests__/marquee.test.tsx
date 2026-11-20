@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { render } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { Marquee } from "@/components/ui/marquee"
@@ -23,6 +25,16 @@ describe("Marquee", () => {
     // Sans nom, pas de région : rien à annoncer, donc pas d'arrêt de tabulation vide.
     const { container: anonymous } = render(<Marquee items={["y"]} />)
     expect(anonymous.querySelector(".marquee")?.hasAttribute("tabindex")).toBe(false)
+  })
+
+  it("anime la piste par un utilitaire du thème, sans quoi Tailwind n'émet pas le keyframe", () => {
+    const { container } = render(<Marquee items={["x"]} />)
+    const track = container.querySelector("[data-marquee-track]") as HTMLElement
+    expect(track.classList.contains("animate-marquee")).toBe(true)
+    // Le keyframe n'existe dans le CSS final que s'il est référencé par --animate-marquee.
+    const css = readFileSync(join(__dirname, "../../../app/globals.css"), "utf8")
+    expect(css).toMatch(/--animate-marquee:\s*defile\b/)
+    expect(css).toMatch(/@keyframes defile/)
   })
 
   it("inverse le sens et règle la vitesse à la demande", () => {
