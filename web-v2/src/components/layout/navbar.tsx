@@ -28,10 +28,23 @@ function useSessionUser(): SessionUser | null {
   return (state?.data?.user as SessionUser | undefined) ?? null
 }
 
-function useDismiss(open: boolean, close: () => void, ref: React.RefObject<HTMLElement | null>) {
+/**
+ * Ferme le panneau sur Échap ou clic hors de `ref`. Sur Échap, le focus revient au déclencheur :
+ * le panneau démonté ne doit pas renvoyer l'utilisateur clavier en haut du document (WCAG 2.4.3).
+ */
+function useDismiss(
+  open: boolean,
+  close: () => void,
+  ref: React.RefObject<HTMLElement | null>,
+  trigger: React.RefObject<HTMLElement | null>,
+) {
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      close()
+      trigger.current?.focus()
+    }
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) close()
     }
@@ -41,7 +54,7 @@ function useDismiss(open: boolean, close: () => void, ref: React.RefObject<HTMLE
       document.removeEventListener("keydown", onKey)
       document.removeEventListener("mousedown", onClick)
     }
-  }, [open, close, ref])
+  }, [open, close, ref, trigger])
 }
 
 function accountLinksFor(user: SessionUser) {
@@ -60,12 +73,14 @@ function AccountMenu({ user }: { user: SessionUser }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const menuId = useId()
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const close = useCallback(() => setOpen(false), [])
-  useDismiss(open, close, ref)
+  useDismiss(open, close, ref, triggerRef)
 
   return (
     <div ref={ref} className="relative max-[820px]:hidden">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open}
         aria-controls={menuId}
@@ -117,8 +132,9 @@ export function Navbar({ inviteUrl }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const mobileRef = useRef<HTMLDivElement>(null)
   const mobileId = useId()
+  const mobileTriggerRef = useRef<HTMLButtonElement>(null)
   const closeMobile = useCallback(() => setMobileOpen(false), [])
-  useDismiss(mobileOpen, closeMobile, mobileRef)
+  useDismiss(mobileOpen, closeMobile, mobileRef, mobileTriggerRef)
 
   return (
     <header className="sticky top-0 z-50 px-4 pt-4">
@@ -161,6 +177,7 @@ export function Navbar({ inviteUrl }: NavbarProps) {
               </Button>
             )}
             <button
+              ref={mobileTriggerRef}
               type="button"
               aria-expanded={mobileOpen}
               aria-controls={mobileId}

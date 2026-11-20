@@ -20,6 +20,10 @@
   --color-msg: #D6D3EA;
   --color-line: rgb(255 255 255 / 0.08);
   --color-discord: #5865F2;
+  /* Fonds assombris sous du texte blanc : AA (4,5:1) prime sur la maquette (src/lib/__tests__/contrast.test.ts). */
+  --color-violet-deep: #7C4DEB;
+  --color-violet-deep-2: #5B48E0;
+  --color-blue-deep: #3A62E0;
 
   --animate-float: float 7s ease-in-out infinite;
   --animate-pulse-ring: pulse-ring 1.8s ease-out infinite;

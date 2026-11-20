@@ -295,6 +295,7 @@ export default async function KitPage() {
               items={GAMES.map(([n, a, b]) => <GameCard key={n} name={n} from={a} to={b} />)}
             />
             <Marquee
+              aria-label="Jeux en pastilles, sens inverse"
               reverse
               speed={55}
               items={GAMES.map(([n, a]) => (

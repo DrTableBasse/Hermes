@@ -17,6 +17,14 @@ describe("Marquee", () => {
     expect(groups[1].hasAttribute("inert")).toBe(true)
   })
 
+  it("rend la région nommée focusable, pour la mettre en pause au clavier", () => {
+    const { getByRole } = render(<Marquee items={["x"]} aria-label="Tous nos jeux" />)
+    expect(getByRole("region", { name: "Tous nos jeux" }).getAttribute("tabindex")).toBe("0")
+    // Sans nom, pas de région : rien à annoncer, donc pas d'arrêt de tabulation vide.
+    const { container: anonymous } = render(<Marquee items={["y"]} />)
+    expect(anonymous.querySelector(".marquee")?.hasAttribute("tabindex")).toBe(false)
+  })
+
   it("inverse le sens et règle la vitesse à la demande", () => {
     const { container } = render(<Marquee items={["x"]} reverse speed={55} />)
     const track = container.querySelector("[data-marquee-track]") as HTMLElement

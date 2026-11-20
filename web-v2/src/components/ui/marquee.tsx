@@ -34,6 +34,9 @@ export function Marquee({
       className={cn("marquee", pauseOnHover && "marquee-pause", className)}
       role={ariaLabel ? "region" : undefined}
       aria-label={ariaLabel}
+      // Focusable dès qu'elle est nommée : le focus met le défilé en pause (WCAG 2.2.2), même sans
+      // élément interactif dans le bandeau.
+      tabIndex={ariaLabel ? 0 : undefined}
     >
       <div className="marquee-track" style={trackStyle} data-marquee-track>
         <div className="marquee-group" data-marquee-group>

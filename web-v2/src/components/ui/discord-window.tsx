@@ -52,7 +52,7 @@ export function DiscordMessage({
         <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: nameColor }}>
           {author}
           {bot && (
-            <span className="rounded bg-blue px-[5px] py-px text-[10px] font-bold text-white">BOT</span>
+            <span className="rounded bg-blue-deep px-[5px] py-px text-[10px] font-bold text-white">BOT</span>
           )}
           {time && <time className="text-[11px] font-normal text-muted">{time}</time>}
         </div>

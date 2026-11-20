@@ -8,9 +8,9 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Violet de la maquette, curseur saucisse au survol.
+        // Violet de la maquette assombri pour l'AA sous le blanc ; curseur saucisse au survol.
         primary:
-          "bg-linear-to-r from-violet to-violet-2 text-white shadow-[0_12px_32px_rgb(155_107_255/0.45)] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgb(155_107_255/0.6)] hover:cursor-sausage",
+          "bg-linear-to-r from-violet-deep to-violet-deep-2 text-white shadow-[0_12px_32px_rgb(155_107_255/0.45)] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgb(155_107_255/0.6)] hover:cursor-sausage",
         ghost:
           "border border-white/14 bg-white/6 font-semibold text-fg hover:bg-white/10",
         // Connexion avec Discord : couleur de la marque, à plat.
