@@ -5,10 +5,13 @@ import os
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from middleware.auth_middleware import get_current_user, require_admin
 import database as db
+from routes import gallery
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
@@ -535,3 +538,36 @@ async def get_analytics(user: dict = Depends(get_current_user)):
             "quests_done_7d":   int(quests_done_7d or 0),
         },
     }
+
+
+# ── Galerie ──────────────────────────────────────────────────────────────────
+
+class GalleryVisibility(BaseModel):
+    hidden: bool
+
+
+@router.patch("/gallery/{item_id}")
+async def set_gallery_hidden(item_id: int, body: GalleryVisibility,
+                             user: dict = Depends(get_current_user)):
+    require_admin(user)
+    row = await db.fetchrow(
+        "UPDATE gallery_items SET hidden = $1 WHERE id = $2 RETURNING id", body.hidden, item_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Élément introuvable")
+    return {"id": item_id, "hidden": body.hidden}
+
+
+@router.delete("/gallery/{item_id}", status_code=204)
+async def delete_gallery_item(item_id: int, user: dict = Depends(get_current_user)):
+    require_admin(user)
+    row = await db.fetchrow(
+        "DELETE FROM gallery_items WHERE id = $1 RETURNING file_name", item_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Élément introuvable")
+    if row["file_name"]:
+        try:
+            # .name : le nom vient de la base, jamais un chemin hors du dossier.
+            (gallery.GALLERY_DIR / Path(row["file_name"]).name).unlink(missing_ok=True)
+        except OSError as exc:
+            logger.warning("Fichier de galerie non supprimé (%s) : %s", row["file_name"], exc)
+    return Response(status_code=204)
