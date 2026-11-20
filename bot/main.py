@@ -17,6 +17,7 @@ load_dotenv()
 
 from config import validate_config, BOT_API_PORT
 from utils.constants import cogs_names
+from utils import runtime  # noqa: F401 — fixe STARTED_AT au démarrage du processus
 from utils.database import init_database, voice_manager, message_stats_manager, db_manager, achievement_manager, command_stats_manager
 from utils.command_manager import init_command_status_table
 from utils.embed_style import hermes_embed, Colors

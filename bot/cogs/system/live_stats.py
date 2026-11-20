@@ -102,7 +102,9 @@ class LiveStats(commands.Cog):
             await db_manager.execute(
                 "DELETE FROM guild_stats_snapshots WHERE taken_at < NOW() - INTERVAL '30 days'")
             await db_manager.execute(
-                "DELETE FROM bot_heartbeats WHERE minute < NOW() - INTERVAL '30 days'")
+                # 31 j : garde « depuis » (première minute) ≥ 30 j une fois la fenêtre atteinte,
+                # sinon la purge ferait repasser la disponibilité à « depuis le … » en boucle.
+                "DELETE FROM bot_heartbeats WHERE minute < NOW() - INTERVAL '31 days'")
         except Exception:
             logger.exception("Purge des relevés en échec")
 

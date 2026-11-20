@@ -338,6 +338,22 @@ async def settings_ensure_channel(req: EnsureChannelRequest):
     return {"id": str(channel.id), "name": channel.name}
 
 
+# ── Statut d'Hermes ───────────────────────────────────────────────────────────
+
+@app.get("/status", dependencies=[Depends(_require_token)])
+async def status():
+    from utils.runtime import STARTED_AT
+    bot = _get_bot()
+    latency = bot.latency  # secondes ; nan/inf tant que la passerelle n'a pas répondu
+    latency_ms = int(round(latency * 1000)) if latency == latency and latency != float("inf") else 0
+    return {
+        "ready": bot.is_ready(),
+        "latency_ms": latency_ms,
+        "started_at": STARTED_AT.isoformat(),
+        "guilds": len(bot.guilds),
+    }
+
+
 # ── Caserne en direct ─────────────────────────────────────────────────────────
 
 @app.get("/live", dependencies=[Depends(_require_token)])
