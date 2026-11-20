@@ -348,6 +348,33 @@ async def live():
     return cog.collect(_get_guild())
 
 
+# ── Events programmés ─────────────────────────────────────────────────────────
+
+def _event_payload(guild: discord.Guild, ev: discord.ScheduledEvent) -> dict:
+    return {
+        "id": str(ev.id), "name": ev.name, "description": ev.description,
+        "start": ev.start_time.isoformat(),
+        "end": ev.end_time.isoformat() if ev.end_time else None,
+        "status": ev.status.name,
+        "location": ev.location or (ev.channel.name if ev.channel else None),
+        "user_count": ev.user_count,
+        "creator_id": str(ev.creator_id) if ev.creator_id else None,
+        "image": ev.cover_image.url if ev.cover_image else None,
+        "url": f"https://discord.com/events/{guild.id}/{ev.id}",
+    }
+
+
+@app.get("/events", dependencies=[Depends(_require_token)])
+async def events():
+    guild = _get_guild()
+    upcoming = (discord.EventStatus.scheduled, discord.EventStatus.active)
+    return {"events": [
+        _event_payload(guild, ev)
+        for ev in sorted(guild.scheduled_events, key=lambda e: e.start_time)
+        if ev.status in upcoming
+    ]}
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():
