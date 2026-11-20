@@ -8,7 +8,8 @@ from routes.events import parse_xp_reward
 
 
 @pytest.fixture(autouse=True)
-def _fresh_cache():
+def _fresh_cache(monkeypatch):
+    monkeypatch.setattr(events, "_last_good", None)
     bot_client.clear_cache()
     grades.clear_grades_cache()
     yield
@@ -80,3 +81,32 @@ def test_events_organizer_unknown_or_null_level(client, fake_db, monkeypatch):
     ])
     org = client.get("/events").json()["events"][0]["organizer"]
     assert org["grade"]["slug"] == "recrue" and org["avatar"] is None
+
+
+def test_events_last_good_when_bot_down(client, fake_db, monkeypatch):
+    _bot(monkeypatch, {"events": [_event(creator_id=None)]})
+    assert client.get("/events").json()["events"][0]["name"] == "Soirée DBD"
+    bot_client.clear_cache()  # TTL écoulé
+    _bot(monkeypatch, None)
+    body = client.get("/events").json()
+    assert body["stale"] is True and [e["name"] for e in body["events"]] == ["Soirée DBD"]
+
+
+def test_events_malformed_event_skipped(client, fake_db, monkeypatch):
+    bad_start = {k: v for k, v in _event(id=5).items() if k != "start"}
+    _bot(monkeypatch, {"events": [bad_start, _event(id=6, creator_id="abc"), "n'importe quoi", _event()]})
+    r = client.get("/events")
+    assert r.status_code == 200
+    assert [e["id"] for e in r.json()["events"]] == ["1111111111111111111"]
+
+
+def test_events_db_down_organizer_null(client, fake_db, monkeypatch):
+    def boom(sql, *args):
+        raise RuntimeError("base indisponible")
+
+    _bot(monkeypatch, {"events": [_event()]})
+    fake_db.on("FROM user_voice_data", boom)
+    r = client.get("/events")
+    assert r.status_code == 200
+    ev = r.json()["events"][0]
+    assert ev["organizer"] is None and ev["xp_reward"] == 200
