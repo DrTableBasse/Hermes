@@ -7,6 +7,7 @@ from discord.ext import commands, tasks
 from utils.database import xp_manager, db_manager, streak_manager, notification_manager, achievement_manager
 from utils import settings
 from utils.command_manager import command_enabled
+from utils.grades import grade_for_level, next_grade, load_grades, color_to_int
 from utils.embed_style import hermes_embed, leaderboard_embed, progress_bar, Colors
 
 logger = logging.getLogger(__name__)
@@ -116,10 +117,55 @@ class XPCog(commands.Cog):
             color=Colors.GOLD,
             thumbnail_url=target.display_avatar.url,
         )
+        grade = grade_for_level(level, await load_grades(db_manager))
+        embed.add_field(name="Grade", value=f"**{grade['name']}**", inline=False)
         embed.add_field(name="XP Total", value=f"**{xp:,}**", inline=True)
         embed.add_field(name="Prochain niveau", value=f"**{next_xp:,}** XP", inline=True)
         embed.add_field(name="XP cette semaine", value=f"**{data['weekly_xp']:,}**", inline=True)
         embed.add_field(name="Progression", value=bar, inline=False)
+
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="rang", description="Afficher votre grade charcutier")
+    @command_enabled(guild_specific=True)
+    async def rang_cmd(self, interaction: discord.Interaction, membre: discord.Member = None):
+        target = membre or interaction.user
+        data = await xp_manager.get_user_xp(target.id)
+
+        if not data:
+            await interaction.response.send_message(
+                embed=hermes_embed(description=f"❌ Aucune donnée XP pour {target.display_name}.", color=Colors.RED),
+                ephemeral=True,
+            )
+            return
+
+        level = data['current_level'] or 1
+        xp = data['total_xp']
+        grades = await load_grades(db_manager)
+        grade = grade_for_level(level, grades)
+        upcoming = next_grade(level, grades)
+
+        floor_xp = xp_manager.xp_for_level(level)
+        next_xp = xp_manager.xp_for_level(level + 1)
+        bar = progress_bar(xp - floor_xp, next_xp - floor_xp)
+
+        embed = hermes_embed(
+            title=f"🥩  {grade['name']}  ─  {target.display_name}",
+            color=color_to_int(grade['color']),
+            thumbnail_url=target.display_avatar.url,
+            footer_extra="Hermes a vérifié. Deux fois.",
+        )
+        embed.add_field(name="Niveau", value=f"**{level}**", inline=True)
+        embed.add_field(name="XP Total", value=f"**{xp:,}**", inline=True)
+        if upcoming:
+            embed.add_field(
+                name="Prochain grade",
+                value=f"**{upcoming['name']}** au niveau **{upcoming['level_min']}**",
+                inline=False,
+            )
+        else:
+            embed.add_field(name="Prochain grade", value="Aucun. Tu as atteint le sommet de la charcuterie.", inline=False)
+        embed.add_field(name=f"Progression vers le niveau {level + 1}", value=bar, inline=False)
 
         await interaction.response.send_message(embed=embed)
 
