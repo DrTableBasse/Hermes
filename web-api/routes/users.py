@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from limiter import limiter
 from middleware.auth_middleware import get_current_user
 import database as db
+from grades import get_grades, public_grade
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -267,6 +268,9 @@ async def get_user_public_stats(request: Request, user_id: int):
         """, user_id),
     )
 
+    current_level = xp_row["current_level"] if xp_row else 0
+    grade = public_grade(current_level, await get_grades())
+
     s = voice_row["total_time"] if voice_row else 0
     h, rem = divmod(s, 3600)
     m, _ = divmod(rem, 60)
@@ -281,7 +285,8 @@ async def get_user_public_stats(request: Request, user_id: int):
             "voice_seconds":     s,
             "voice_formatted":   f"{h}h {m}m",
             "total_xp":          xp_row["total_xp"] if xp_row else 0,
-            "current_level":     xp_row["current_level"] if xp_row else 0,
+            "current_level":     current_level,
+            "grade":             grade,
             "achievement_count": int(ach_count or 0),
             "current_streak":    streak_row["current_streak"] if streak_row else 0,
             "bump_count":        int(bump_count or 0),

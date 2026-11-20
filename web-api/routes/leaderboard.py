@@ -1,6 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Request
 import database as db
+from grades import get_grades, public_grade
 from middleware.auth_middleware import get_current_user
 from limiter import limiter
 
@@ -357,6 +358,7 @@ async def leaderboard_levels(request: Request, page: int = 1, limit: int = 10, s
             LIMIT $1 OFFSET $2
         """, limit, offset)
 
+    grades = await get_grades()
     return {
         "leaderboard": [
             {
@@ -366,6 +368,7 @@ async def leaderboard_levels(request: Request, page: int = 1, limit: int = 10, s
                 "current_level":  int(r["current_level"]),
                 "total_xp":       int(r["total_xp"]),
                 "global_rank":    int(r["global_rank"]),
+                "grade":          public_grade(int(r["current_level"]), grades),
             }
             for r in rows
         ],

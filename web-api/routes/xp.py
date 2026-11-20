@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 import database as db
+from grades import get_grades, public_grade
 from limiter import limiter
 
 router = APIRouter(prefix="/xp", tags=["xp"])
@@ -30,6 +31,6 @@ async def xp_leaderboard(request: Request, limit: int = 10, period: str = "all")
 @limiter.limit("60/minute")
 async def get_user_xp(request: Request, user_id: int):
     row = await db.fetchrow("SELECT * FROM user_xp WHERE user_id = $1", user_id)
-    if not row:
-        return {"user_id": user_id, "total_xp": 0, "weekly_xp": 0, "current_level": 0}
-    return dict(row)
+    data = dict(row) if row else {"user_id": user_id, "total_xp": 0, "weekly_xp": 0, "current_level": 0}
+    data["grade"] = public_grade(data["current_level"], await get_grades())
+    return data
