@@ -5,7 +5,8 @@ l'appelant décide quoi faire quand le bot est injoignable.
 """
 import logging
 import os
-from typing import Optional
+import time
+from typing import Any, Awaitable, Callable, Optional
 
 import httpx
 
@@ -39,3 +40,26 @@ async def bot_get(path: str, timeout: float = 1.5) -> Optional[dict]:
 
 async def bot_post(path: str, json: Optional[dict] = None, timeout: float = 1.5) -> Optional[dict]:
     return await _request("POST", path, timeout, json=json)
+
+
+# ── Cache TTL minimal ─────────────────────────────────────────────────────────
+
+_cache: dict = {}  # clé -> (échéance monotonic, valeur)
+
+
+def clear_cache() -> None:
+    _cache.clear()
+
+
+async def cached(key: str, ttl: float, coro_factory: Callable[[], Awaitable[Any]]) -> Any:
+    """Valeur en cache pour ``key`` pendant ``ttl`` secondes, sinon ``await coro_factory()``.
+
+    Un résultat ``None`` n'est pas mémorisé (pas de relevé, bot muet : on réessaie).
+    """
+    hit = _cache.get(key)
+    if hit and hit[0] > time.monotonic():
+        return hit[1]
+    value = await coro_factory()
+    if value is not None:
+        _cache[key] = (time.monotonic() + ttl, value)
+    return value

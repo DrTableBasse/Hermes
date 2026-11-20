@@ -338,6 +338,16 @@ async def settings_ensure_channel(req: EnsureChannelRequest):
     return {"id": str(channel.id), "name": channel.name}
 
 
+# ── Caserne en direct ─────────────────────────────────────────────────────────
+
+@app.get("/live", dependencies=[Depends(_require_token)])
+async def live():
+    cog = _get_bot().get_cog('LiveStats')
+    if cog is None:
+        raise HTTPException(status_code=503, detail="LiveStats not loaded")
+    return cog.collect(_get_guild())
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():

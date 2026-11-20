@@ -578,3 +578,18 @@ INSERT INTO grades (level_min, name, slug, color) VALUES
     (25, 'Colonel Saucisson',    'colonel',    '#3FE0F0'),
     (45, 'Général Saucisse',     'general',    '#9B6BFF')
 ON CONFLICT (level_min) DO NOTHING;
+
+-- ─── Caserne en direct (migration 015) ────────────────────────
+-- messages = nombre de messages depuis le relevé précédent
+CREATE TABLE IF NOT EXISTS guild_stats_snapshots (
+    taken_at  TIMESTAMPTZ PRIMARY KEY DEFAULT NOW(),
+    members   INT NOT NULL,
+    online    INT NOT NULL,
+    in_voice  INT NOT NULL,
+    messages  INT NOT NULL DEFAULT 0
+);
+
+-- Une ligne par minute où le bot est vivant
+CREATE TABLE IF NOT EXISTS bot_heartbeats (
+    minute TIMESTAMPTZ PRIMARY KEY
+);

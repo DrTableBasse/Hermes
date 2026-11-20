@@ -153,6 +153,10 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
+    live_stats = bot.get_cog('LiveStats')
+    if live_stats:
+        live_stats.count_message()
+
     # Track message stats
     try:
         await message_stats_manager.increment(message.author.id, message.channel.id)
