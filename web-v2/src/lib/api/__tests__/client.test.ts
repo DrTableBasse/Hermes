@@ -37,6 +37,16 @@ describe("client api", () => {
     expect(fetchMock.mock.calls[0][1].method).toBe("DELETE")
   })
 
+  it("encode les identifiants : « ../admin » ne change pas de route", async () => {
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ warns: [] }), { status: 200 }))
+    await api.admin.getWarns("../admin")
+    await api.admin.updateGrade("../x", { name: "a", color: "#000000", level_min: 1 })
+    await api.xp.get("a/b")
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/proxy/admin/warns/..%2Fadmin")
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/proxy/admin/grades/..%2Fx")
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/proxy/xp/a%2Fb")
+  })
+
   it("envoie les identifiants Discord en chaîne dans le corps JSON", async () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
     await api.admin.kick({ user_id: "1234567890123456789", reason: "spam" })

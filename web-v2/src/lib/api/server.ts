@@ -32,6 +32,7 @@ import type {
   VoiceEntry,
   XpEntry,
 } from "./types"
+import { query, seg } from "./query"
 
 export interface ApiOptions {
   /** Jeton de session BetterAuth, transmis en cookie. */
@@ -48,7 +49,9 @@ async function request(path: string, opts: ApiOptions): Promise<Response> {
   const headers: Record<string, string> = {}
   if (opts.token) headers.Cookie = `better-auth.session_token=${opts.token}`
   const init: RequestInit = { headers }
-  if (opts.revalidate === undefined) init.cache = "no-store"
+  // Une réponse obtenue avec une session est personnelle : jamais dans le cache de données Next,
+  // même si l'appelant a demandé un revalidate.
+  if (opts.token || opts.revalidate === undefined) init.cache = "no-store"
   else init.next = { revalidate: opts.revalidate }
   const res = await fetch(`${baseUrl()}${path}`, init)
   if (!res.ok) throw new Error(`${res.status} ${path}`)
@@ -74,15 +77,6 @@ export async function apiGetOrNull<T>(path: string, opts: ApiOptions = {}): Prom
   } catch {
     return null
   }
-}
-
-function query(params: Record<string, string | number | undefined>): string {
-  const qs = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") qs.set(key, String(value))
-  }
-  const text = qs.toString()
-  return text ? `?${text}` : ""
 }
 
 // ── Sections publiques de l'accueil et des pages vitrines ───────────────────
@@ -111,7 +105,7 @@ export async function getGrades(): Promise<Grade[] | null> {
 export const getGames = () => apiGetOrNull<GamesResponse>("/games", { revalidate: 30 })
 
 export const getPage = (slug: string) =>
-  apiGetOrNull<SitePage>(`/pages/${encodeURIComponent(slug)}`, { revalidate: 300 })
+  apiGetOrNull<SitePage>(`/pages/${seg(slug)}`, { revalidate: 300 })
 
 export const getPublicSettings = () =>
   apiGetOrNull<PublicSettings>("/settings/public", { revalidate: 300 })
@@ -127,7 +121,7 @@ export async function listTags(): Promise<Tag[]> {
 }
 
 export function getArticle(slug: string, token?: string): Promise<Article> {
-  return apiGet<Article>(`/articles/${encodeURIComponent(slug)}`, { token })
+  return apiGet<Article>(`/articles/${seg(slug)}`, { token })
 }
 
 export async function myArticles(token: string): Promise<Article[]> {
@@ -137,19 +131,19 @@ export async function myArticles(token: string): Promise<Article[]> {
 // ── Utilisateurs ─────────────────────────────────────────────────────────────
 
 export function getUserStats(userId: string, token: string): Promise<UserStats> {
-  return apiGet<UserStats>(`/users/${userId}/stats`, { token })
+  return apiGet<UserStats>(`/users/${seg(userId)}/stats`, { token })
 }
 
 export function getUserPublicStats(userId: string): Promise<PublicUserStats> {
-  return apiGet<PublicUserStats>(`/users/${userId}/public`)
+  return apiGet<PublicUserStats>(`/users/${seg(userId)}/public`)
 }
 
 export async function getUserActivity(userId: string): Promise<ActivityDay[]> {
-  return (await apiGet<{ heatmap: ActivityDay[] }>(`/activity/${userId}/heatmap?days=365`)).heatmap
+  return (await apiGet<{ heatmap: ActivityDay[] }>(`/activity/${seg(userId)}/heatmap?days=365`)).heatmap
 }
 
 export async function getUserAchievementsAll(userId: string): Promise<AchievementWithStatus[]> {
-  return (await apiGet<{ achievements: AchievementWithStatus[] }>(`/users/${userId}/achievements`))
+  return (await apiGet<{ achievements: AchievementWithStatus[] }>(`/users/${seg(userId)}/achievements`))
     .achievements
 }
 

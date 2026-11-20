@@ -9,6 +9,10 @@ import {
   getGrades,
   getLive,
   getPage,
+  getUserAchievementsAll,
+  getUserActivity,
+  getUserPublicStats,
+  getUserStats,
   leaderboardLevels,
   listTags,
 } from "@/lib/api/server"
@@ -65,6 +69,14 @@ describe("apiGet", () => {
     expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: 60 })
     expect(fetchMock.mock.calls[0][1].cache).toBeUndefined()
     expect(fetchMock.mock.calls[1][1].cache).toBe("no-store")
+  })
+
+  it("force no-store et ignore revalidate quand un token est fourni", async () => {
+    fetchMock.mockImplementation(async () => reply(200, {}))
+    await apiGet("/auth/me", { token: "abc123", revalidate: 60 })
+    const init = fetchMock.mock.calls[0][1]
+    expect(init.cache).toBe("no-store")
+    expect(init.next).toBeUndefined()
   })
 
   it("lève une erreur sur un 204 (aucun contenu à décoder)", async () => {
@@ -128,6 +140,20 @@ describe("fonctions nommées", () => {
     fetchMock.mockResolvedValue(reply(404, { detail: "Page inconnue" }))
     await expect(getPage("mentions légales")).resolves.toBeNull()
     expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/pages/mentions%20l%C3%A9gales")
+  })
+
+  it("encode les identifiants : « ../admin » ne change pas de route", async () => {
+    fetchMock.mockImplementation(async () => reply(200, {}))
+    await getUserStats("../admin/stats?x=1", "tok")
+    await getUserPublicStats("../admin")
+    await getUserActivity("../admin")
+    await getUserAchievementsAll("../admin")
+    const urls = fetchMock.mock.calls.map((call) => call[0] as string)
+    expect(urls[0]).toBe("http://web-api:8000/users/..%2Fadmin%2Fstats%3Fx%3D1/stats")
+    for (const url of urls) {
+      expect(url).not.toMatch(/\/\.\.\//)
+      expect(new URL(url).search).toBe(url.includes("heatmap") ? "?days=365" : "")
+    }
   })
 
   it("listTags déballe la clé tags", async () => {

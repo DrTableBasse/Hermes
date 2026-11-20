@@ -44,6 +44,8 @@ import type {
   UserStats,
 } from "./types"
 
+import { query, seg } from "./query"
+
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/proxy"
 
 /** Erreur HTTP de web-api : `status` pour réagir (401, 403, 429…), `message` pour l'afficher. */
@@ -79,22 +81,13 @@ const send = (method: string, body?: unknown): RequestInit => ({
   body: body === undefined ? undefined : JSON.stringify(body),
 })
 
-function query(params: Record<string, string | number | undefined>): string {
-  const qs = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== "") qs.set(key, String(value))
-  }
-  const text = qs.toString()
-  return text ? `?${text}` : ""
-}
-
 export const api = {
   auth: {
     me: () => request<SessionUser>("/auth/me"),
   },
   users: {
-    stats: (id: Snowflake) => request<UserStats>(`/users/${id}/stats`),
-    publicStats: (id: Snowflake) => request<PublicUserStats>(`/users/${id}/public`),
+    stats: (id: Snowflake) => request<UserStats>(`/users/${seg(id)}/stats`),
+    publicStats: (id: Snowflake) => request<PublicUserStats>(`/users/${seg(id)}/public`),
   },
   leaderboard: {
     messages: (limit = 10, page = 1) =>
@@ -105,17 +98,17 @@ export const api = {
   articles: {
     list: (page = 1, limit = 12, tag?: string) =>
       request<ArticleList>(`/articles${query({ page, limit, tag })}`),
-    get: (slug: string) => request<Article>(`/articles/${encodeURIComponent(slug)}`),
+    get: (slug: string) => request<Article>(`/articles/${seg(slug)}`),
     create: (data: ArticleCreateInput) => request<Article>("/articles", send("POST", data)),
     update: (id: number, data: Partial<ArticleCreateInput>) =>
-      request<Article>(`/articles/${id}`, send("PUT", data)),
-    delete: (id: number) => request<void>(`/articles/${id}`, send("DELETE")),
+      request<Article>(`/articles/${seg(id)}`, send("PUT", data)),
+    delete: (id: number) => request<void>(`/articles/${seg(id)}`, send("DELETE")),
   },
   tags: {
     list: () => request<{ tags: Tag[] }>("/tags"),
     create: (data: TagInput) => request<Tag>("/tags", send("POST", data)),
-    update: (id: number, data: Partial<TagInput>) => request<Tag>(`/tags/${id}`, send("PUT", data)),
-    delete: (id: number) => request<void>(`/tags/${id}`, send("DELETE")),
+    update: (id: number, data: Partial<TagInput>) => request<Tag>(`/tags/${seg(id)}`, send("PUT", data)),
+    delete: (id: number) => request<void>(`/tags/${seg(id)}`, send("DELETE")),
   },
   media: {
     upload: async (file: File) => {
@@ -135,8 +128,8 @@ export const api = {
     timeout: (data: ModerationAction) => request<unknown>("/admin/timeout", send("POST", data)),
     warn: (data: ModerationAction) => request<unknown>("/admin/warns", send("POST", data)),
     allWarns: () => request<{ warns: AdminWarn[] }>("/admin/warns"),
-    getWarns: (userId: Snowflake) => request<{ warns: Warn[] }>(`/admin/warns/${userId}`),
-    deleteWarn: (warnId: number) => request<{ success: boolean }>(`/admin/warns/${warnId}`, send("DELETE")),
+    getWarns: (userId: Snowflake) => request<{ warns: Warn[] }>(`/admin/warns/${seg(userId)}`),
+    deleteWarn: (warnId: number) => request<{ success: boolean }>(`/admin/warns/${seg(warnId)}`, send("DELETE")),
     logs: (page = 1, actionTypes?: string[]) =>
       request<AdminLogPage>(`/admin/logs${query({ page, action_type: actionTypes?.join(",") })}`),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
@@ -145,19 +138,19 @@ export const api = {
     createQuestTemplate: (data: QuestTemplateInput) =>
       request<QuestTemplate>("/admin/quest-templates", send("POST", data)),
     updateQuestTemplate: (id: number, data: QuestTemplateInput) =>
-      request<QuestTemplate>(`/admin/quest-templates/${id}`, send("PUT", data)),
-    deleteQuestTemplate: (id: number) => request<void>(`/admin/quest-templates/${id}`, send("DELETE")),
+      request<QuestTemplate>(`/admin/quest-templates/${seg(id)}`, send("PUT", data)),
+    deleteQuestTemplate: (id: number) => request<void>(`/admin/quest-templates/${seg(id)}`, send("DELETE")),
     createGame: (data: GameInput & { key: string }) => request<{ ok: boolean; key: string }>("/admin/games", send("POST", data)),
-    updateGame: (key: string, data: Partial<GameInput>) => request<Ok>(`/admin/games/${key}`, send("PUT", data)),
-    deactivateGame: (key: string) => request<Ok>(`/admin/games/${key}`, send("DELETE")),
-    updateGrade: (slug: string, data: GradeInput) => request<Ok>(`/admin/grades/${slug}`, send("PUT", data)),
+    updateGame: (key: string, data: Partial<GameInput>) => request<Ok>(`/admin/games/${seg(key)}`, send("PUT", data)),
+    deactivateGame: (key: string) => request<Ok>(`/admin/games/${seg(key)}`, send("DELETE")),
+    updateGrade: (slug: string, data: GradeInput) => request<Ok>(`/admin/grades/${seg(slug)}`, send("PUT", data)),
     updatePage: (slug: string, data: PageInput) =>
-      request<Ok>(`/admin/pages/${encodeURIComponent(slug)}`, send("PUT", data)),
+      request<Ok>(`/admin/pages/${seg(slug)}`, send("PUT", data)),
     updateStaffProfile: (userId: Snowflake, data: StaffProfileInput) =>
-      request<Ok>(`/admin/staff/${userId}`, send("PUT", data)),
+      request<Ok>(`/admin/staff/${seg(userId)}`, send("PUT", data)),
     setGalleryHidden: (id: number, hidden: boolean) =>
-      request<{ id: number; hidden: boolean }>(`/admin/gallery/${id}`, send("PATCH", { hidden })),
-    deleteGalleryItem: (id: number) => request<void>(`/admin/gallery/${id}`, send("DELETE")),
+      request<{ id: number; hidden: boolean }>(`/admin/gallery/${seg(id)}`, send("PATCH", { hidden })),
+    deleteGalleryItem: (id: number) => request<void>(`/admin/gallery/${seg(id)}`, send("DELETE")),
   },
   staff: {
     updateMyProfile: (data: StaffProfileInput) => request<Ok>("/staff/me", send("PUT", data)),
@@ -169,15 +162,15 @@ export const api = {
   xp: {
     leaderboard: (period: XpPeriod = "all", limit?: number) =>
       request<{ leaderboard: XpEntry[] }>(`/xp/leaderboard${query({ period, limit })}`),
-    get: (userId: Snowflake) => request<XpData>(`/xp/${userId}`),
+    get: (userId: Snowflake) => request<XpData>(`/xp/${seg(userId)}`),
   },
   notifications: {
     list: () => request<{ notifications: Notification[] }>("/notifications"),
-    markRead: (id: number) => request<{ success: boolean }>(`/notifications/${id}/read`, send("POST")),
+    markRead: (id: number) => request<{ success: boolean }>(`/notifications/${seg(id)}/read`, send("POST")),
     markAllRead: () => request<{ success: boolean }>("/notifications/read-all", send("POST")),
   },
   endorsements: {
-    get: (userId: Snowflake) => request<Endorsements>(`/endorsements/${userId}`),
+    get: (userId: Snowflake) => request<Endorsements>(`/endorsements/${seg(userId)}`),
     endorse: (data: { target_user_id: Snowflake; skill: string }) =>
       request<{ success: boolean }>("/endorsements", send("POST", data)),
     leaderboard: (limit?: number) =>
@@ -185,19 +178,19 @@ export const api = {
   },
   activity: {
     heatmap: (userId: Snowflake, days?: number) =>
-      request<{ heatmap: ActivityDay[] }>(`/activity/${userId}/heatmap${query({ days })}`),
+      request<{ heatmap: ActivityDay[] }>(`/activity/${seg(userId)}/heatmap${query({ days })}`),
     daily: (userId: Snowflake, days?: number) =>
-      request<{ daily: DailyActivity[] }>(`/activity/${userId}/daily${query({ days })}`),
+      request<{ daily: DailyActivity[] }>(`/activity/${seg(userId)}/daily${query({ days })}`),
   },
   quests: {
     list: () => request<{ quests: Quest[] }>("/quests"),
-    claim: (questId: number) => request<QuestClaim>(`/quests/${questId}/claim`, send("POST")),
+    claim: (questId: number) => request<QuestClaim>(`/quests/${seg(questId)}/claim`, send("POST")),
   },
   comments: {
-    list: (articleId: number) => request<{ comments: ArticleComment[] }>(`/comments/article/${articleId}`),
+    list: (articleId: number) => request<{ comments: ArticleComment[] }>(`/comments/article/${seg(articleId)}`),
     create: (data: { article_id: number; content: string; parent_id?: number }) =>
       request<ArticleComment>("/comments", send("POST", data)),
-    delete: (id: number) => request<void>(`/comments/${id}`, send("DELETE")),
-    vote: (id: number) => request<{ voted: boolean }>(`/comments/${id}/vote`, send("POST")),
+    delete: (id: number) => request<void>(`/comments/${seg(id)}`, send("DELETE")),
+    vote: (id: number) => request<{ voted: boolean }>(`/comments/${seg(id)}/vote`, send("POST")),
   },
 }
