@@ -24,6 +24,8 @@ import type {
   MyRanks,
   PublicSettings,
   PublicUserStats,
+  Quest,
+  SessionUser,
   SitePage,
   StaffResponse,
   StreakEntry,
@@ -141,6 +143,15 @@ export async function getUserPublicStats(userId: string): Promise<PublicUserStat
 
 export async function getUserActivity(userId: string): Promise<ActivityDay[]> {
   return (await apiGet<{ heatmap: ActivityDay[] }>(`/activity/${seg(userId)}/heatmap?days=365`)).heatmap
+}
+
+/** Membre de la session (`/auth/me`) ; `null` : session absente, expirée ou API muette. */
+export const getSessionUser = (token: string) => apiGetOrNull<SessionUser>("/auth/me", { token })
+
+/** Quêtes actives et avancement du membre (`/quests`, session requise) ; `null` en cas d'échec. */
+export async function getWeeklyQuests(token: string): Promise<Quest[] | null> {
+  const data = await apiGetOrNull<{ quests: Quest[] }>("/quests", { token })
+  return data ? data.quests : null
 }
 
 export async function getUserAchievementsAll(userId: string): Promise<AchievementWithStatus[]> {

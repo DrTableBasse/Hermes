@@ -9,10 +9,12 @@ import {
   getGrades,
   getLive,
   getPage,
+  getSessionUser,
   getUserAchievementsAll,
   getUserActivity,
   getUserPublicStats,
   getUserStats,
+  getWeeklyQuests,
   leaderboardLevels,
   listTags,
 } from "@/lib/api/server"
@@ -173,6 +175,23 @@ describe("fonctions nommées", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       "http://web-api:8000/leaderboard/levels?page=2&limit=5&search=j%26k",
     )
+  })
+
+  it("getWeeklyQuests transmet la session, déballe la clé quests et renvoie null sur un 401", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { quests: [{ id: 1 }] }))
+    await expect(getWeeklyQuests("tok")).resolves.toEqual([{ id: 1 }])
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/quests")
+    expect(fetchMock.mock.calls[0][1].headers.Cookie).toBe("better-auth.session_token=tok")
+    fetchMock.mockResolvedValueOnce(reply(401, { detail: "Non authentifié" }))
+    await expect(getWeeklyQuests("expiré")).resolves.toBeNull()
+  })
+
+  it("getSessionUser renvoie le membre, ou null si la session est refusée", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { user_id: "42", is_admin: false, is_redacteur: false }))
+    await expect(getSessionUser("tok")).resolves.toMatchObject({ user_id: "42" })
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/auth/me")
+    fetchMock.mockResolvedValueOnce(reply(401))
+    await expect(getSessionUser("expiré")).resolves.toBeNull()
   })
 
   it("une fonction non « direct » propage l'erreur HTTP", async () => {
