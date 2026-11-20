@@ -26,7 +26,7 @@
     "date-fns": "^3.6.0",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.378.0",
-    "next": "14.2.3",
+    "next": "14.2.35",
     "next-intl": "^3.14.0",
     "next-themes": "^0.3.0",
     "pg": "^8.21.0",
@@ -36,7 +36,7 @@
     "recharts": "^2.15.4",
     "rehype-highlight": "^7.0.0",
     "remark-gfm": "^4.0.0",
-    "sharp": "^0.33.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7"
   },

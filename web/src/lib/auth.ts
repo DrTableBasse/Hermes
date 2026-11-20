@@ -107,10 +107,11 @@ export const auth = betterAuth({
       clientId:     process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
       scope:        ["identify"],
-      mapProfileToUser: async (profile: Record<string, unknown>) => {
-        const discordId = profile.id as string
-        const username  = (profile.global_name as string | undefined) ?? (profile.username as string)
-        const avatarHash = profile.avatar as string | undefined
+      // Type DiscordProfile fourni par better-auth (inféré)
+      mapProfileToUser: async (profile) => {
+        const discordId = profile.id
+        const username  = profile.global_name ?? profile.username
+        const avatarHash = profile.avatar ?? undefined
         const avatar = avatarHash
           ? `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png`
           : null
@@ -133,7 +134,7 @@ export const auth = betterAuth({
           console.error("[auth] user_voice_data upsert failed:", e)
         }
 
-        return { name: username, image: avatar, discordId, isAdmin, isRedacteur }
+        return { name: username, image: avatar ?? undefined, discordId, isAdmin, isRedacteur }
       },
     },
   },
