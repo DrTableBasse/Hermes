@@ -391,6 +391,34 @@ async def events():
     ]}
 
 
+# ── État-major ────────────────────────────────────────────────────────────────
+
+def collect_staff(guild: discord.Guild) -> list[dict]:
+    """Membres portant ``admin_role`` ou ``mod_role`` (administration prioritaire).
+
+    Le libellé ``role`` est le nom du rôle Discord réel ; un rôle non réglé est ignoré.
+    """
+    from utils import settings
+    staff: dict[int, dict] = {}
+    for key in ("admin_role", "mod_role"):  # l'ordre fixe la priorité
+        role = settings.get_role(guild, key)
+        if role is None:
+            continue
+        for member in role.members:
+            if member.bot or member.id in staff:
+                continue
+            staff[member.id] = {
+                "id": str(member.id), "name": member.display_name,
+                "avatar": member.display_avatar.url, "role": role.name,
+            }
+    return list(staff.values())
+
+
+@app.get("/staff", dependencies=[Depends(_require_token)])
+async def staff():
+    return collect_staff(_get_guild())
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():

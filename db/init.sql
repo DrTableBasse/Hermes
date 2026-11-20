@@ -611,3 +611,11 @@ CREATE TABLE IF NOT EXISTS gallery_items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_gallery_visible ON gallery_items (created_at DESC) WHERE hidden = FALSE;
+
+-- ─── État-major (migration 017) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS staff_profiles (
+    user_id    BIGINT PRIMARY KEY,
+    motto      TEXT CHECK (char_length(motto) <= 140),
+    games      TEXT[] DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
