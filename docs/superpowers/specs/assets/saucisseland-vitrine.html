@@ -1,0 +1,754 @@
+<title>Vitrine SaucisseLand</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout : vitrine sombre unique (choix assumé), sections verticales pleine largeur, contenu max 1280px */
+:root{
+  color-scheme:dark;
+  --bg:#0C0E1A; --panel:#13162A; --panel2:#171A2E; --win:#14172A; --winhd:#1A1D33;
+  --vi:#9B6BFF; --vi2:#6E5BFF; --cy:#3FE0F0; --bl:#4D7CFF; --or:#FF8A3D; --gr:#3BD16F;
+  --tx:#EDEBFA; --mu:#9A97B8; --msg:#D6D3EA; --line:rgba(255,255,255,.08);
+  --f-d:'Bricolage Grotesque',system-ui,sans-serif; --f-b:'Instrument Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html{background:var(--bg);color:var(--tx)}
+/* Fond continu sur toute la page : un seul dégradé, plus de rupture entre les sections */
+body{font-family:var(--f-b);font-size:16px;line-height:1.5;overflow-x:hidden;color:var(--tx);
+  background:
+    radial-gradient(900px 700px at 85% 1500px,rgba(155,107,255,.13),transparent 70%),
+    radial-gradient(800px 600px at 10% 2300px,rgba(63,224,240,.08),transparent 70%),
+    radial-gradient(900px 700px at 70% 3000px,rgba(255,138,61,.06),transparent 70%),
+    linear-gradient(180deg,#0C0E1A 0%,#110F24 35%,#0D1322 65%,#100D21 100%)}
+a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+:focus-visible{outline:2px solid var(--cy);outline-offset:3px;border-radius:8px}
+.wrap{max-width:1440px;margin:0 auto;position:relative}
+.pad{padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+@media(min-width:1100px){.pad{padding-left:80px;padding-right:80px}}
+
+/* ---------- Navigation ---------- */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--bg)}
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;padding:16px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px))}
+.nav-in{max-width:1360px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 12px 12px 16px;border-radius:18px;background:rgba(21,24,41,.6);border:1px solid var(--line);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.brand{display:flex;align-items:center;gap:12px;font-family:var(--f-d);font-weight:700;font-size:20px}
+.logo-slot{width:40px;height:40px;border-radius:10px;border:1.5px dashed rgba(154,151,184,.6);display:grid;place-items:center;font:500 10px var(--f-b);color:var(--mu)}
+.links{display:flex;gap:34px;font-weight:500;font-size:15px;color:var(--mu)}
+.links a:hover,.links a[aria-current]{color:var(--tx)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:14px;font-weight:700;transition:transform .2s,box-shadow .2s,background .2s}
+.btn-pri{background:linear-gradient(90deg,var(--vi),var(--vi2));color:#fff;box-shadow:0 12px 32px rgba(155,107,255,.45)}
+.btn-pri:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(155,107,255,.6)}
+.btn-sec{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);font-weight:600}
+.btn-sec:hover{background:rgba(255,255,255,.1)}
+.nav .btn-pri{padding:10px 18px;font-size:14px;border-radius:12px;box-shadow:none}
+@media(max-width:820px){.links{display:none}.brand span.name{display:none}}
+
+/* ---------- Fond commun ---------- */
+.bg{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:0}
+.halo{position:absolute;border-radius:50%;filter:blur(110px)}
+.grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:72px 72px;opacity:.6;-webkit-mask-image:linear-gradient(#000 60%,transparent);mask-image:linear-gradient(#000 60%,transparent)}
+.dot{position:absolute;border-radius:50%}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;min-height:900px;margin-top:-92px;padding-top:92px}
+.hero .horizon{position:absolute;left:0;right:0;bottom:0;height:340px;width:100%;-webkit-mask-image:linear-gradient(transparent,#000 30%,#000 60%,transparent);mask-image:linear-gradient(transparent,#000 30%,#000 60%,transparent)}
+.hero-text{position:relative;z-index:3;max-width:620px;padding-top:98px;display:grid;gap:26px}
+.pill{display:inline-flex;align-items:center;gap:8px;justify-self:start;padding:6px 14px 6px 12px;border-radius:99px;background:rgba(63,224,240,.08);border:1px solid rgba(63,224,240,.25);color:var(--cy);font-weight:500;font-size:14px}
+.pill i,.live i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}
+h1{font-family:var(--f-d);font-weight:800;font-size:clamp(52px,7vw,92px);line-height:.92;letter-spacing:-.04em;margin:0;background:linear-gradient(180deg,#fff,#CBBEFF);-webkit-background-clip:text;background-clip:text;color:transparent;text-wrap:balance}
+.lead{font-size:20px;line-height:1.5;color:var(--mu);margin:0;max-width:56ch}
+.ctas{display:flex;flex-wrap:wrap;gap:14px;position:relative}
+.ctas .btn{padding:16px 24px;font-size:16px}
+.cta-main{position:relative}
+.saus{position:absolute;right:-18px;top:-16px;width:54px;height:20px;transform:rotate(18deg);transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+.cta-main:hover .saus{transform:rotate(-8deg) translate(4px,-8px)}
+.cta-main:hover{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='34' height='16'%3E%3Crect x='1' y='1' width='32' height='14' rx='7' fill='%23FF8A3D' stroke='%23C25A1F' stroke-width='2'/%3E%3C/svg%3E") 4 8,pointer}
+.grades{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;padding:4px 10px;border-radius:99px;font-weight:600;font-size:12px;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border:1px solid color-mix(in srgb,var(--c) 50%,transparent);white-space:nowrap}
+.stats{display:flex;align-items:center;gap:28px;padding-top:6px}
+.stats b{display:block;font-family:var(--f-d);font-size:28px;line-height:1.1}
+.stats span{font-size:13px;color:var(--mu)}
+.stats hr{width:1px;height:34px;border:0;background:rgba(255,255,255,.12);margin:0}
+
+/* Scène des fenêtres : coordonnées reprises du cadre Figma 1440 x 900 */
+.stage{position:absolute;inset:0;z-index:2}
+.stage>*{position:absolute}
+.x{left:calc(var(--x)/1440*100%);top:calc(var(--y)*1px)}
+.win{background:rgba(20,23,42,.94);border:1px solid rgba(255,255,255,.09);border-radius:16px;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.win-hd{background:var(--winhd);padding:12px 16px;font-weight:600;font-size:14px}
+.win-bd{padding:14px 16px 16px;display:grid;gap:14px}
+.float{animation:float var(--d,7s) ease-in-out infinite;animation-delay:var(--dl,0s)}
+@keyframes float{50%{translate:0 -10px}}
+.av{width:var(--s,34px);height:var(--s,34px);border-radius:50%;display:grid;place-items:center;flex:none;background:var(--c);color:#fff;font:700 calc(var(--s,34px)*.42) var(--f-d)}
+.av.ring{box-shadow:0 0 0 2.5px var(--ring)}
+.member{display:flex;gap:10px;align-items:center}
+.member b{display:block;font-weight:600;font-size:14px}
+.member small{display:block;color:var(--mu);font-size:12px}
+.msg{display:flex;gap:12px}
+.msg .who{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:var(--nc)}
+.msg time{font-size:11px;color:var(--mu);font-weight:400}
+.msg p{margin:3px 0 0;font-size:14px;line-height:1.4;color:var(--msg)}
+.bot{font:700 10px var(--f-b);color:#fff;background:var(--bl);padding:1px 5px;border-radius:4px}
+.embed{margin-top:6px;background:#1E2140;border-left:4px solid var(--vi);border-radius:8px;padding:12px 14px;display:grid;gap:8px}
+.embed b{font-family:var(--f-d);font-size:16px}
+.embed p{margin:0;font-size:13px;color:var(--msg)}
+.bar{height:var(--h,8px);border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;position:relative}
+.bar i{display:block;height:100%;width:var(--w);background:linear-gradient(90deg,var(--vi),var(--cy));border-radius:inherit}
+.bar .bar-saus{position:absolute;top:0;left:calc(var(--w) - 14px);height:100%;width:26px}
+.profile{background:rgba(23,26,46,.92);border:1px solid rgba(155,107,255,.35);border-radius:18px;padding:20px 22px;display:grid;gap:14px;box-shadow:0 24px 50px rgba(0,0,0,.5),0 0 40px rgba(155,107,255,.25)}
+.profile .top{display:flex;gap:14px;align-items:center}
+.profile .top b{display:block;font-family:var(--f-d);font-size:20px;margin-bottom:4px}
+.profile p{margin:0;font-size:13px;color:var(--mu)}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.sat{display:inline-flex;align-items:center;gap:8px;padding:8px 14px 8px 12px;border-radius:12px;background:rgba(23,26,46,.88);border:1px solid rgba(255,255,255,.1);box-shadow:0 14px 30px rgba(0,0,0,.45);font-weight:500;font-size:13px;white-space:nowrap}
+.links-svg{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+@media(max-width:1099px){
+  .hero{min-height:0;padding-bottom:40px}
+  .hero-text{padding-top:60px}
+  .stage{position:relative;inset:auto;display:grid;gap:18px;margin-top:48px;max-width:520px}
+  .stage>*{position:relative;left:auto!important;top:auto!important;rotate:0deg!important}
+  .stage .sat,.stage .lone,.links-svg,.win.voice{display:none}
+  .hero .horizon{height:200px}
+}
+
+/* ---------- Sections ---------- */
+section.block{position:relative;padding-block:96px;scroll-margin-top:70px}
+/* Events : vedette avec compte à rebours + liste */
+.ev-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px;margin-top:48px}
+@media(max-width:1000px){.ev-grid{grid-template-columns:minmax(0,1fr)}}
+.ev-main{position:relative;border-radius:24px;padding:32px;background:linear-gradient(135deg,rgba(155,107,255,.22),rgba(19,22,42,.92) 55%);border:1px solid rgba(155,107,255,.4);box-shadow:0 0 50px rgba(155,107,255,.2);display:grid;gap:18px;overflow:hidden}
+.ev-main::after{content:"";position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(179,32,45,.45),transparent 70%)}
+.ev-main>*{position:relative;z-index:1}
+.ev-main h3{font-family:var(--f-d);font-size:clamp(30px,3.4vw,42px);letter-spacing:-.02em;line-height:1.05;margin:0}
+.ev-when{display:flex;flex-wrap:wrap;gap:10px;align-items:center;color:var(--msg);font-weight:500}
+.count{display:flex;gap:10px}
+.count div{min-width:84px;padding:12px 10px;border-radius:14px;background:rgba(12,14,26,.6);border:1px solid rgba(255,255,255,.1);text-align:center}
+.count b{display:block;font-family:var(--f-d);font-size:38px;line-height:1;font-variant-numeric:tabular-nums}
+.count span{font-size:12px;color:var(--mu)}
+.orga{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--msg)}
+.orga b{color:var(--tx)}
+.ev-foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+.seats{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--msg)}
+.seats .bar{width:140px}
+.xp{font-family:var(--f-d);font-weight:700;color:var(--cy);font-size:15px}
+.ev-main .btn{padding:14px 26px;font-size:15px}
+.ev-list{display:grid;gap:14px;align-content:start}
+.ev{display:grid;grid-template-columns:74px minmax(0,1fr);gap:16px;align-items:center;padding:16px;border-radius:18px;background:rgba(19,22,42,.85);border:1px solid var(--line);transition:border-color .25s,transform .25s}
+.ev:hover{border-color:color-mix(in srgb,var(--c) 55%,transparent);transform:translateX(4px)}
+.date{border-radius:14px;padding:10px 0;text-align:center;background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
+.date span{display:block;font-size:12px;font-weight:600;color:var(--c)}
+.date b{display:block;font-family:var(--f-d);font-size:26px;line-height:1.1}
+.ev h4{margin:0 0 4px;font-family:var(--f-d);font-size:18px}
+.ev p{margin:0;font-size:13px;color:var(--mu)}
+.ev .row{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:13px;font-weight:500}
+.ev-all{justify-self:start;font-weight:600;font-size:14px;color:var(--cy)}
+/* Progression : fiche de personnage */
+.sheet{margin-top:48px;border-radius:26px;background:rgba(19,22,42,.9);border:1px solid rgba(255,255,255,.09);box-shadow:0 30px 60px rgba(0,0,0,.45);overflow:hidden}
+.ladder{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.rung{padding:14px 16px;border-right:1px solid var(--line);display:grid;gap:2px;position:relative}
+.rung:last-child{border-right:0}
+.rung b{font-family:var(--f-d);font-size:15px;color:var(--c)}
+.rung span{font-size:12px;color:var(--mu)}
+.rung.on{background:color-mix(in srgb,var(--c) 14%,transparent)}
+.rung.on::after{content:"Tu es ici";position:absolute;right:10px;top:10px;font-size:11px;font-weight:600;color:var(--c)}
+@media(max-width:900px){.ladder{grid-template-columns:repeat(3,minmax(0,1fr))}.rung:nth-child(3){border-right:0}}
+.sheet-body{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr);gap:0}
+.sheet-body>div{padding:28px;border-right:1px solid var(--line);display:grid;gap:16px;align-content:start}
+.sheet-body>div:last-child{border-right:0}
+@media(max-width:1000px){.sheet-body{grid-template-columns:minmax(0,1fr)}.sheet-body>div{border-right:0;border-bottom:1px solid var(--line)}}
+.ex{justify-self:start;font-size:12px;font-weight:600;color:var(--mu);border:1px dashed rgba(154,151,184,.5);padding:3px 10px;border-radius:99px}
+.hero-card{display:flex;gap:16px;align-items:center}
+.hero-card b{display:block;font-family:var(--f-d);font-size:24px;margin-bottom:6px}
+.lvl{font-family:var(--f-d);font-weight:800;font-size:44px;line-height:1}
+.lvl small{font:500 14px var(--f-b);color:var(--mu);margin-left:6px}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.kv div{background:rgba(12,14,26,.55);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.kv b{display:block;font-family:var(--f-d);font-size:20px}
+.kv span{font-size:12px;color:var(--mu)}
+h5{margin:0;font-family:var(--f-d);font-size:18px}
+.quest{display:grid;gap:8px;padding:14px;border-radius:14px;background:rgba(12,14,26,.55);border:1px solid var(--line)}
+.quest .t{display:flex;justify-content:space-between;gap:10px;font-weight:600;font-size:14px}
+.quest .t span{color:var(--cy);font-family:var(--f-d);white-space:nowrap}
+.quest small{color:var(--mu);font-size:12px}
+.quest.done{border-color:rgba(59,209,111,.4)}
+.quest.done .t span{color:var(--gr)}
+.badges-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.badge{border-radius:16px;padding:14px;display:grid;gap:6px;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 22%,transparent),rgba(12,14,26,.6));border:1px solid color-mix(in srgb,var(--c) 50%,transparent);transition:transform .25s}
+.badge:hover{transform:translateY(-3px) rotate(-1deg)}
+.badge .ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 30%,transparent)}
+.badge b{font-family:var(--f-d);font-size:15px;line-height:1.15}
+.badge p{margin:0;font-size:12px;color:var(--mu);line-height:1.35}
+.badge .r{font-size:11px;font-weight:700;color:var(--c)}
+.badge.locked{filter:grayscale(1);opacity:.55}
+.board{margin-top:24px;border-radius:20px;background:rgba(19,22,42,.85);border:1px solid var(--line);overflow:hidden}
+.board-hd{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 24px;border-bottom:1px solid var(--line)}
+.board-hd h5 span{color:var(--mu);font:500 14px var(--f-b);margin-left:8px}
+.brow{display:grid;grid-template-columns:40px minmax(0,1.6fr) minmax(0,1fr) 90px minmax(0,1.2fr);gap:16px;align-items:center;padding:14px 24px;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+.brow:last-child{border-bottom:0}
+.brow .rk{font-family:var(--f-d);font-weight:800;font-size:20px;color:var(--mu)}
+.brow:first-of-type .rk{color:var(--or)}
+.brow .nm{display:flex;align-items:center;gap:12px;font-weight:600;min-width:0}
+.brow .nm span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brow .num{font-variant-numeric:tabular-nums;font-weight:600}
+@media(max-width:760px){.brow{grid-template-columns:32px minmax(0,1fr) auto}.brow .hide-sm{display:none}}
+/* Hermes : tableau de bord */
+.dash{margin-top:48px;border-radius:26px;padding:24px;background:linear-gradient(160deg,rgba(77,124,255,.14),rgba(19,22,42,.92) 40%);border:1px solid rgba(77,124,255,.3);box-shadow:0 0 60px rgba(77,124,255,.15),0 30px 60px rgba(0,0,0,.45);display:grid;gap:18px}
+.dash-hd{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.dash-hd .id{display:flex;align-items:center;gap:14px}
+.dash-hd .id b{display:block;font-family:var(--f-d);font-size:22px}
+.dash-hd .id span{font-size:13px;color:var(--mu)}
+.online{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:14px;color:var(--gr);background:rgba(59,209,111,.12);border:1px solid rgba(59,209,111,.4);padding:6px 12px;border-radius:99px}
+.online i{width:8px;height:8px;border-radius:50%;background:var(--gr);animation:pulse 1.8s ease-out infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(59,209,111,.7)}100%{box-shadow:0 0 0 10px rgba(59,209,111,0)}}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.tile{padding:16px 18px;border-radius:16px;background:rgba(12,14,26,.6);border:1px solid var(--line);display:grid;gap:4px}
+.tile span{font-size:13px;color:var(--mu)}
+.tile b{font-family:var(--f-d);font-size:30px;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile small{font-size:12px;color:var(--mu)}
+.dash-mid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:14px}
+@media(max-width:1000px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.dash-mid{grid-template-columns:minmax(0,1fr)}}
+.today{padding:18px;border-radius:16px;background:rgba(12,14,26,.6);border:1px solid var(--line);display:grid;gap:14px;align-content:start}
+.today-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:12px;align-items:center}
+.today-row span{display:block;font-size:13px;color:var(--mu)}
+.today-row b{font-family:var(--f-d);font-size:22px;font-variant-numeric:tabular-nums}
+.term{border-radius:16px;background:#070912;border:1px solid rgba(63,224,240,.2);overflow:hidden;display:grid;grid-template-rows:auto 1fr;min-height:330px}
+.term-hd{display:flex;align-items:center;gap:8px;padding:10px 14px;background:#0D1020;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;color:var(--mu)}
+.term-hd i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.term-bd{padding:14px 16px;font:13px/1.65 ui-monospace,'Cascadia Mono','Consolas',monospace;color:#C8D3E6;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;height:290px}
+.term-bd .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;animation:in .35s ease-out}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+.term-bd time{color:#5E6688}
+.term-bd .k{font-weight:700}
+.caret{display:inline-block;width:8px;height:15px;background:var(--cy);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.cmds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:1000px){.cmds{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.cmds,.tiles{grid-template-columns:minmax(0,1fr)}}
+.cmd{padding:16px 18px;border-radius:16px;background:rgba(12,14,26,.6);border:1px solid var(--line);display:grid;gap:6px;transition:border-color .25s}
+.cmd:hover{border-color:rgba(63,224,240,.4)}
+.cmd code{font:700 15px ui-monospace,'Cascadia Mono','Consolas',monospace;color:var(--cy)}
+.cmd p{margin:0;font-size:13px;color:var(--mu);line-height:1.45}
+/* Galerie : deux bandes défilantes en sens inverse */
+.gal{display:grid;gap:18px;margin-top:44px}
+.gal .marquee{margin-top:0}
+.track.rev{animation-direction:reverse;animation-duration:55s}
+.shot{flex:none;width:var(--w,300px);height:200px;border-radius:16px;overflow:hidden;position:relative;cursor:zoom-in;border:1px solid var(--line);padding:0;text-align:left;transition:transform .25s,box-shadow .25s}
+.shot:hover{transform:scale(1.03);box-shadow:0 18px 40px rgba(0,0,0,.5)}
+.shot .visual{position:absolute;inset:0}
+.shot .cap{position:absolute;left:14px;right:14px;bottom:12px;z-index:2;display:grid;gap:2px}
+.shot .cap b{font-family:var(--f-d);font-size:15px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shot .cap span{font-size:12px;color:#D6D3EA}
+.kind{position:absolute;right:12px;top:12px;z-index:2;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:rgba(0,0,0,.45);color:#fff}
+.play{position:absolute;left:50%;top:42%;z-index:2;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);display:grid;place-items:center;backdrop-filter:blur(6px)}
+.gal-note{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px;font-size:14px;color:var(--mu)}
+.gal-note code{font:600 13px ui-monospace,'Cascadia Mono','Consolas',monospace;color:var(--cy)}
+.lb{position:fixed;inset:0;z-index:80;background:rgba(6,7,14,.82);backdrop-filter:blur(8px);display:grid;place-items:center;padding:24px}
+.lb-in{width:min(900px,100%);border-radius:22px;overflow:hidden;background:var(--panel);border:1px solid rgba(255,255,255,.12)}
+.lb-in .visual{height:min(60vh,480px)}
+.lb-in .t{padding:18px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.lb-in .t b{font-family:var(--f-d);font-size:20px;display:block}
+.lb-in .t span{font-size:14px;color:var(--mu)}
+/* Pages, aperçus, staff, appel final, pied de page */
+[data-view]>section.block:first-child{padding-top:72px!important}
+.back{display:inline-block;margin-bottom:18px;font-weight:600;font-size:14px;color:var(--cy)}
+.teaser{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center}
+@media(max-width:1000px){.teaser{grid-template-columns:minmax(0,1fr)}}
+.teaser .term{min-height:300px}
+.teaser .term-bd{height:260px}
+.more{margin-top:24px;padding:12px 20px;font-size:15px}
+.staff{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:28px}
+@media(max-width:1000px){.staff{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.staff{grid-template-columns:minmax(0,1fr)}}
+.mate{padding:24px;border-radius:22px;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 14%,transparent),rgba(19,22,42,.92) 45%);border:1px solid color-mix(in srgb,var(--c) 35%,transparent);display:grid;gap:14px;align-content:start}
+.mate>div:first-of-type b{display:block;font-family:var(--f-d);font-size:22px;margin-bottom:6px}
+.mate .grade{margin:0;font-family:var(--f-d);font-weight:700;color:var(--c)}
+.mate .quote{margin:0;color:var(--msg);font-size:15px;line-height:1.5}
+.mate .btn{justify-self:start;padding:10px 16px;font-size:14px}
+.final-wrap{padding-top:40px}
+.final{text-align:center;display:grid;justify-items:center;gap:16px;padding:64px 24px;border-radius:30px;background:radial-gradient(600px 300px at 50% 0%,rgba(155,107,255,.35),transparent 70%),rgba(19,22,42,.75);border:1px solid rgba(155,107,255,.35)}
+.final h2{margin:0}
+.foot{border-top:1px solid var(--line);padding-block:48px 32px}
+.foot-in{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(3,minmax(0,1fr));gap:32px}
+@media(max-width:800px){.foot-in{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.foot-brand p{color:var(--mu);font-size:14px;max-width:36ch}
+.foot h6{margin:0 0 12px;font-family:var(--f-d);font-size:15px}
+.foot-in a:not(.brand){display:block;color:var(--mu);font-size:14px;padding-block:4px}
+.foot-in a:hover{color:var(--tx)}
+.foot-end{margin-top:32px;color:var(--mu);font-size:13px}
+.track-ranks{list-style:none;margin:0;padding:0;display:grid;gap:10px;position:relative}
+.track-ranks::before{content:"";position:absolute;left:21px;top:22px;bottom:22px;width:2px;background:linear-gradient(180deg,var(--mu),var(--bl),var(--vi),var(--cy),#F2C14E,var(--or))}
+.track-ranks li{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:14px;position:relative}
+.track-ranks .ins{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font:800 16px var(--f-d);color:var(--c);background:var(--bg);border:2px solid var(--c);box-shadow:0 0 18px color-mix(in srgb,var(--c) 35%,transparent)}
+.track-ranks b{font-family:var(--f-d);font-size:18px;color:var(--c)}
+.track-ranks small{color:var(--mu);font-size:13px;text-align:right}
+.moments{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:20px;margin-top:32px}
+.moments .shot{width:auto;height:300px}
+.moments .shot:first-child .cap b{font-size:20px}
+@media(max-width:900px){.moments{grid-template-columns:minmax(0,1fr)}.moments .shot{height:220px}}
+.eyebrow-live{display:inline-flex;align-items:center;gap:8px;color:var(--gr);font-weight:500;font-size:14px}
+h2{font-family:var(--f-d);font-weight:800;font-size:clamp(38px,4.6vw,56px);letter-spacing:-.03em;line-height:1;margin:12px 0}
+.sub{color:var(--mu);font-size:18px;margin:0;max-width:62ch}
+.cards4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin-top:56px}
+@media(max-width:1000px){.cards4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.cards4{grid-template-columns:minmax(0,1fr)}}
+.stat{background:rgba(19,22,42,.92);border:1px solid var(--line);border-radius:20px;padding:22px 24px;display:grid;gap:10px;align-content:start;box-shadow:0 16px 30px rgba(0,0,0,.35);transition:border-color .25s}
+.stat:hover{border-color:rgba(155,107,255,.35)}
+.stat.hl{border-color:rgba(155,107,255,.45);box-shadow:0 0 40px rgba(155,107,255,.3)}
+.stat .k{color:var(--mu);font-weight:500;font-size:15px}
+.stat .v{font-family:var(--f-d);font-weight:800;font-size:52px;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+.stat small{font-size:12px;color:var(--mu)}
+.tag{justify-self:start;font-weight:600;font-size:12px;color:var(--gr);background:rgba(59,209,111,.14);padding:3px 8px;border-radius:99px}
+.stack{display:flex}.stack .av{margin-right:-8px;box-shadow:0 0 0 2px var(--panel)}
+.ticker{margin-top:24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;border-radius:14px;background:rgba(19,22,42,.7);border:1px solid rgba(255,255,255,.06);font-size:13px;font-weight:500}
+.ticker em{font-style:normal;color:var(--cy);font-weight:600}
+.ticker .sep{width:4px;height:4px;border-radius:50%;background:var(--mu)}
+
+/* Jeux */
+.games-hd{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.arrows{display:flex;gap:10px}
+.arrows button{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);font:700 24px var(--f-d);line-height:1}
+.arrows button:hover{background:rgba(255,255,255,.12)}
+.visual{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--g1),var(--g2))}
+.visual::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 10px,transparent 10px 36px)}
+.visual::after{content:"";position:absolute;inset:45% 0 0;background:linear-gradient(180deg,transparent,rgba(12,14,26,.95))}
+.visual .ph{position:absolute;left:14px;top:14px;z-index:1;font-size:11px;font-weight:500;color:rgba(255,255,255,.85);background:rgba(0,0,0,.35);padding:4px 10px;border-radius:8px}
+.featured{margin-top:48px;border-radius:24px;overflow:hidden;position:relative;min-height:460px;box-shadow:0 30px 60px rgba(0,0,0,.5);transition:transform .4s}
+.featured .visual{position:absolute;inset:0}
+.featured .in{position:relative;z-index:2;padding:190px 48px 44px;display:grid;gap:14px;max-width:680px}
+.featured h3{font-family:var(--f-d);font-weight:800;font-size:clamp(40px,5vw,60px);letter-spacing:-.03em;line-height:1;margin:0;color:#fff}
+.featured p{margin:0;font-size:17px;color:#E6E2F5}
+.featured .meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-weight:500;font-size:14px;color:#E6E2F5}
+.featured .btn{padding:14px 22px;font-size:15px;border-radius:12px}
+.week{justify-self:start;font-weight:600;font-size:13px;color:var(--or);background:rgba(255,138,61,.18);border:1px solid rgba(255,138,61,.6);padding:5px 12px;border-radius:99px}
+/* Défilement continu des jeux : la piste est doublée et glisse en boucle, pause au survol */
+.marquee{margin-top:28px;overflow:hidden;padding-block:8px 16px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+.track{display:flex;gap:20px;width:max-content;animation:defile 45s linear infinite}
+.marquee:hover .track,.marquee:focus-within .track{animation-play-state:paused}
+@keyframes defile{to{transform:translateX(calc(-50% - 10px))}}
+.game{flex:none;width:250px;background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:grid;grid-template-rows:150px auto;transition:transform .25s,border-color .25s,box-shadow .25s}
+.game:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--g1) 60%,transparent);box-shadow:0 18px 40px color-mix(in srgb,var(--g1) 25%,transparent)}
+.game .b{padding:14px 18px 18px;display:grid;gap:8px;align-content:start}
+.game h4{margin:0;font-family:var(--f-d);font-size:19px}
+.game p{margin:0;font-size:13px;line-height:1.4;color:var(--mu)}
+.game .n{font-weight:600;font-size:12px;color:var(--cy)}
+.game .btn-sec{justify-self:start;padding:7px 12px;font-size:13px;border-radius:10px;font-weight:600}
+.next{margin-top:24px;color:var(--mu);font-size:14px;text-align:center;padding-block:48px 80px;border-top:1px dashed rgba(255,255,255,.1)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.marquee{overflow-x:auto}}
+</style>
+
+<header class="nav">
+  <nav class="nav-in" aria-label="Navigation principale">
+    <a class="brand" href="#top"><span class="logo-slot">logo</span><span class="name">SaucisseLand</span></a>
+    <div class="links"><a href="#top" aria-current="page">Accueil</a><a href="#jeux">Jeux</a><a href="#progression">Progression</a><a href="#hermes">Hermes</a><a href="#galerie">Galerie</a></div>
+    <a class="btn btn-pri" href="#top">Rejoindre Discord</a>
+  </nav>
+</header>
+
+<main id="top">
+ <div data-view="accueil">
+  <!-- ===== Hero D : fusion A + C ===== -->
+  <section class="hero">
+    <div class="bg" aria-hidden="true">
+      <div class="halo" style="left:39%;top:-260px;width:980px;height:720px;background:rgba(155,107,255,.30)"></div>
+      <div class="halo" style="left:74%;top:320px;width:620px;height:520px;background:rgba(63,224,240,.15)"></div>
+      <div class="halo" style="left:-8%;top:640px;width:420px;height:300px;background:rgba(255,138,61,.10)"></div>
+      <div class="grid-bg"></div>
+      <svg class="horizon" viewBox="0 0 1440 340" preserveAspectRatio="none" id="horizon"></svg>
+      <div id="dots"></div>
+    </div>
+    <div class="wrap pad" style="position:relative;z-index:2">
+      <div class="hero-text">
+        <span class="pill"><i></i>Le QG est ouvert, 312 Généraux en ligne</span>
+        <h1>Bienvenue à SaucisseLand</h1>
+        <p class="lead">Garde-à-vous, recrue. Ici on joue à tout, on monte en grade à chaque partie, et personne ne laisse un soldat seul en vocal.</p>
+        <div class="ctas">
+          <a class="btn btn-pri cta-main" href="#top">Rejoindre les Généraux Saucisses
+            <svg class="saus" viewBox="0 0 54 20" aria-hidden="true"><rect x="1" y="1" width="52" height="18" rx="9" fill="#FF8A3D" stroke="#C25A1F" stroke-width="2"/><path d="M14 6q3 4 0 8M26 6q3 4 0 8M38 6q3 4 0 8" stroke="#FFD2B0" stroke-width="2" fill="none" stroke-linecap="round"/></svg></a>
+          <a class="btn btn-sec" href="#communaute">Découvrir la communauté</a>
+        </div>
+        <div class="grades"><span class="chip" style="--c:var(--mu)">Recrue Cocktail</span><span class="chip" style="--c:var(--bl)">Caporal Chipolata</span><span class="chip" style="--c:var(--vi)">Sergent Merguez</span><span class="chip" style="--c:var(--or)">Général Saucisse</span></div>
+        <div class="stats"><div><b>1 240</b><span>membres</span></div><hr><div><b>37</b><span>en vocal</span></div><hr><div><b>7</b><span>jeux</span></div></div>
+      </div>
+    </div>
+    <div class="wrap" style="position:absolute;inset:0;z-index:2;pointer-events:none">
+      <svg class="links-svg" viewBox="0 0 1440 900" preserveAspectRatio="none" id="links" aria-hidden="true"></svg>
+      <div class="stage" style="pointer-events:auto">
+        <div class="win voice x float" style="--x:1050;--y:140;width:330px;rotate:4deg;--d:8s">
+          <div class="win-hd">Cantine des Généraux, vocal</div>
+          <div class="win-bd">
+            <div class="member"><span class="av ring" style="--c:#C2553A;--ring:var(--gr);--s:32px">M</span><div><b>Merguez_Royale</b><small>Colonel Saucisson</small></div></div>
+            <div class="member"><span class="av ring" style="--c:#4F6FB8;--ring:var(--gr);--s:32px">C</span><div><b>Chipolata</b><small>Lieutenant Toulouse</small></div></div>
+            <div class="member"><span class="av" style="--c:#3E8A5C;--s:32px">K</span><div><b>Kéfir</b><small>Sergent Merguez</small></div></div>
+            <div class="member"><span class="av" style="--c:#9A6B2F;--s:32px">B</span><div><b>Boudin_Blanc</b><small>Sergent Merguez</small></div></div>
+            <small style="color:var(--cy);font-weight:500;font-size:12px">en jeu : Dead by Daylight, moral au beau fixe</small>
+          </div>
+        </div>
+        <div class="win x float" style="--x:760;--y:260;width:470px;rotate:-3deg;--d:9s;--dl:-2s">
+          <div class="win-hd"># général</div>
+          <div class="win-bd">
+            <div class="msg" style="--nc:#8FB1FF"><span class="av" style="--c:#4F6FB8">C</span><div><div class="who">Chipolata <time>21:02</time></div><p>qui pour une DBD ce soir ? il nous manque un survivant</p></div></div>
+            <div class="msg" style="--nc:#FF9A7A"><span class="av" style="--c:#C2553A">M</span><div><div class="who">Merguez_Royale <time>21:03</time></div><p>j'arrive, je ramène la moutarde et le killer</p></div></div>
+            <div class="msg" style="--nc:#C9B5FF"><span class="av" style="--c:var(--vi)">H</span><div style="flex:1;min-width:0"><div class="who">Hermes <span class="bot">BOT</span><time>21:04</time></div>
+              <div class="embed"><b>Promotion !</b><p>Andouillette passe Caporal Chipolata (niveau 5). Médaille en papier alu envoyée en MP. Repos, soldat.</p><div class="bar" style="--w:62%"><i></i></div></div></div></div>
+            <div class="msg" style="--nc:#E6B877"><span class="av" style="--c:#9A6B2F">B</span><div><div class="who">Boudin_Blanc <time>21:04</time></div><p>GG mon caporal, je vous salue de la fourchette</p></div></div>
+          </div>
+        </div>
+        <div class="profile x float" style="--x:1010;--y:620;width:370px;rotate:2deg;--d:7.5s;--dl:-4s">
+          <div class="top"><span class="av ring" style="--c:#3E8A5C;--ring:var(--vi);--s:56px">K</span><div><b>Kéfir</b><span class="chip" style="--c:var(--or)">Sergent Merguez</span></div></div>
+          <div class="bar" style="--w:62%;--h:10px"><i></i><svg class="bar-saus" viewBox="0 0 26 10" aria-hidden="true"><rect x=".5" y=".5" width="25" height="9" rx="4.5" fill="#FF8A3D" stroke="#C25A1F"/></svg></div>
+          <p>Niveau 19, 8 902 XP. Prochain grade : Lieutenant Toulouse</p>
+          <div class="badges"><span class="chip" style="--c:var(--mu)">Commun</span><span class="chip" style="--c:var(--bl)">Rare</span><span class="chip" style="--c:var(--vi)">Épique</span><span class="chip" style="--c:var(--or)">Légendaire</span></div>
+        </div>
+        <span class="sat x" data-sat style="--x:700;--y:128;color:var(--or);font-weight:600">Série de 9 jours, cuisson parfaite</span>
+        <span class="sat x" data-sat style="--x:1250;--y:470;color:var(--cy);font-family:var(--f-d);font-weight:700;font-size:14px">+150 XP</span>
+        <span class="av ring x lone" data-sat style="--x:1370;--y:96;--c:#8E4FA8;--ring:var(--gr);--s:40px">A</span>
+        <span class="sat x" data-sat style="--x:760;--y:700"><span class="av" style="--c:#4F6FB8;--s:22px">C</span>Chipolata a rejoint la cantine</span>
+        <span class="chip x lone" data-sat style="--x:900;--y:830;--c:var(--bl)">Rare</span>
+        <span class="chip x lone" data-sat style="--x:1320;--y:840;--c:var(--vi)">Épique</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 La caserne en direct ===== -->
+  <section class="block" id="communaute">
+    <div class="bg" aria-hidden="true"><div class="halo" style="left:26%;top:140px;width:700px;height:380px;background:rgba(155,107,255,.14)"></div></div>
+    <div class="wrap pad" style="position:relative">
+      <span class="eyebrow-live live"><i></i>En direct, chiffres fournis par Hermes</span>
+      <h2>La caserne en direct</h2>
+      <p class="sub">Pas de chiffres gonflés : Hermes compte les troupes en temps réel. Même ceux qui dorment en vocal.</p>
+      <div class="cards4">
+        <div class="stat"><span class="k">Membres</span><span class="v" data-count="1240">1 240</span><span class="tag">+38 recrues cette semaine</span></div>
+        <div class="stat hl"><span class="k">En ligne maintenant</span><span class="v" data-count="312">312</span>
+          <svg viewBox="0 0 250 44" width="100%" height="44" aria-label="Courbe des membres en ligne sur 24 heures"><defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#9B6BFF" stop-opacity=".4"/><stop offset="1" stop-color="#9B6BFF" stop-opacity="0"/></linearGradient></defs><path id="spa" fill="url(#sg)"/><path id="spl" stroke="#9B6BFF" stroke-width="2" fill="none"/></svg>
+          <small>Pic à 21 h, comme chaque soir</small></div>
+        <div class="stat"><span class="k">En vocal</span><span class="v" data-count="37">37</span>
+          <div class="stack"><span class="av" style="--c:#C2553A;--s:30px">M</span><span class="av" style="--c:#4F6FB8;--s:30px">C</span><span class="av" style="--c:#3E8A5C;--s:30px">K</span><span class="av" style="--c:#9A6B2F;--s:30px">B</span><span class="av" style="--c:#8E4FA8;--s:30px">A</span></div>
+          <small>répartis dans 6 salons, dont la cantine</small></div>
+        <div class="stat"><span class="k">Messages aujourd’hui</span><span class="v" data-count="4812">4 812</span><small style="color:var(--or);font-size:13px">dont 312 « gg » et 9 « qui pour une game ? »</small></div>
+      </div>
+      <div class="ticker" aria-label="Activité récente">
+        <em>Il y a 2 min</em><span>Kéfir passe Sergent Merguez</span><span class="sep"></span>
+        <em>Il y a 6 min</em><span>Merguez_Royale débloque « Général du dimanche »</span><span class="sep"></span>
+        <em>Il y a 9 min</em><span>3 recrues ont rejoint la caserne</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 Nos jeux ===== -->
+  <section class="block" id="jeux" style="padding-top:40px">
+    <div class="bg" aria-hidden="true"><div class="halo" style="left:62%;top:80px;width:600px;height:420px;background:rgba(63,224,240,.10)"></div></div>
+    <div class="wrap pad" style="position:relative">
+      <div class="games-hd">
+        <div><h2>Sur quoi on se retrouve</h2><p class="sub">Sept jeux, un seul Discord. Chaque jeu a son salon, ses habitués et sa recherche de coéquipiers.</p></div>
+      </div>
+      <article class="featured">
+        <div class="visual" style="--g1:#B3202D;--g2:#2A0B10"><span class="ph">Visuel officiel à intégrer</span></div>
+        <div class="in">
+          <span class="week">Jeu de la semaine</span>
+          <h3>Dead by Daylight</h3>
+          <p>On survit ensemble, on meurt ensemble, on rigole toujours. Soirée killer tous les vendredis à 21 h, recrues bienvenues.</p>
+          <div class="meta"><a class="btn btn-pri" href="#jeux">Trouver des joueurs</a><span>48 Généraux y jouent</span><span class="sep" style="width:4px;height:4px;border-radius:50%;background:var(--mu)"></span><span style="color:var(--gr)">12 en ligne</span></div>
+        </div>
+      </article>
+      <div class="marquee" aria-label="Tous nos jeux"><div class="track" id="track"></div></div>
+    </div>
+  </section>
+
+  <!-- ===== 04 Prochains events ===== -->
+  <section class="block" id="events" style="padding-top:40px">
+    <div class="wrap pad" style="position:relative">
+      <h2>Les prochaines manœuvres</h2>
+      <p class="sub">Soirées, tournois et build parties organisés par la commu. Tu t’inscris sur Discord, Hermes te rappelle l’heure et te donne l’XP à la fin.</p>
+      <div class="ev-grid">
+        <article class="ev-main">
+          <span class="week" style="color:var(--cy);background:rgba(63,224,240,.12);border-color:rgba(63,224,240,.5)">Prochain event</span>
+          <h3>Soirée killer : Dead by Daylight</h3>
+          <div class="ev-when"><span>Vendredi 21 novembre, 21 h</span><span class="sep" style="width:4px;height:4px;border-radius:50%;background:var(--mu)"></span><span>Salon vocal « Cantine des Généraux »</span></div>
+          <div class="count" aria-label="Compte à rebours avant le début" id="count">
+            <div><b data-u="h">02</b><span>heures</span></div><div><b data-u="m">14</b><span>minutes</span></div><div><b data-u="s">37</b><span>secondes</span></div>
+          </div>
+          <div class="orga"><span class="av ring" style="--c:#C2553A;--ring:var(--or);--s:38px">M</span><span>Organisé par <b>Merguez_Royale</b>, Colonel Saucisson</span></div>
+          <div class="ev-foot">
+            <div class="seats"><div class="stack"><span class="av" style="--c:#4F6FB8;--s:28px">C</span><span class="av" style="--c:#3E8A5C;--s:28px">K</span><span class="av" style="--c:#9A6B2F;--s:28px">B</span><span class="av" style="--c:#8E4FA8;--s:28px">A</span></div><span>14 inscrits sur 20</span><div class="bar" style="--w:70%"><i></i></div></div>
+            <span class="xp">+200 XP pour les participants</span>
+          </div>
+          <a class="btn btn-pri" href="#events" style="justify-self:start">Je viens</a>
+        </article>
+        <div class="ev-list">
+          <article class="ev" style="--c:#9D4DFF"><div class="date"><span>SAM</span><b>22</b></div><div><h4>Tournoi Fortnite des Généraux</h4><p>Duos, 20 h. Organisé par Chipolata, Lieutenant Toulouse.</p><div class="row"><span>18 inscrits sur 32</span><span class="xp" style="font-size:13px">+300 XP</span></div></div></article>
+          <article class="ev" style="--c:#5DAA3A"><div class="date"><span>DIM</span><b>23</b></div><div><h4>Build party Minecraft</h4><p>15 h. Objectif : finir la statue de saucisse. Organisé par Kéfir, Sergent Merguez.</p><div class="row"><span>9 inscrits</span><span class="xp" style="font-size:13px">+150 XP</span></div></div></article>
+          <article class="ev" style="--c:#0AC8B9"><div class="date"><span>MER</span><b>26</b></div><div><h4>Clash LoL inter-grades</h4><p>21 h. Les Caporaux défient les Sergents. Organisé par Boudin_Blanc, Sergent Merguez.</p><div class="row"><span>10 inscrits sur 10</span><span style="color:var(--or)">Complet, liste d’attente</span></div></div></article>
+          <a class="ev-all" href="#events">Voir tout le calendrier</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Aperçu progression ===== -->
+  <section class="block" id="apercu-progression" style="padding-top:40px">
+    <div class="wrap pad">
+      <div class="teaser">
+        <div>
+          <h2>Monte en grade</h2>
+          <p class="sub">Chaque message et chaque minute en vocal te rapportent de l’XP. Six grades, des quêtes chaque semaine, des succès à collectionner.</p>
+          <a class="btn btn-sec more" href="#progression">Voir la fiche complète, le classement et les succès</a>
+        </div>
+        <ol class="track-ranks" aria-label="Les six grades">
+          <li style="--c:var(--mu)"><span class="ins">1</span><b>Recrue Cocktail</b><small>dès ton arrivée</small></li>
+          <li style="--c:var(--bl)"><span class="ins">5</span><b>Caporal Chipolata</b><small>quelques soirées</small></li>
+          <li style="--c:var(--vi)"><span class="ins">10</span><b>Sergent Merguez</b><small>un habitué</small></li>
+          <li style="--c:var(--cy)"><span class="ins">20</span><b>Lieutenant Toulouse</b><small>un pilier</small></li>
+          <li style="--c:#F2C14E"><span class="ins">30</span><b>Colonel Saucisson</b><small>une légende locale</small></li>
+          <li style="--c:var(--or)"><span class="ins">50</span><b>Général Saucisse</b><small>on t’érige une statue</small></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Aperçu Hermes ===== -->
+  <section class="block" id="apercu-hermes" style="padding-top:40px">
+    <div class="wrap pad">
+      <div class="teaser">
+        <div>
+          <span class="online"><i></i>Hermes est en ligne</span>
+          <h2>Hermes veille sur la caserne</h2>
+          <p class="sub">XP, grades, tickets, rappels de bump : notre bot s’occupe de tout. Il ne dort jamais. Il ne s’en plaint pas. Enfin, pas trop.</p>
+          <div class="kv" style="margin-top:20px;max-width:460px"><div><b>42 ms</b><span>de réponse</span></div><div><b>99,97 %</b><span>disponible</span></div><div><b>12 400</b><span>XP aujourd’hui</span></div></div>
+          <a class="btn btn-sec more" href="#hermes">Ouvrir le tableau de bord d’Hermes</a>
+        </div>
+        <div class="win" style="max-width:520px;justify-self:end;width:100%">
+          <div class="win-hd"># commandes-bot</div>
+          <div class="win-bd">
+            <div class="msg" style="--nc:#8FB1FF"><span class="av" style="--c:#4F6FB8">C</span><div><div class="who">Chipolata <time>21:12</time></div><p><code style="color:var(--cy);font:600 14px ui-monospace,Consolas,monospace">/rang</code></p></div></div>
+            <div class="msg" style="--nc:#C9B5FF"><span class="av" style="--c:var(--vi)">H</span><div style="flex:1;min-width:0"><div class="who">Hermes <span class="bot">BOT</span><time>21:12</time></div>
+              <div class="embed" style="border-left-color:var(--cy)"><b>Chipolata, Lieutenant Toulouse</b><p>Niveau 21, 10 115 XP. 2e du classement de la semaine. Série de 14 jours.</p><div class="bar" style="--w:38%"><i></i></div><p style="color:var(--mu)">Encore 1 885 XP avant le niveau 22. Courage. Ou pas, je ne juge pas.</p></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Aperçu galerie ===== -->
+  <section class="block" id="apercu-galerie" style="padding-top:40px">
+    <div class="wrap pad">
+      <div class="games-hd"><div><h2>Les moments de la semaine</h2><p class="sub">Les trois souvenirs préférés de la commu, choisis dans les archives.</p></div><a class="btn btn-sec more" style="margin-top:0" href="#galerie">Voir toutes les archives</a></div>
+      <div class="moments" id="galH"></div>
+    </div>
+  </section>
+ </div>
+
+ <div data-view="progression" hidden>
+  <!-- ===== 05 Progression : fiche de personnage ===== -->
+  <section class="block" id="progression-page" style="padding-top:40px">
+    <div class="wrap pad" style="position:relative">
+      <a class="back" href="#top">Retour à l’accueil</a>
+      <h2>Ta fiche de Général</h2>
+      <p class="sub">Chaque message et chaque minute en vocal te rapportent de l’XP. Monte en grade, tiens ta série, collectionne les succès. Hermes tient les comptes.</p>
+      <div class="sheet">
+        <div class="ladder" aria-label="Échelle des grades">
+          <div class="rung" style="--c:var(--mu)"><b>Recrue Cocktail</b><span>niveaux 1 à 4</span></div>
+          <div class="rung" style="--c:var(--bl)"><b>Caporal Chipolata</b><span>niveaux 5 à 9</span></div>
+          <div class="rung on" style="--c:var(--vi)"><b>Sergent Merguez</b><span>niveaux 10 à 19</span></div>
+          <div class="rung" style="--c:var(--cy)"><b>Lieutenant Toulouse</b><span>niveaux 20 à 29</span></div>
+          <div class="rung" style="--c:#F2C14E"><b>Colonel Saucisson</b><span>niveaux 30 à 49</span></div>
+          <div class="rung" style="--c:var(--or)"><b>Général Saucisse</b><span>niveau 50 et plus</span></div>
+        </div>
+        <div class="sheet-body">
+          <div>
+            <span class="ex">Exemple : toi, dans 3 semaines</span>
+            <div class="hero-card"><span class="av ring" style="--c:#8E4FA8;--ring:var(--vi);--s:76px">T</span><div><b>Toi</b><span class="chip" style="--c:var(--vi)">Sergent Merguez</span></div></div>
+            <div class="lvl">Niveau 14<small>4 120 XP</small></div>
+            <div class="bar" style="--w:58%;--h:12px"><i></i><svg class="bar-saus" viewBox="0 0 26 10" aria-hidden="true"><rect x=".5" y=".5" width="25" height="9" rx="4.5" fill="#FF8A3D" stroke="#C25A1F"/></svg></div>
+            <small style="color:var(--mu)">680 XP avant le niveau 15. Lieutenant Toulouse au niveau 20.</small>
+            <div class="kv"><div><b>9 jours</b><span>de série</span></div><div><b>1 284</b><span>messages</span></div><div><b>46 h</b><span>en vocal</span></div></div>
+          </div>
+          <div>
+            <h5>Quêtes de la semaine</h5>
+            <div class="quest done"><div class="t">Dire bonjour à 3 nouveaux<span>+80 XP</span></div><div class="bar" style="--w:100%"><i style="background:var(--gr)"></i></div><small>Terminée, bien joué</small></div>
+            <div class="quest"><div class="t">30 min en vocal avec un inconnu<span>+150 XP</span></div><div class="bar" style="--w:60%"><i></i></div><small>18 sur 30 minutes</small></div>
+            <div class="quest"><div class="t">Gagner 3 parties en équipe<span>+200 XP</span></div><div class="bar" style="--w:33%"><i></i></div><small>1 sur 3, la moutarde monte</small></div>
+            <div class="quest"><div class="t">Participer à un event<span>+120 XP</span></div><div class="bar" style="--w:0%"><i></i></div><small>Vendredi : soirée killer</small></div>
+          </div>
+          <div>
+            <h5>Vitrine de succès</h5>
+            <div class="badges-grid">
+              <div class="badge" style="--c:var(--or)"><span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8A3D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.6 6.5 19.5l1-6.3L3 8.9 9 8z"/></svg></span><span class="r">Légendaire</span><b>Général du dimanche</b><p>10 dimanches de suite en vocal.</p></div>
+              <div class="badge" style="--c:var(--vi)"><span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9B6BFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></span><span class="r">Épique</span><b>Chipolata nocturne</b><p>Bumper le serveur à 3 h du matin.</p></div>
+              <div class="badge" style="--c:var(--bl)"><span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4D7CFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-4-3-7-7-13-4 6-7 9-7 13a7 7 0 0 0 7 7z"/></svg></span><span class="r">Rare</span><b>Moutarde au nez</b><p>5 défaites d’affilée sans quitter le vocal.</p></div>
+              <div class="badge locked" style="--c:var(--mu)"><span class="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9A97B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span class="r">À découvrir</span><b>Succès secret</b><p>Hermes ne dira rien. Même sous la torture.</p></div>
+            </div>
+            <small style="color:var(--mu)">Noms provisoires, à remplacer par vos vrais succès.</small>
+          </div>
+        </div>
+      </div>
+      <div class="board">
+        <div class="board-hd"><h5>Le top de la semaine<span>classement réel, mis à jour par Hermes</span></h5><a class="ev-all" href="#progression">Classement complet</a></div>
+
+        <div class="brow"><span class="rk">1</span><span class="nm"><span class="av" style="--c:#C2553A;--s:34px">M</span><span>Merguez_Royale</span></span><span class="hide-sm"><span class="chip" style="--c:#F2C14E">Colonel Saucisson</span></span><span class="num hide-sm">niv. 31</span><span class="num">12 480 XP</span></div>
+        <div class="brow"><span class="rk">2</span><span class="nm"><span class="av" style="--c:#4F6FB8;--s:34px">C</span><span>Chipolata</span></span><span class="hide-sm"><span class="chip" style="--c:var(--cy)">Lieutenant Toulouse</span></span><span class="num hide-sm">niv. 21</span><span class="num">10 115 XP</span></div>
+        <div class="brow"><span class="rk">3</span><span class="nm"><span class="av" style="--c:#3E8A5C;--s:34px">K</span><span>Kéfir</span></span><span class="hide-sm"><span class="chip" style="--c:var(--vi)">Sergent Merguez</span></span><span class="num hide-sm">niv. 19</span><span class="num">8 902 XP</span></div>
+        <div class="brow"><span class="rk">4</span><span class="nm"><span class="av" style="--c:#9A6B2F;--s:34px">B</span><span>Boudin_Blanc</span></span><span class="hide-sm"><span class="chip" style="--c:var(--vi)">Sergent Merguez</span></span><span class="num hide-sm">niv. 17</span><span class="num">7 340 XP</span></div>
+        <div class="brow"><span class="rk">5</span><span class="nm"><span class="av" style="--c:#8E4FA8;--s:34px">A</span><span>Andouillette</span></span><span class="hide-sm"><span class="chip" style="--c:var(--bl)">Caporal Chipolata</span></span><span class="num hide-sm">niv. 8</span><span class="num">2 960 XP</span></div>
+      </div>
+    </div>
+  </section>
+
+ </div>
+
+ <div data-view="hermes" hidden>
+  <!-- ===== 06 Hermes : tableau de bord ===== -->
+  <section class="block" id="hermes-page" style="padding-top:40px">
+    <div class="bg" aria-hidden="true"><div class="halo" style="left:10%;top:200px;width:700px;height:500px;background:rgba(77,124,255,.12)"></div></div>
+    <div class="wrap pad" style="position:relative">
+      <a class="back" href="#top">Retour à l’accueil</a>
+      <h2>Hermes, notre bot maison</h2>
+      <p class="sub">Il compte l’XP, distribue les grades, ouvre les tickets et rappelle le bump. Il ne dort jamais. Il ne s’en plaint pas. Enfin, pas trop.</p>
+      <div class="dash">
+        <div class="dash-hd">
+          <div class="id"><span class="av ring" style="--c:var(--vi);--ring:var(--cy);--s:48px">H</span><div><b>Hermes</b><span>« J’ai distribué 12 400 XP aujourd’hui. Personne ne m’a dit merci. »</span></div></div>
+          <span class="online"><i></i>En ligne</span>
+        </div>
+        <div class="tiles">
+          <div class="tile"><span>Temps de réponse</span><b>42 ms</b><small>plus rapide qu’une saucisse qui roule</small></div>
+          <div class="tile"><span>Disponibilité sur 30 jours</span><b>99,97 %</b><small>13 min de sieste en tout</small></div>
+          <div class="tile"><span>Commandes servies</span><b>182 400</b><small>depuis la mise en service</small></div>
+          <div class="tile"><span>Membres suivis</span><b>1 240</b><small>il connaît tout le monde</small></div>
+        </div>
+        <div class="dash-mid">
+          <div class="today">
+            <h5>Rapport du jour</h5>
+            <div class="today-row"><div><span>XP distribuée</span><b>12 400</b></div><svg class="spark" data-v="3,5,4,7,6,9,8,11" viewBox="0 0 120 36" width="120" height="36"></svg></div>
+            <div class="today-row"><div><span>Succès débloqués</span><b>27</b></div><svg class="spark" data-v="1,2,2,3,5,4,6,7" viewBox="0 0 120 36" width="120" height="36"></svg></div>
+            <div class="today-row"><div><span>Tickets résolus</span><b>6</b></div><svg class="spark" data-v="2,1,3,2,1,2,3,2" viewBox="0 0 120 36" width="120" height="36"></svg></div>
+            <div class="today-row"><div><span>Rappels de bump envoyés</span><b>14</b></div><svg class="spark" data-v="4,6,5,6,7,6,8,9" viewBox="0 0 120 36" width="120" height="36"></svg></div>
+          </div>
+          <div class="term" aria-label="Journal d’activité d’Hermes (pour rire)">
+            <div class="term-hd"><i style="--c:#FF6B6B"></i><i style="--c:#FFC84A"></i><i style="--c:#3BD16F"></i><span style="margin-left:8px">hermes@saucisseland : journal en direct</span></div>
+            <div class="term-bd"></div>
+          </div>
+        </div>
+        <div class="cmds">
+          <div class="cmd"><code>/rang</code><p>Affiche ton grade. Je ne mens jamais, même quand ça fait mal.</p></div>
+          <div class="cmd"><code>/classement</code><p>Le top de la semaine. Petit indice : Merguez_Royale.</p></div>
+          <div class="cmd"><code>/quete</code><p>Tes quêtes en cours. Je suis ta progression de près. Très près.</p></div>
+          <div class="cmd"><code>/ticket</code><p>Ouvre un ticket privé avec le staff. Je garde le secret.</p></div>
+          <div class="cmd"><code>/bump</code><p>Fait monter le serveur. Je te rappelle quand c’est de nouveau possible.</p></div>
+          <div class="cmd"><code>/succes</code><p>Ta vitrine de succès. Certains sont secrets. Je ne dirai rien.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+ </div>
+
+ <div data-view="galerie" hidden>
+  <!-- ===== 07 Galerie ===== -->
+  <section class="block" id="galerie-page" style="padding-top:40px">
+    <div class="wrap pad" style="position:relative">
+      <a class="back" href="#top">Retour à l’accueil</a>
+      <h2>Les archives de la caserne</h2>
+      <p class="sub">Captures, clips et souvenirs d’events, choisis par la commu. Passe la souris pour arrêter le défilé, clique pour agrandir.</p>
+    </div>
+    <div class="gal">
+      <div class="marquee"><div class="track" id="gal1"></div></div>
+      <div class="marquee"><div class="track rev" id="gal2"></div></div>
+    </div>
+    <div class="wrap pad"><p class="gal-note">Poste ta capture dans <code>#galerie</code>, le staff la valide d’une réaction, Hermes l’envoie ici.</p></div>
+  </section>
+ </div>
+
+ <div data-view="etat-major" hidden>
+  <!-- ===== 08 L'état-major ===== -->
+  <section class="block" id="etat-major-page" style="padding-top:40px">
+    <div class="wrap pad">
+      <a class="back" href="#top">Retour à l’accueil</a>
+      <h2>L’état-major</h2>
+      <p class="sub">Les gradés qui font tourner la caserne. Besoin d’eux ? Ouvre un ticket avec Hermes, ils répondent sans que leurs MP explosent.</p>
+      <span class="ex" style="margin-top:20px;display:inline-block">Profils d’exemple, à remplacer par le vrai staff</span>
+      <div class="staff">
+        <article class="mate" style="--c:var(--or)"><span class="av ring" style="--c:#B3202D;--ring:var(--or);--s:72px">S</span><div><b>Saucisseur_Supreme</b><span class="chip" style="--c:var(--or)">Fondateur</span></div><p class="grade">Général Saucisse en chef</p><p class="quote">« J’ai créé ce serveur pour une soirée. Ça fait trois ans. »</p><div class="badges"><span class="chip" style="--c:#0AC8B9">League of Legends</span><span class="chip" style="--c:#5DAA3A">Minecraft</span></div><a class="btn btn-sec" href="#etat-major">Contacter via un ticket</a></article>
+        <article class="mate" style="--c:#F2C14E"><span class="av ring" style="--c:#C2553A;--ring:#F2C14E;--s:72px">M</span><div><b>Merguez_Royale</b><span class="chip" style="--c:#F2C14E">Administration</span></div><p class="grade">Colonel des barbecues</p><p class="quote">« Si le vocal est calme, c’est que je ne suis pas encore arrivé. »</p><div class="badges"><span class="chip" style="--c:#B3202D">Dead by Daylight</span><span class="chip" style="--c:#F99E1A">Overwatch</span></div><a class="btn btn-sec" href="#etat-major">Contacter via un ticket</a></article>
+        <article class="mate" style="--c:#F2C14E"><span class="av ring" style="--c:#2E7D6B;--ring:#F2C14E;--s:72px">C</span><div><b>Chorizo_Zen</b><span class="chip" style="--c:#F2C14E">Administration</span></div><p class="grade">Intendant de la caserne</p><p class="quote">« Je range, je règle, je relance le bot. Avec le sourire. »</p><div class="badges"><span class="chip" style="--c:#3FA9C9">Warframe</span><span class="chip" style="--c:#7A8A3A">War Dogs</span></div><a class="btn btn-sec" href="#etat-major">Contacter via un ticket</a></article>
+        <article class="mate" style="--c:var(--cy)"><span class="av ring" style="--c:#3E8A5C;--ring:var(--cy);--s:72px">K</span><div><b>Kéfir</b><span class="chip" style="--c:var(--cy)">Modération</span></div><p class="grade">Adjudant de la cantine</p><p class="quote">« Je veille sur le vocal. Et sur les blagues de Boudin_Blanc. »</p><div class="badges"><span class="chip" style="--c:#B3202D">Dead by Daylight</span><span class="chip" style="--c:#9D4DFF">Fortnite</span></div><a class="btn btn-sec" href="#etat-major">Contacter via un ticket</a></article>
+        <article class="mate" style="--c:var(--cy)"><span class="av ring" style="--c:#4D5BA8;--ring:var(--cy);--s:72px">C</span><div><b>Cervelas_Ninja</b><span class="chip" style="--c:var(--cy)">Modération</span></div><p class="grade">Sentinelle de nuit</p><p class="quote">« Je modère de 22 h à 3 h. Oui, je dors parfois. »</p><div class="badges"><span class="chip" style="--c:#0AC8B9">League of Legends</span><span class="chip" style="--c:#3FA9C9">Warframe</span></div><a class="btn btn-sec" href="#etat-major">Contacter via un ticket</a></article>
+      </div>
+    </div>
+  </section>
+ </div>
+
+  <!-- ===== Appel final + pied de page (toutes les pages) ===== -->
+  <section class="block final-wrap">
+    <div class="wrap pad">
+      <div class="final">
+        <span class="online"><i></i>312 Généraux en ligne</span>
+        <h2>Rejoins les Généraux Saucisses</h2>
+        <p class="sub" style="margin-inline:auto">La caserne t’attend. Présente-toi dans #accueil, choisis tes jeux, et la première tournée d’XP est pour nous.</p>
+        <a class="btn btn-pri cta-main" href="#top" style="padding:18px 30px;font-size:17px">Rejoindre le Discord</a>
+      </div>
+    </div>
+  </section>
+  <footer class="foot">
+    <div class="wrap pad foot-in">
+      <div class="foot-brand"><a class="brand" href="#top"><span class="logo-slot">logo</span><span>SaucisseLand</span></a><p>La communauté multi-gaming des Généraux Saucisses, propulsée par Hermes.</p></div>
+      <div><h6>Communauté</h6><a href="#jeux">Jeux</a><a href="#events">Events</a><a href="#galerie">Galerie</a><a href="#etat-major">L’état-major</a></div>
+      <div><h6>Hermes</h6><a href="#hermes">Tableau de bord</a><a href="#hermes">Commandes</a><a href="#progression">Grades et succès</a></div>
+      <div><h6>Infos</h6><a href="#top">Règlement</a><a href="#top">Mentions légales</a><a href="#etat-major">Contacter le staff</a></div>
+    </div>
+    <p class="wrap pad foot-end">© 2026 SaucisseLand. Aucune saucisse n’a été maltraitée pendant la conception de ce site.</p>
+  </footer>
+  <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Aperçu de la galerie">
+    <div class="lb-in"><div class="visual" id="lbv"><span class="ph">Image ou clip à intégrer</span></div><div class="t"><div><b id="lbt"></b><span id="lbs"></span></div><button class="btn btn-sec" id="lbc" style="padding:10px 16px;font-size:14px">Fermer</button></div></div>
+  </div>
+</main>
+
+<script>
+// particules
+(function(){let s=11;const r=()=>(s=(s*16807)%2147483647)/2147483647;const box=document.getElementById('dots');let h='';
+for(let i=0;i<46;i++){const d=1.5+r()*3;h+=`<span class="dot" style="left:${r()*100}%;top:${r()*900}px;width:${d}px;height:${d}px;background:${r()>.5?'#3FE0F0':'#fff'};opacity:${.2+r()*.5}"></span>`}box.innerHTML=h;})();
+// horizon en perspective
+(function(){let g='';for(let i=-12;i<=12;i++)g+=`<line x1="${720+i*60}" y1="0" x2="${720+i*260}" y2="340" stroke="#9B6BFF" stroke-opacity=".2"/>`;for(let j=0;j<8;j++){const y=Math.round(Math.pow(j/7,1.8)*340);g+=`<line x1="0" y1="${y}" x2="1440" y2="${y}" stroke="#9B6BFF" stroke-opacity="${.06+j*.022}"/>`}document.getElementById('horizon').innerHTML=g;})();
+// liens de la constellation
+(function(){const pts=[[760,140],[1290,486],[1390,116],[880,716],[925,842],[1350,852]],c=[1080,460];
+document.getElementById('links').innerHTML=pts.map(p=>`<line x1="${c[0]}" y1="${c[1]}" x2="${p[0]}" y2="${p[1]}" stroke="#3FE0F0" stroke-opacity=".22" stroke-width="1.2" stroke-dasharray="4 6"/><circle cx="${p[0]}" cy="${p[1]}" r="2.5" fill="#3FE0F0" fill-opacity=".7"/>`).join('');})();
+// courbe 24 h
+(function(){const p=[22,30,26,40,36,52,48,60,58,72,66,80];const pts=p.map((v,i)=>`${(i*22.7).toFixed(1)} ${44-v/2}`);
+document.getElementById('spl').setAttribute('d','M'+pts.join(' L'));document.getElementById('spa').setAttribute('d','M'+pts.join(' L')+' L250 44 L0 44Z');})();
+// jeux
+const GAMES=[['Dead by Daylight','#B3202D','#2A0B10','48 Généraux','On survit ensemble, on meurt ensemble, on rigole toujours.'],['War Dogs','#7A8A3A','#1E2410','31 Généraux','Le terrain de jeu préféré de l’état-major.'],['League of Legends','#0AC8B9','#0A1A2A','64 Généraux','Toxicité laissée au vestiaire. Promis.'],['Warframe','#3FA9C9','#0B1C26','22 Généraux','Missions du jour en escouade, tous les soirs.'],['Overwatch','#F99E1A','#2A1A08','40 Généraux','Le soutien, c’est un mode de vie.'],['Fortnite','#9D4DFF','#1A0B2E','57 Généraux','Dernier debout ? Généralement Chipolata.'],['Minecraft','#5DAA3A','#10200C','35 Généraux','Une statue de saucisse de 40 blocs vous attend au spawn.']];
+const card=(g,hidden)=>`<article class="game" style="--g1:${g[1]};--g2:${g[2]}"${hidden?' aria-hidden="true"':''}><div class="visual" style="--g1:${g[1]};--g2:${g[2]}"><span class="ph">Visuel officiel à intégrer</span></div><div class="b"><h4>${g[0]}</h4><p>${g[4]}</p><span class="n">${g[3]}</span><a class="btn btn-sec" href="#jeux"${hidden?' tabindex="-1"':''}>Trouver des joueurs</a></div></article>`;
+document.getElementById('track').innerHTML=GAMES.map(g=>card(g)).join('')+GAMES.map(g=>card(g,true)).join('');
+// compte à rebours de l'event (exemple : départ dans 2 h 14 min 37 s)
+(function(){const end=Date.now()+((2*60+14)*60+37)*1000;const el=id=>document.querySelector(`#count [data-u="${id}"]`);const p=n=>String(n).padStart(2,'0');
+const tick=()=>{let s=Math.max(0,Math.round((end-Date.now())/1000));el('h').textContent=p(Math.floor(s/3600));el('m').textContent=p(Math.floor(s%3600/60));el('s').textContent=p(s%60)};tick();setInterval(tick,1000);})();
+// mini-graphiques du rapport du jour
+document.querySelectorAll('.spark').forEach(s=>{const v=s.dataset.v.split(',').map(Number),m=Math.max(...v);s.innerHTML=v.map((x,i)=>`<rect x="${i*15+1}" y="${36-x/m*32}" width="10" height="${x/m*32}" rx="3" fill="${i===v.length-1?'#3FE0F0':'#4D7CFF'}" fill-opacity="${i===v.length-1?1:.45}"/>`).join('')});
+// journal absurde d'Hermes
+(function(){const L=[['GRILL','#FF8A3D','Fait griller une chipolata sans la cramer. Succès.'],['BAR','#F2C14E','Décapsule une bière par 40 °C. Mousse maîtrisée.'],['XP','#3FE0F0','XP +12 à Kéfir. Il ne dira pas merci.'],['RECHERCHE','#9B6BFF','Cherche la moutarde. Introuvable. Relance la recherche.'],['BUMP','#4D7CFF','Rappel de bump envoyé à Chipolata. Il dort. J’insiste.'],['GRILL','#FF8A3D','Retourne les merguez. Côté B impeccable.'],['TICKET','#3BD16F','Ticket n°482 fermé. Motif : saucisse coincée dans le vocal.'],['COMPTE','#9B6BFF','Compte les Généraux en ligne : 312. Recompte. Toujours 312.'],['GRILL','#FF8A3D','Calibre le barbecue à 220 °C. Les végétariens sont prévenus.'],['SUCCÈS','#F2C14E','Remet « Moutarde au nez » à Boudin_Blanc. Compatit, un peu.'],['HUMOUR','#9B6BFF','Tente de comprendre une blague de Boudin_Blanc. Échec. Réessaie demain.'],['GRILL','#FF8A3D','Allume le barbecue sans flamber les sourcils de Merguez_Royale.'],['XP','#3FE0F0','XP +40 à Andouillette pour 30 min de vocal. Bon soldat.'],['BAR','#F2C14E','Range les canettes vides. Personne d’autre ne le fera.']];
+document.querySelectorAll('.term-bd').forEach((box,bi)=>{let i=bi*5;const p=n=>String(n).padStart(2,'0');
+const add=()=>{const d=new Date(),[k,c,t]=L[i++%L.length];const el=document.createElement('div');el.className='l';el.innerHTML=`<time>[${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}]</time> <span class="k" style="color:${c}">${k}</span> ${t}`;const caret=box.querySelector('.cline');box.insertBefore(el,caret);while(box.children.length>11)box.removeChild(box.firstChild)};
+box.innerHTML='<div class="cline">&gt; <span class="caret"></span></div>';for(let n=0;n<8;n++)add();
+if(!matchMedia('(prefers-reduced-motion: reduce)').matches)setInterval(add,1900);});})();
+// galerie
+(function(){const S1=[['Capture','Ace en 1 contre 5','Kéfir, Overwatch','#F99E1A','#2A1A08',320],['Clip · 0:42','Le killer qui avait peur du noir','Merguez_Royale, Dead by Daylight','#B3202D','#2A0B10',380],['Event · 15/11','Soirée karaoké, 42 Généraux','La cantine en entier','#9B6BFF','#1A0B2E',300],['Capture','La statue de saucisse, étape 3','Andouillette, Minecraft','#5DAA3A','#10200C',340],['Clip · 1:05','Pentakill par erreur','Chipolata, League of Legends','#0AC8B9','#0A1A2A',360],['Capture','Dernier debout, encore','Chipolata, Fortnite','#9D4DFF','#1A0B2E',300]];
+const S2=[['Event · 08/11','Tournoi Warframe, finale','Boudin_Blanc, Warframe','#3FA9C9','#0B1C26',360],['Capture','Escouade complète au spawn','War Dogs','#7A8A3A','#1E2410',300],['Clip · 0:28','Fou rire en vocal, pas de contexte','La cantine','#FF8A3D','#2A1406',340],['Capture','Le killer s’est perdu','Kéfir, Dead by Daylight','#B3202D','#2A0B10',320],['Event · 01/11','Build party d’Halloween','Minecraft','#5DAA3A','#10200C',380],['Capture','Victoire au dernier tir','Merguez_Royale, Overwatch','#F99E1A','#2A1A08',300]];
+const tile=(s,hidden)=>`<button type="button" class="shot" style="--w:${s[5]}px" data-t="${s[1]}" data-s="${s[2]}" data-g1="${s[3]}" data-g2="${s[4]}"${hidden?' tabindex="-1" aria-hidden="true"':''}><span class="visual" style="--g1:${s[3]};--g2:${s[4]}"></span><span class="kind">${s[0]}</span>${s[0].startsWith('Clip')?'<span class="play"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z" fill="#fff"/></svg></span>':''}<span class="cap"><b>${s[1]}</b><span>${s[2]}</span></span></button>`;
+const fill=(id,L)=>{document.getElementById(id).innerHTML=L.map(s=>tile(s)).join('')+L.map(s=>tile(s,true)).join('')};fill('gal1',S1);fill('gal2',S2);
+document.getElementById('galH').innerHTML=[['Event · 15/11','Soirée karaoké, 42 Généraux','La cantine en entier, 48 réactions','#9B6BFF','#1A0B2E'],['Clip · 0:42','Le killer qui avait peur du noir','Merguez_Royale, 37 réactions','#B3202D','#2A0B10'],['Capture','La statue de saucisse, étape 3','Andouillette, 29 réactions','#5DAA3A','#10200C']].map(s=>tile([...s,0])).join('');
+const lb=document.getElementById('lb'),v=document.getElementById('lbv');
+document.querySelectorAll('.shot').forEach(b=>b.addEventListener('click',()=>{v.style.setProperty('--g1',b.dataset.g1);v.style.setProperty('--g2',b.dataset.g2);document.getElementById('lbt').textContent=b.dataset.t;document.getElementById('lbs').textContent=b.dataset.s;lb.hidden=false;document.getElementById('lbc').focus()}));
+const close=()=>{lb.hidden=true};document.getElementById('lbc').onclick=close;lb.addEventListener('click',e=>{if(e.target===lb)close()});document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});})();
+// pages : #progression, #hermes, #galerie, #etat-major ; tout le reste = accueil (avec ancres)
+(function(){const V=['progression','hermes','galerie','etat-major'];
+const route=()=>{const h=decodeURIComponent(location.hash.slice(1));const v=V.includes(h)?h:'accueil';
+document.querySelectorAll('[data-view]').forEach(el=>el.hidden=el.dataset.view!==v);
+document.querySelector('.final-wrap').hidden=v!=='accueil';
+document.querySelectorAll('.links a').forEach(a=>{const t=a.getAttribute('href').slice(1);if((v==='accueil'&&t==='top'&&!['jeux'].includes(h))||t===v||(v==='accueil'&&t===h))a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+if(v!=='accueil'||!h||h==='top')window.scrollTo(0,0);else{const t=document.getElementById(h);if(t)t.scrollIntoView()}};
+addEventListener('hashchange',route);route();})();
+// compteurs animés à l'apparition
+const io='IntersectionObserver' in window&&!matchMedia('(prefers-reduced-motion: reduce)').matches?new IntersectionObserver(es=>es.forEach(e=>{if(!e.isIntersecting)return;const el=e.target,end=+el.dataset.count,t0=performance.now();io.unobserve(el);
+const step=t=>{const k=Math.min(1,(t-t0)/1100),v=Math.round(end*(1-Math.pow(1-k,3)));el.textContent=v.toLocaleString('fr-FR');if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)}),{threshold:.6}):null;
+if(io)document.querySelectorAll('[data-count]').forEach(el=>io.observe(el));
+</script>
