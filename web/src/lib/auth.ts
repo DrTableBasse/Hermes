@@ -15,10 +15,40 @@ const BOT_TOKEN          = process.env.DISCORD_TOKEN ?? ""
 const ADMIN_ROLE_NAME    = process.env.ADMIN_ROLE_NAME ?? "Administration"
 const REDACTEUR_ROLE_NAME = process.env.REDACTEUR_ROLE_NAME ?? "rédacteur"
 
+// Rôle par identifiant (réglage en base) ou par nom (repli sur l'environnement).
+type RoleRef = { id: string } | { name: string }
+
 let _guildRoles: Record<string, string> = {}
+let _staffRoles: { admin: RoleRef; redacteur: RoleRef } = {
+  admin:     { name: ADMIN_ROLE_NAME },
+  redacteur: { name: REDACTEUR_ROLE_NAME },
+}
 let _guildRolesLoadedAt = 0
 let _guildRolesPromise: Promise<void> | null = null
 const GUILD_ROLES_TTL_MS = 10 * 60 * 1000
+
+// Réglages admin_role / redacteur_role (identifiants) ; ligne absente → nom de l'environnement.
+async function loadStaffRoles(): Promise<void> {
+  try {
+    const res = await pool.query<{ key: string; value: string | null }>(
+      `SELECT key, value FROM bot_settings WHERE key = ANY($1::text[])`,
+      [["admin_role", "redacteur_role"]]
+    )
+    const stored: Record<string, string> = {}
+    for (const row of res.rows) if (row.value) stored[row.key] = row.value
+    _staffRoles = {
+      admin:     stored.admin_role     ? { id: stored.admin_role }     : { name: ADMIN_ROLE_NAME },
+      redacteur: stored.redacteur_role ? { id: stored.redacteur_role } : { name: REDACTEUR_ROLE_NAME },
+    }
+  } catch (e) {
+    console.error("[auth] lecture de bot_settings impossible, repli sur l'environnement:", e)
+  }
+}
+
+function hasRole(ref: RoleRef, memberRoleIds: string[]): boolean {
+  if ("id" in ref) return memberRoleIds.includes(ref.id)
+  return memberRoleIds.some(id => _guildRoles[id] === ref.name)
+}
 
 function loadGuildRoles(): Promise<void> {
   if (Date.now() - _guildRolesLoadedAt < GUILD_ROLES_TTL_MS && _guildRolesLoadedAt > 0) {
@@ -26,6 +56,7 @@ function loadGuildRoles(): Promise<void> {
   }
   if (_guildRolesPromise) return _guildRolesPromise
   _guildRolesPromise = (async () => {
+    await loadStaffRoles()
     if (!BOT_TOKEN || !GUILD_ID) return
     try {
       const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/roles`, {
@@ -49,9 +80,8 @@ async function resolveDiscordRoles(discordId: string): Promise<[boolean, boolean
     })
     if (!res.ok) return [false, false]
     const member = (await res.json()) as { roles: string[] }
-    const roleNames = new Set(member.roles.map(id => _guildRoles[id] ?? ""))
-    const isAdmin     = roleNames.has(ADMIN_ROLE_NAME)
-    const isRedacteur = roleNames.has(REDACTEUR_ROLE_NAME) || isAdmin
+    const isAdmin     = hasRole(_staffRoles.admin, member.roles)
+    const isRedacteur = hasRole(_staffRoles.redacteur, member.roles) || isAdmin
     return [isAdmin, isRedacteur]
   } catch {
     return [false, false]
