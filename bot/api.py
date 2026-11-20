@@ -1,6 +1,7 @@
 """Internal Bot API — only reachable from the Docker network (web-api calls it)."""
 import asyncio
 import functools
+import hmac
 import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -26,7 +27,8 @@ def set_bot_instance(bot: discord.Client):
 
 
 def _require_token(creds: HTTPAuthorizationCredentials = Security(_security)):
-    if creds.credentials != BOT_API_TOKEN:
+    # Comparaison à temps constant ; un jeton vide n'est jamais accepté.
+    if not BOT_API_TOKEN or not hmac.compare_digest(creds.credentials.encode(), BOT_API_TOKEN.encode()):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 

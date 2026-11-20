@@ -29,8 +29,12 @@ services:
       BOT_API_PORT: "8001"
     volumes:
       - media_data:/app/media
+    # API interne (kick/ban/warn) : jamais publiée sur l'hôte, seul web-api y accède via le réseau Docker
+    expose:
+      - "8001"
+    # Métriques Prometheus uniquement (lecture seule), pour le Prometheus/Grafana externe
     ports:
-      - "8001:8001"
+      - "9101:9101"
     networks:
       - hermes
     healthcheck:

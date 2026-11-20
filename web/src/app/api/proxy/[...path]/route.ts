@@ -14,6 +14,13 @@ async function proxy(
   const contentType = req.headers.get('content-type')
   if (cookie)      fwdHeaders['cookie']       = cookie
   if (contentType) fwdHeaders['content-type'] = contentType
+  // IP du visiteur pour le rate limiting de web-api. On ne relaie jamais un
+  // en-tête X-Client-IP venu du navigateur : on le reconstruit ici.
+  // X-Real-IP est posé par le reverse proxy (Nginx Proxy Manager) ; à défaut,
+  // on prend la dernière entrée de X-Forwarded-For, la seule ajoutée par lui.
+  const xff      = req.headers.get('x-forwarded-for')
+  const clientIp = req.headers.get('x-real-ip') ?? xff?.split(',').pop()?.trim() ?? req.ip
+  if (clientIp) fwdHeaders['x-client-ip'] = clientIp
 
   const init: RequestInit & { duplex?: string } = {
     method:  req.method,

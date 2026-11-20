@@ -41,6 +41,8 @@ def validate_config():
         'DISCORD_TOKEN': DISCORD_TOKEN,
         'GUILD_ID': GUILD_ID,
         'BOT_CHANNEL_START': BOT_CHANNEL_START,
+        # L'API interne (kick/ban/warn) refuse de tourner sans jeton.
+        'BOT_API_TOKEN': BOT_API_TOKEN,
     }
     missing = [k for k, v in required.items() if not v]
     if missing:

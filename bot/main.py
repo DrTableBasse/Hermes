@@ -278,6 +278,13 @@ async def main():
     uvicorn_server = uvicorn.Server(uvicorn_config)
     console.print(f"[green]✅ API interne démarrée sur :{BOT_API_PORT}[/green]")
 
+    # Métriques Prometheus seules (lecture, sans aucune action) sur un port dédié,
+    # publiable sur l'hôte sans exposer l'API kick/ban/warn du port BOT_API_PORT.
+    from prometheus_client import start_http_server
+    metrics_port = int(os.getenv('BOT_METRICS_PORT', '9101'))
+    start_http_server(metrics_port)
+    console.print(f"[green]✅ Métriques Prometheus sur :{metrics_port}/metrics[/green]")
+
     await asyncio.gather(
         bot.start(token),
         uvicorn_server.serve(),

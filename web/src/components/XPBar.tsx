@@ -1,13 +1,19 @@
 'use client'
 import { XPData } from '@/lib/api'
 
+// Même formule que le bot (bot/utils/database.py, XPManager.xp_for_level) :
+// le niveau N est atteint à N² × 100 XP.
 function xpForLevel(level: number): number {
-  return Math.floor(100 * Math.pow(1.15, level - 1))
+  return level * level * 100
 }
 
 export default function XPBar({ data }: { data: XPData }) {
+  const floorXP = data.current_level <= 1 ? 0 : xpForLevel(data.current_level)
   const nextXP = xpForLevel(data.current_level + 1)
-  const progress = nextXP > 0 ? Math.min(100, Math.round((data.total_xp / nextXP) * 100)) : 100
+  const span = nextXP - floorXP
+  const progress = span > 0
+    ? Math.min(100, Math.max(0, Math.round(((data.total_xp - floorXP) / span) * 100)))
+    : 100
 
   return (
     <div className="flex items-center gap-3 text-sm">

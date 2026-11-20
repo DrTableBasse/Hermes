@@ -5,5 +5,5 @@ global:
 scrape_configs:
   - job_name: 'hermes-bot'
     static_configs:
-      - targets: ['bot:8001']
+      - targets: ['bot:9101']
     metrics_path: '/metrics'
