@@ -154,7 +154,7 @@ async def on_message(message: discord.Message):
         return
 
     live_stats = bot.get_cog('LiveStats')
-    if live_stats:
+    if message.guild and live_stats:
         live_stats.count_message()
 
     # Track message stats

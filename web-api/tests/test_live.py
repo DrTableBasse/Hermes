@@ -46,7 +46,7 @@ def test_live_ok(client, fake_db, monkeypatch):
     assert body["messages_today"] == 321
     assert len(body["curve_24h"]) == 24
     assert body["curve_24h"][-1] == {"hour": now_hour.isoformat(), "online": 30}
-    assert body["curve_24h"][0]["online"] == 0
+    assert body["curve_24h"][0]["online"] is None  # heure sans relevé : pas de chiffre fictif
     datetime.fromisoformat(body["updated_at"])
 
 

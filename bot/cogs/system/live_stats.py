@@ -62,12 +62,14 @@ class LiveStats(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def snapshot_task(self):
-        guild = self._guild()
-        if not guild:
-            return
-        state = self.collect(guild)
-        messages = self.counter.take()
+        # Pas de relevé d'exception : une erreur hors réseau arrêterait la boucle définitivement.
+        messages = 0
         try:
+            guild = self._guild()
+            if not guild:
+                return
+            state = self.collect(guild)
+            messages = self.counter.take()
             await db_manager.execute(
                 "INSERT INTO guild_stats_snapshots (members, online, in_voice, messages) "
                 "VALUES ($1, $2, $3, $4)",
@@ -75,7 +77,7 @@ class LiveStats(commands.Cog):
             )
         except Exception:
             self.counter.give_back(messages)
-            raise
+            logger.exception("Relevé du serveur en échec")
 
     @snapshot_task.before_loop
     async def _before_snapshot(self):
@@ -83,9 +85,12 @@ class LiveStats(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def heartbeat_task(self):
-        await db_manager.execute(
-            "INSERT INTO bot_heartbeats VALUES (date_trunc('minute', NOW())) ON CONFLICT DO NOTHING"
-        )
+        try:
+            await db_manager.execute(
+                "INSERT INTO bot_heartbeats VALUES (date_trunc('minute', NOW())) ON CONFLICT DO NOTHING"
+            )
+        except Exception:
+            logger.exception("Battement de cœur en échec")
 
     @heartbeat_task.before_loop
     async def _before_heartbeat(self):
@@ -93,10 +98,13 @@ class LiveStats(commands.Cog):
 
     @tasks.loop(hours=24)
     async def purge_task(self):
-        await db_manager.execute(
-            "DELETE FROM guild_stats_snapshots WHERE taken_at < NOW() - INTERVAL '30 days'")
-        await db_manager.execute(
-            "DELETE FROM bot_heartbeats WHERE minute < NOW() - INTERVAL '30 days'")
+        try:
+            await db_manager.execute(
+                "DELETE FROM guild_stats_snapshots WHERE taken_at < NOW() - INTERVAL '30 days'")
+            await db_manager.execute(
+                "DELETE FROM bot_heartbeats WHERE minute < NOW() - INTERVAL '30 days'")
+        except Exception:
+            logger.exception("Purge des relevés en échec")
 
     @purge_task.before_loop
     async def _before_purge(self):

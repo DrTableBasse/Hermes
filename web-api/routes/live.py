@@ -21,7 +21,7 @@ def _hour_floor(moment: datetime) -> datetime:
 
 
 async def _curve_24h(now: datetime) -> list[dict]:
-    """24 points (moyenne horaire des connectés) ; une heure sans relevé vaut 0."""
+    """24 points (moyenne horaire des connectés) ; une heure sans relevé vaut ``None``."""
     last = _hour_floor(now)
     hours = [last - timedelta(hours=h) for h in range(23, -1, -1)]
     rows = await db.fetch(
@@ -30,7 +30,10 @@ async def _curve_24h(now: datetime) -> list[dict]:
         hours[0],
     )
     by_hour = {r["hour"].astimezone(timezone.utc): r["online"] for r in rows}
-    return [{"hour": h.isoformat(), "online": round(by_hour.get(h) or 0)} for h in hours]
+    return [
+        {"hour": h.isoformat(), "online": None if by_hour.get(h) is None else round(by_hour[h])}
+        for h in hours
+    ]
 
 
 async def _build_live():
