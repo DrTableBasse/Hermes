@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { hasLocale, NextIntlClientProvider } from "next-intl"
 import { routing } from "@/i18n/routing"
+import { fontVariables } from "../fonts"
 import "../globals.css"
 
 export const metadata: Metadata = {
@@ -19,8 +20,8 @@ export default async function LocaleLayout({
   if (!hasLocale(routing.locales, locale)) notFound()
 
   return (
-    <html lang={locale}>
-      <body className="min-h-screen bg-background text-foreground antialiased">
+    <html lang={locale} className={fontVariables}>
+      <body className="min-h-screen antialiased">
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>
     </html>
