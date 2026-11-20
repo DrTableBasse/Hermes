@@ -156,6 +156,12 @@ describe("fonctions nommées", () => {
     }
   })
 
+  it("refuse les segments « .. » et « . » sans appeler web-api", async () => {
+    await expect(getUserStats("..", "tok")).rejects.toThrow(/invalide/)
+    await expect(getUserPublicStats(".")).rejects.toThrow(/invalide/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("listTags déballe la clé tags", async () => {
     fetchMock.mockResolvedValue(reply(200, { tags: [{ id: 1, name: "Bot", slug: "bot", color: "#fff" }] }))
     await expect(listTags()).resolves.toHaveLength(1)

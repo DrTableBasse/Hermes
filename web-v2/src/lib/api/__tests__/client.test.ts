@@ -47,6 +47,12 @@ describe("client api", () => {
     expect(fetchMock.mock.calls[2][0]).toBe("/api/proxy/xp/a%2Fb")
   })
 
+  it("refuse les segments « .. » et vide sans appeler le proxy", () => {
+    expect(() => api.admin.getWarns("..")).toThrow(/invalide/)
+    expect(() => api.xp.get("")).toThrow(/invalide/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it("envoie les identifiants Discord en chaîne dans le corps JSON", async () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 200 }))
     await api.admin.kick({ user_id: "1234567890123456789", reason: "spam" })

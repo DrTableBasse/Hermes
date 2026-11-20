@@ -9,6 +9,15 @@ describe("seg", () => {
     expect(seg("é")).toBe("%C3%A9")
   })
 
+  it.each(["", ".", ".."])("refuse le segment %j (traversée ou vide)", (value) => {
+    expect(() => seg(value)).toThrow(/invalide/)
+  })
+
+  it("accepte les points au sein d'un segment", () => {
+    expect(seg("a.b")).toBe("a.b")
+    expect(seg("...")).toBe("...")
+  })
+
   it("accepte un nombre", () => {
     expect(seg(42)).toBe("42")
   })

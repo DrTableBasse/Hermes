@@ -2,7 +2,12 @@
 
 /** Segment de chemin variable : toujours encodé, pour qu'un identifiant ne puisse pas changer de route. */
 export function seg(value: string | number): string {
-  return encodeURIComponent(String(value))
+  const text = String(value)
+  // `.` et `..` ne contiennent rien à encoder, mais `fetch` les normalise : ils remonteraient d'un niveau.
+  if (text === "" || text === "." || text === "..") {
+    throw new Error(`Segment de chemin invalide : « ${text} »`)
+  }
+  return encodeURIComponent(text)
 }
 
 /** Chaîne de requête (`?a=1&b=2`) ; les valeurs `undefined` ou vides sont omises. */

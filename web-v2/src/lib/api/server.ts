@@ -104,8 +104,9 @@ export async function getGrades(): Promise<Grade[] | null> {
 
 export const getGames = () => apiGetOrNull<GamesResponse>("/games", { revalidate: 30 })
 
-export const getPage = (slug: string) =>
-  apiGetOrNull<SitePage>(`/pages/${seg(slug)}`, { revalidate: 300 })
+export async function getPage(slug: string): Promise<SitePage | null> {
+  return apiGetOrNull<SitePage>(`/pages/${seg(slug)}`, { revalidate: 300 })
+}
 
 export const getPublicSettings = () =>
   apiGetOrNull<PublicSettings>("/settings/public", { revalidate: 300 })
@@ -120,7 +121,7 @@ export async function listTags(): Promise<Tag[]> {
   return (await apiGet<{ tags: Tag[] }>("/tags")).tags
 }
 
-export function getArticle(slug: string, token?: string): Promise<Article> {
+export async function getArticle(slug: string, token?: string): Promise<Article> {
   return apiGet<Article>(`/articles/${seg(slug)}`, { token })
 }
 
@@ -130,11 +131,11 @@ export async function myArticles(token: string): Promise<Article[]> {
 
 // ── Utilisateurs ─────────────────────────────────────────────────────────────
 
-export function getUserStats(userId: string, token: string): Promise<UserStats> {
+export async function getUserStats(userId: string, token: string): Promise<UserStats> {
   return apiGet<UserStats>(`/users/${seg(userId)}/stats`, { token })
 }
 
-export function getUserPublicStats(userId: string): Promise<PublicUserStats> {
+export async function getUserPublicStats(userId: string): Promise<PublicUserStats> {
   return apiGet<PublicUserStats>(`/users/${seg(userId)}/public`)
 }
 
