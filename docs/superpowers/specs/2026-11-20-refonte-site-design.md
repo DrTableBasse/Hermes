@@ -163,10 +163,17 @@ découpage des grosses routes web-api, nettoyage des logiques d'achievements dup
   (`http://192.168.10.62:3002/api/auth/callback/discord`) ajoutée par le propriétaire. Le domaine
   n'intervient qu'à la bascule, où web-v2 reprend la configuration actuelle du port 3000.
 
+- **Tout se règle depuis le site** : salons, catégories, rôles, seuils et liens du bot passent dans une
+  table `bot_settings` éditée depuis l'admin (page Réglages) ; `.env` ne garde que secrets et
+  infrastructure, et sert seulement à amorcer la table au premier démarrage. Un salon réglé mais absent
+  est **créé par Hermes** quand une fonction en a besoin. Les contenus aussi sont éditables depuis
+  l'admin : liste des jeux (table `site_games`), règlement et mentions légales (`site_pages`), grades,
+  état-major, galerie.
+
 ### Choix du constructeur (validés ici, modifiables)
 - **better-auth** : ancien et nouveau site sont tous deux en 1.7.27 (montée faite le 2026-11-20),
   aucun risque de schéma divergent pendant la transition.
-- **Galerie** : salon configuré par variable d'environnement `GALLERY_CHANNEL_ID` ; validation par la
+- **Galerie** : salon réglé depuis l'admin (`gallery_channel`, créé par Hermes s'il manque) ; validation par la
   réaction ✅ d'un membre du staff ; images jpg/png/webp/gif ≤ 10 Mo (mêmes contrôles que
   `web-api/routes/media.py` : magic bytes, nom UUID) ; clips acceptés en lien YouTube, Twitch ou
   Medal ; retrait ou masquage depuis l'admin, et automatiquement si le message Discord est supprimé.
@@ -174,8 +181,8 @@ découpage des grosses routes web-api, nettoyage des logiques d'achievements dup
   en ligne, en vocal, messages), conservée 30 jours ; la courbe 24 h et le « messages du jour » en
   découlent. Disponibilité d'Hermes : enregistrement des battements dès maintenant ; tant que
   30 jours ne sont pas écoulés, la page affiche « depuis le JJ/MM » au lieu d'un chiffre inventé.
-- **Contacter via un ticket** : ouvre le formulaire de ticket existant pré-rempli avec la catégorie
-  « Contact staff » et le pseudo du membre visé.
+- **Contacter via un ticket** : le site n'a pas de formulaire de ticket (ils naissent dans Discord) ; le
+  bouton ouvre le salon du panneau de tickets (`ticket_panel_channel`, réglé depuis l'admin).
 - **Langue** : français seul au lancement, structure next-intl conservée pour ajouter l'anglais plus tard.
 - **Visuels officiels des jeux** : non bloquants pour la bascule ; emplacements stylés en attendant.
 - **Identifiants Discord en chaînes** : corrigé dans web-api pour toutes les routes consommées par web-v2.
