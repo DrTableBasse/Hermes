@@ -89,6 +89,16 @@ async def on_ready():
         console.print(f"[red]❌ DB: {e}[/red]")
         return
 
+    # Réglages du serveur : amorçage depuis l'environnement puis chargement (avant les cogs)
+    try:
+        from utils import settings
+        await settings.seed_from_env(guild)
+        await settings.load()
+        settings.start_refresh()
+        console.print("[green]✅ Réglages chargés[/green]")
+    except Exception as e:
+        console.print(f"[yellow]⚠️ Réglages: {e} (migration 013 appliquée ?)[/yellow]")
+
     # Sync members — reset is_member first so leavers are marked FALSE
     try:
         await guild.chunk(cache=True)

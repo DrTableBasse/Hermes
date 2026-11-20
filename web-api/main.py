@@ -14,7 +14,7 @@ load_dotenv()
 
 import database as db
 from routes import auth, users, leaderboard, articles, tags, media, admin
-from routes import xp, notifications, endorsements, activity, quests, comments, tickets
+from routes import xp, notifications, endorsements, activity, quests, comments, tickets, settings
 
 
 @asynccontextmanager
@@ -52,6 +52,7 @@ app.include_router(activity.router)
 app.include_router(quests.router)
 app.include_router(comments.router)
 app.include_router(tickets.router)
+app.include_router(settings.router)
 app.mount("/media", StaticFiles(directory="/app/media"), name="media")
 
 

@@ -552,3 +552,11 @@ CREATE TABLE IF NOT EXISTS admin_logs (
 CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_admin_logs_type    ON admin_logs(action_type);
 CREATE INDEX IF NOT EXISTS idx_admin_logs_actor   ON admin_logs(actor_id);
+
+-- ─── Réglages du serveur (migration 013) ──────────────────────
+CREATE TABLE IF NOT EXISTS bot_settings (
+    key         TEXT PRIMARY KEY,
+    value       TEXT,
+    updated_by  BIGINT,
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);

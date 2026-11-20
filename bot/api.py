@@ -284,6 +284,60 @@ async def toggle_command(req: CommandToggleRequest):
     return {"success": ok}
 
 
+# ── Discord & réglages ────────────────────────────────────────────────────────
+
+class EnsureChannelRequest(BaseModel):
+    key: str
+
+
+def _channel_kind(channel) -> str:
+    if isinstance(channel, discord.CategoryChannel):
+        return "category"
+    if isinstance(channel, discord.ForumChannel):
+        return "forum"
+    if isinstance(channel, discord.VoiceChannel):
+        return "voice"
+    return "text"
+
+
+@app.get("/discord/channels", dependencies=[Depends(_require_token)])
+async def discord_channels():
+    guild = _get_guild()
+    return {"channels": [
+        {"id": str(c.id), "name": c.name, "type": _channel_kind(c),
+         "category": c.category.name if getattr(c, "category", None) else None}
+        for c in sorted(guild.channels, key=lambda c: (c.position, c.id))
+    ]}
+
+
+@app.get("/discord/roles", dependencies=[Depends(_require_token)])
+async def discord_roles():
+    guild = _get_guild()
+    return {"roles": [
+        {"id": str(r.id), "name": r.name, "color": r.color.value}
+        for r in sorted(guild.roles, key=lambda r: -r.position) if not r.is_default()
+    ]}
+
+
+@app.post("/settings/reload", dependencies=[Depends(_require_token)])
+async def settings_reload():
+    from utils import settings
+    await settings.load()
+    return {"ok": True}
+
+
+@app.post("/settings/ensure-channel", dependencies=[Depends(_require_token)])
+@_handle_discord_errors
+async def settings_ensure_channel(req: EnsureChannelRequest):
+    from utils import settings
+    guild = _get_guild()
+    try:
+        channel = await settings.ensure_channel(guild, req.key)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return {"id": str(channel.id), "name": channel.name}
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 def run_api():
