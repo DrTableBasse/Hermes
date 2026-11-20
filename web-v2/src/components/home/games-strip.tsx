@@ -9,22 +9,11 @@ import { cn } from "@/lib/cn"
 import { formatNumber } from "@/lib/format"
 import { gameOfTheWeek } from "@/lib/games"
 
-/**
- * Accroches des jeux connus (ton de la maquette). La liste des jeux vient de l'API ; un jeu ajouté depuis
- * l'admin sans accroche prend le texte générique.
- */
-const TAGLINES: Record<string, string> = {
-  "war-dogs": "Le terrain de jeu préféré de l’état-major.",
-  dbd: "On survit ensemble, on meurt ensemble, on rigole toujours.",
-  lol: "Toxicité laissée au vestiaire. Promis.",
-  warframe: "Missions du jour en escouade, ninjas de l’espace compris.",
-  overwatch: "Le soutien, c’est un mode de vie.",
-  fortnite: "Dernier debout ? Généralement Chipolata.",
-  minecraft: "Une statue de saucisse vous attend au spawn.",
-}
-const DEFAULT_TAGLINE = "Un salon, des habitués et de quoi trouver des coéquipiers."
+/** Texte de repli d'un jeu sans accroche saisie dans l'admin : aucune affirmation vérifiable. */
+const DEFAULT_TAGLINE = "Des coéquipiers à trouver sur le Discord."
 
-const tagline = (g: Game) => TAGLINES[g.key] ?? DEFAULT_TAGLINE
+/** Accroche éditable (`site_games.tagline`), sinon le texte générique. */
+const tagline = (g: Game) => g.tagline ?? DEFAULT_TAGLINE
 
 const NUMBER_WORDS = ["Zéro", "Un", "Deux", "Trois", "Quatre", "Cinq", "Six", "Sept", "Huit", "Neuf", "Dix", "Onze", "Douze"]
 

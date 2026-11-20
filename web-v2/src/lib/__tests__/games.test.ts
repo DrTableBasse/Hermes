@@ -7,6 +7,7 @@ const game = (key: string): Game => ({
   name: key,
   color: "#9B6BFF",
   image: null,
+  tagline: null,
   players: null,
   forum_url: null,
 })

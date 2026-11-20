@@ -156,7 +156,8 @@ function VoiceMember({ name, color, grade, speaking }: { name: string; color: st
 }
 
 function Scene({ grades }: { grades: Grade[] | null }) {
-  // Scène d'illustration : personnages et niveaux inventés, la carte profil porte la pastille « Exemple ».
+  // Scène d'illustration : personnages, messages et niveaux inventés. Une pastille « Exemple » posée sur le
+  // cadre couvre toute la scène (et reste visible en mobile, où elle ouvre la pile).
   const profileLevel = 12
   const profileXp = 15_950
   const profileGrade = gradeForLevel(grades, profileLevel)
@@ -168,6 +169,11 @@ function Scene({ grades }: { grades: Grade[] | null }) {
       className="pointer-events-auto relative z-2 min-[1100px]:absolute min-[1100px]:inset-0 max-[1099px]:mt-12 max-[1099px]:grid max-[1099px]:max-w-[520px] max-[1099px]:gap-[18px]"
       data-testid="hero-scene"
     >
+      <span className={cn(onStage, "z-3 justify-self-start")} style={placed({ x: 1180, y: 96 })}>
+        <Chip example className="bg-bg/80">
+          Exemple
+        </Chip>
+      </span>
       <DiscordWindow
         title="Cantine des Généraux, vocal"
         icon={<Volume2 />}
@@ -220,9 +226,6 @@ function Scene({ grades }: { grades: Grade[] | null }) {
             <b className="font-display text-xl">Kéfir</b>
             {profileGrade && <GradeBadge grade={profileGrade} />}
           </div>
-          <Chip example className="ml-auto self-start">
-            Exemple
-          </Chip>
         </div>
         <XpBar ratio={xpProgress(profileXp).ratio} height={10} sausage label="Progression de Kéfir vers le niveau 13" />
         <p className="m-0 text-[13px] text-muted">

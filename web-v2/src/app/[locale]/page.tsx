@@ -1,8 +1,6 @@
 import { GamesStrip } from "@/components/home/games-strip"
 import { Hero } from "@/components/home/hero"
 import { LiveBarracks } from "@/components/home/live-barracks"
-import { Footer } from "@/components/layout/footer"
-import { Navbar } from "@/components/layout/navbar"
 import { getGames, getGrades, getLive, getLiveFeed, getPublicSettings } from "@/lib/api/server"
 
 export default async function HomePage() {
@@ -18,16 +16,11 @@ export default async function HomePage() {
   const gameList = games?.games ?? null
   const now = new Date()
 
-  // Navbar et pied de page montés ici tant que le layout ne les porte pas (/_kit monte les siens en démo).
   return (
-    <>
-      <Navbar inviteUrl={inviteUrl} />
-      <main>
-        <Hero live={live} grades={grades} gamesCount={gameList?.length ?? null} inviteUrl={inviteUrl} />
-        <LiveBarracks live={live} feed={feed} now={now} />
-        <GamesStrip games={gameList} now={now} inviteUrl={inviteUrl} />
-      </main>
-      <Footer ticketPanelUrl={settings?.ticket_panel_url ?? null} />
-    </>
+    <main>
+      <Hero live={live} grades={grades} gamesCount={gameList?.length ?? null} inviteUrl={inviteUrl} />
+      <LiveBarracks live={live} feed={feed} now={now} />
+      <GamesStrip games={gameList} now={now} inviteUrl={inviteUrl} />
+    </main>
   )
 }

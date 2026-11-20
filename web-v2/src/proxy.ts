@@ -22,5 +22,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next|_vercel|.*\\..*).*)"],
+  // `/_kit` (layout racine à part, hors `[locale]`) échappe aussi à next-intl, qui le réécrirait en `/fr/_kit`.
+  matcher: ["/((?!api|_next|_vercel|_kit$|_kit/|.*\\..*).*)"],
 }

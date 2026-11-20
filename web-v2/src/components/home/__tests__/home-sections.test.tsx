@@ -70,6 +70,7 @@ const game = (key: string, name: string, extra: Partial<Game> = {}): Game => ({
   name,
   color: "#ED4245",
   image: null,
+  tagline: null,
   players: null,
   forum_url: null,
   ...extra,
@@ -77,7 +78,11 @@ const game = (key: string, name: string, extra: Partial<Game> = {}): Game => ({
 
 const GAMES: Game[] = [
   game("war-dogs", "War Dogs"),
-  game("dbd", "Dead by Daylight", { players: 48, forum_url: "https://discord.com/channels/1/2" }),
+  game("dbd", "Dead by Daylight", {
+    players: 48,
+    forum_url: "https://discord.com/channels/1/2",
+    tagline: "On survit ensemble, on meurt ensemble.",
+  }),
   game("lol", "League of Legends", { players: 1 }),
   game("warframe", "Warframe", { players: 0 }),
   game("overwatch", "Overwatch", { image: "/media/overwatch.webp" }),
@@ -117,7 +122,10 @@ describe("Hero", () => {
     expect(within(scene).getByText("BOT")).toBeTruthy()
     // Les grades de la scène viennent de la table, pas d'un texte en dur.
     expect(within(scene).getByText(/Andouillette passe Caporal Chipolata \(niveau 5\)/)).toBeTruthy()
-    expect(within(scene).getByText("Exemple")).toBeTruthy()
+    // Une seule pastille « Exemple », posée sur le cadre de la scène (et non sur une seule carte).
+    const label = within(scene).getByText("Exemple")
+    expect(label.closest("[data-testid=hero-scene] > *")).toBe(scene.firstElementChild)
+    expect(within(scene.firstElementChild as HTMLElement).queryByText("Kéfir")).toBeNull()
     expect(within(scene).getByText(/Prochain grade : Lieutenant Toulouse/)).toBeTruthy()
     expect(within(scene).getByText("Série de 9 jours, cuisson parfaite")).toBeTruthy()
     expect(screen.getByTestId("hero-horizon")).toBeTruthy()
@@ -249,6 +257,14 @@ describe("GamesStrip", () => {
     expect(card("Warframe").textContent).toContain("Place libre")
     expect(card("War Dogs").textContent).not.toMatch(/Généra/)
     expect(within(card("War Dogs")).getByRole("link", { name: "Trouver des joueurs" }).getAttribute("href")).toBe(INVITE)
+  })
+
+  it("affiche l'accroche saisie dans l'admin, sinon un texte générique", () => {
+    render(<GamesStrip games={GAMES} now={NOW} inviteUrl={INVITE} />)
+    const marquee = screen.getByRole("region", { name: "Tous nos jeux" })
+    const card = (name: string) => within(marquee).getByRole("heading", { level: 4, name }).closest("article")!
+    expect(card("Dead by Daylight").textContent).toContain("On survit ensemble, on meurt ensemble.")
+    expect(card("War Dogs").textContent).toContain("Des coéquipiers à trouver sur le Discord.")
   })
 
   it("image absente : emplacement stylé à la couleur du jeu ; image fournie : elle est affichée", () => {

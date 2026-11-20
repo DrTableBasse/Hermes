@@ -201,6 +201,8 @@ export interface Game {
   name: string
   color: string
   image: string | null
+  /** Accroche saisie dans l'admin (120 caractères au plus) ; `null` : texte générique. */
+  tagline: string | null
   /** `null` : bot muet ou compteur invalide. */
   players: number | null
   forum_url: string | null
@@ -632,6 +634,7 @@ export interface GameInput {
   name: string
   color: string
   image?: string | null
+  tagline?: string | null
   discord_role_id?: Snowflake | null
   forum_channel_id?: Snowflake | null
   position?: number
