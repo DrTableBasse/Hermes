@@ -123,10 +123,13 @@ body {
     gap: 20px;
     padding-right: 20px;
   }
-  .marquee-pause:hover .marquee-track,
-  .marquee-pause:focus-within .marquee-track {
-    animation-play-state: paused;
-  }
+}
+
+/* Pause au survol et au focus : hors couche, sinon le raccourci `animation` de `animate-marquee`
+   (couche utilities, plus tardive) la remet à `running` (src/app/__tests__/globals-cascade.test.ts). */
+.marquee-pause:hover .marquee-track,
+.marquee-pause:focus-within .marquee-track {
+  animation-play-state: paused;
 }
 
 /* ---------- Mouvement réduit : tout s'arrête ---------- */
