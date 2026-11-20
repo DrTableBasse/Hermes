@@ -7,6 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from limiter import limiter
+from json_response import SnowflakeJSONResponse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,7 +24,7 @@ async def lifespan(app: FastAPI):
     await db.close_pool()
 
 
-app = FastAPI(title="Hermes Web API", lifespan=lifespan)
+app = FastAPI(title="Hermes Web API", lifespan=lifespan, default_response_class=SnowflakeJSONResponse)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
