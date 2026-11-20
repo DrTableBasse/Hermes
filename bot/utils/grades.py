@@ -54,6 +54,20 @@ def next_grade(level: Optional[int], grades: list[Grade]) -> Optional[Grade]:
     return None
 
 
+def progress(total_xp: Optional[int]) -> tuple[int, int, int, float]:
+    """``(niveau, plancher, palier suivant, ratio)`` pour un total d'XP.
+
+    Même formule que ``xp_manager`` (niveau = racine de xp/100) ; le plancher du
+    niveau 1 est 0 (règle du site, ``xpProgress``) ; ``ratio`` borné à [0, 1].
+    """
+    xp = max(int(total_xp or 0), 0)
+    level = max(1, int((xp / 100) ** 0.5))
+    floor = 0 if level == 1 else level * level * 100
+    nxt = (level + 1) * (level + 1) * 100
+    ratio = min(max((xp - floor) / (nxt - floor), 0.0), 1.0)
+    return level, floor, nxt, ratio
+
+
 async def load_grades(db) -> list[Grade]:
     """Grades en base triés par palier, cache 10 min ; repli codé en dur sans cache."""
     global _cache

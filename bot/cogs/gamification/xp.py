@@ -7,7 +7,7 @@ from discord.ext import commands, tasks
 from utils.database import xp_manager, db_manager, streak_manager, notification_manager, achievement_manager
 from utils import settings
 from utils.command_manager import command_enabled
-from utils.grades import grade_for_level, next_grade, load_grades, color_to_int
+from utils.grades import grade_for_level, next_grade, load_grades, color_to_int, progress
 from utils.embed_style import hermes_embed, leaderboard_embed, progress_bar, Colors
 
 logger = logging.getLogger(__name__)
@@ -107,10 +107,10 @@ class XPCog(commands.Cog):
             )
             return
 
-        level = data['current_level']
+        level = data['current_level'] or 1
         xp = data['total_xp']
-        next_xp = xp_manager.xp_for_level(level + 1)
-        bar = progress_bar(xp, next_xp)
+        _, _, next_xp, ratio = progress(xp)
+        bar = progress_bar(int(ratio * 100), 100)
 
         embed = hermes_embed(
             title=f"⚡  Niveau {level}  ─  {target.display_name}",
@@ -145,9 +145,8 @@ class XPCog(commands.Cog):
         grade = grade_for_level(level, grades)
         upcoming = next_grade(level, grades)
 
-        floor_xp = xp_manager.xp_for_level(level)
-        next_xp = xp_manager.xp_for_level(level + 1)
-        bar = progress_bar(xp - floor_xp, next_xp - floor_xp)
+        _, _, _, ratio = progress(xp)
+        bar = progress_bar(int(ratio * 100), 100)
 
         embed = hermes_embed(
             title=f"🥩  {grade['name']}  ─  {target.display_name}",

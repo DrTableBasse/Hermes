@@ -48,6 +48,27 @@ def test_next_grade():
     assert next_grade(45, GRADES) is None
 
 
+def test_progress_zero_xp():
+    level, floor, nxt, ratio = grades.progress(0)
+    assert (level, floor, nxt, ratio) == (1, 0, 400, 0.0)
+
+
+def test_progress_end_of_level_one():
+    level, floor, nxt, ratio = grades.progress(399)
+    assert level == 1 and floor == 0 and 0 < ratio < 1
+
+
+def test_progress_level_boundary():
+    assert grades.progress(900) == (3, 900, 1600, 0.0)
+
+
+def test_progress_ratio_bounded_and_null_safe():
+    assert grades.progress(None)[3] == 0.0
+    assert grades.progress(-50)[3] == 0.0
+    for xp in (0, 99, 100, 399, 400, 5000, 10**7):
+        assert 0.0 <= grades.progress(xp)[3] <= 1.0
+
+
 def test_load_grades_reads_and_caches():
     db = FakeDb([{"level_min": 1, "name": "X", "slug": "x", "color": "#000000"}])
     assert [g["slug"] for g in asyncio.run(load_grades(db))] == ["x"]
