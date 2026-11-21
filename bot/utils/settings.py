@@ -11,6 +11,7 @@ from typing import Optional
 import discord
 from discord.ext import tasks
 
+from utils.role_ref import role_ref
 from utils.settings_backoff import CreationBackoff
 from utils.settings_registry import SETTINGS, needs_channel_creation
 
@@ -52,18 +53,25 @@ def get_int(key: str, default: Optional[int] = None) -> Optional[int]:
 
 
 def get_role(guild: discord.Guild, key: str) -> Optional[discord.Role]:
-    """Rôle réglé (par identifiant) ; repli sur le nom par défaut du registre."""
-    value = get(key)
-    if value is None:
-        return None
-    if value.isdigit():
-        role = guild.get_role(int(value))
-        if role is not None:
-            return role
+    """Rôle réglé, par identifiant seulement ; repli sur le nom du registre si la ligne est absente.
+
+    Un réglage renseigné qui ne résout plus (rôle supprimé ou recréé) donne ``None`` :
+    aucun rôle homonyme ne reprend ses droits (règle de ``utils.role_ref``).
+    """
     definition = SETTINGS.get(key)
-    if definition and definition.default and not definition.default.isdigit():
-        return discord.utils.get(guild.roles, name=definition.default)
-    return None
+    stored = _cache.get(key)
+    ref = role_ref(stored, definition.default if definition else None)
+    if ref is None:
+        if stored:
+            logger.warning("Réglage %s invalide (%r) : aucun rôle retenu", key, stored)
+        return None
+    kind, target = ref
+    if kind == "id":
+        role = guild.get_role(target)
+        if role is None and stored:
+            logger.warning("Réglage %s : le rôle %s n'existe plus, aucun rôle retenu", key, target)
+        return role
+    return discord.utils.get(guild.roles, name=target)
 
 
 # ── Chargement ────────────────────────────────────────────────────────────────
