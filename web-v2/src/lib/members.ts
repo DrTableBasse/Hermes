@@ -133,27 +133,6 @@ export function gradeForLevel(level: number, grades: Grade[] | null): PublicGrad
 
 // ── Succès ───────────────────────────────────────────────────────────────────
 
-export interface Tier {
-  label: "Légendaire" | "Épique" | "Rare" | "Commun"
-  icon: string
-  color: string
-}
-
-export const TIERS: Tier[] = [
-  { label: "Légendaire", icon: "⭐", color: "var(--color-gold)" },
-  { label: "Épique", icon: "💎", color: "var(--color-violet)" },
-  { label: "Rare", icon: "🔶", color: "var(--color-orange)" },
-  { label: "Commun", icon: "⚪", color: "var(--color-muted)" },
-]
-
-/** Palier d'un succès selon ses points (100 / 50 / 25). */
-export function tierOf(points: number): Tier {
-  if (points >= 100) return TIERS[0]
-  if (points >= 50) return TIERS[1]
-  if (points >= 25) return TIERS[2]
-  return TIERS[3]
-}
-
 const CATEGORY: Record<string, string> = {
   messages: "Messages",
   voice_hours: "Vocal",

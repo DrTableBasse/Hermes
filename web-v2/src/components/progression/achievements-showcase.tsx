@@ -3,32 +3,9 @@ import { Panel } from "@/components/ui/panel"
 import type { AchievementCatalog } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
 import { formatNumber } from "@/lib/format"
+import { RARITIES, rarityOf, shareText } from "@/lib/rarity"
 
-export type Rarity = { slug: string; label: string; color: string }
-
-// Rareté réelle : part des membres actifs qui ont débloqué le succès (`/achievements`).
-const RARITIES: Array<Rarity & { below: number }> = [
-  { slug: "legendaire", label: "Légendaire", color: "var(--color-orange)", below: 0.01 },
-  { slug: "epique", label: "Épique", color: "var(--color-violet)", below: 0.05 },
-  { slug: "rare", label: "Rare", color: "var(--color-blue)", below: 0.2 },
-  { slug: "commun", label: "Commun", color: "var(--color-muted)", below: Infinity },
-]
-
-/** Rareté d'après la part `share` (0 à 1) des membres qui ont le succès. */
-export function rarityOf(share: number): Rarity {
-  const { slug, label, color } = RARITIES.find(r => share < r.below) ?? RARITIES[RARITIES.length - 1]
-  return { slug, label, color }
-}
-
-const pct = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 })
-
-/** « débloqué par 3 % des membres » ; une part non nulle mais minuscule ne s'affiche jamais « 0 % ». */
-export function shareText(count: number, share: number): string {
-  if (count === 0) return "encore jamais débloqué"
-  const percent = share * 100
-  if (percent < 0.1) return "débloqué par moins de 0,1 % des membres"
-  return `débloqué par ${pct.format(percent < 1 ? percent : Math.round(percent))} % des membres`
-}
+export { rarityOf, shareText, type Rarity } from "@/lib/rarity"
 
 type ShowcaseProps = {
   /** Catalogue `/achievements` ; `null` (API muette), vide ou sans membre → section masquée. */

@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   getUserPublicStats: vi.fn(),
   getUserActivity: vi.fn(),
   getUserAchievementsAll: vi.fn(),
+  getAchievementCatalog: vi.fn(),
 }))
 vi.mock("@/lib/api/server", () => api)
 
@@ -40,7 +41,17 @@ const PUBLIC = {
 
 const run = (userId: string) => PublicProfilePage({ params: Promise.resolve({ userId }) }).then(render)
 
+// Rareté réelle : « Bavard » (100 pts) est débloqué par 60 % des membres → Commun, pas Légendaire.
+const CATALOG = {
+  members_total: 10,
+  achievements: [
+    { ...ACH, condition_type: "messages", unlocked_count: 6 },
+    { id: 2, name: "Noctambule", description: "vocal de nuit", icon: "🌙", points: 25, condition_type: "voice_night_minutes", unlocked_count: 0 },
+  ],
+}
+
 beforeEach(() => {
+  api.getAchievementCatalog.mockResolvedValue(CATALOG)
   api.getUserPublicStats.mockResolvedValue(PUBLIC)
   api.getUserActivity.mockResolvedValue([{ date: "2026-11-01", count: 4 }])
   api.getUserAchievementsAll.mockResolvedValue([
@@ -54,7 +65,7 @@ afterEach(() => {
 })
 
 describe("page /u/[userId]", () => {
-  it("profil complet : nom, pseudo, grade, niveau, statistiques, activité, réputation, succès", async () => {
+  it("profil complet : nom, pseudo, grade, niveau, statistiques, activité, raretés, succès", async () => {
     await run("123")
     expect(screen.getByRole("heading", { level: 1, name: "Kéfir" })).toBeTruthy()
     expect(screen.getByText("@kefir")).toBeTruthy()
@@ -63,9 +74,27 @@ describe("page /u/[userId]", () => {
     expect(screen.getByText("1h 0m")).toBeTruthy()
     expect(screen.getByText("4 j")).toBeTruthy()
     expect(screen.getByRole("figure", { name: /Activité/ })).toBeTruthy()
-    expect(screen.getByText(/1 Légendaire/)).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Raretés des succès" })).toBeTruthy()
+    expect(screen.getByText("1 Commun")).toBeTruthy()
+    expect(screen.queryByText("1 Légendaire")).toBeNull() // ancien palier par points (100 pts)
+    expect(screen.queryByRole("heading", { name: "Réputation" })).toBeNull()
     expect(screen.getByText(/1 sur 2 débloqués/)).toBeTruthy()
     expect(api.getUserPublicStats).toHaveBeenCalledWith("123")
+  })
+
+  it("rareté réelle : même étiquette que /progression, par succès", async () => {
+    await run("123")
+    // Noctambule (0 %) est Légendaire, Bavard (60 %) Commun, quels que soient leurs points.
+    expect(screen.getAllByText("Commun").length).toBeGreaterThan(0)
+    expect(screen.getByText("Légendaire")).toBeTruthy()
+  })
+
+  it("catalogue muet : ni section de raretés, ni étiquette inventée", async () => {
+    api.getAchievementCatalog.mockResolvedValue(null)
+    await run("123")
+    expect(screen.queryByRole("heading", { name: "Raretés des succès" })).toBeNull()
+    expect(screen.queryByText(/Légendaire|Épique|Commun/)).toBeNull()
+    expect(screen.getByText(/1 sur 2 débloqués/)).toBeTruthy()
   })
 
   it("détail des succès indisponible : retombe sur les succès débloqués du profil", async () => {

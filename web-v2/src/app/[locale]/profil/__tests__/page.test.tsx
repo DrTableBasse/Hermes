@@ -14,6 +14,7 @@ const api = vi.hoisted(() => ({
   getUserStats: vi.fn(),
   getXp: vi.fn(),
   getUserAchievementsAll: vi.fn(),
+  getAchievementCatalog: vi.fn(),
 }))
 vi.mock("@/lib/api/server", () => api)
 vi.mock("@/lib/api/client", () => ({ api: { staff: { updateMyProfile: vi.fn() } }, ApiError: class extends Error {} }))
@@ -64,6 +65,10 @@ beforeEach(() => {
     current_level: 14,
     grade: { name: "Caporal Saucisse", slug: "caporal", color: "#E8B86B" },
   })
+  api.getAchievementCatalog.mockResolvedValue({
+    members_total: 4,
+    achievements: [{ id: 1, name: "Premier cri", description: "Un message", icon: "🏅", points: 10, condition_type: "messages", unlocked_count: 0 }],
+  })
   api.getUserAchievementsAll.mockResolvedValue([
     { id: 1, name: "Premier cri", description: "Un message", icon: "🏅", points: 10, condition_type: "messages", unlocked: true, unlocked_at: "2026-11-01T10:00:00Z" },
   ])
@@ -107,6 +112,8 @@ describe("page /profil", () => {
     expect(screen.getByText(/×1\.2 XP · record 20 j/)).toBeTruthy()
     expect(screen.getByText("Envoie un message")).toBeTruthy()
     expect(screen.getByText("Premier cri")).toBeTruthy()
+    // Rareté réelle (0 % des membres → Légendaire), plus le palier de points (10 pts → Commun).
+    expect(screen.getByText("Légendaire")).toBeTruthy()
     expect(api.getUserStats).toHaveBeenCalledWith("100", "tok")
     expect(api.getXp).toHaveBeenCalledWith("100", "tok")
     expect(screen.getByRole("link", { name: "Voir mon profil public" }).getAttribute("href")).toBe("/u/100")

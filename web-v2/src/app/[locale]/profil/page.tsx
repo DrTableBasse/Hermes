@@ -9,6 +9,7 @@ import { Panel } from "@/components/ui/panel"
 import { SectionHeading } from "@/components/ui/section-heading"
 import { XpBar } from "@/components/ui/xp-bar"
 import {
+  getAchievementCatalog,
   getGames,
   getSessionUser,
   getStaff,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/api/server"
 import type { UserStats, XpData } from "@/lib/api/types"
 import { formatDate, formatNumber, xpProgress } from "@/lib/format"
+import { raritiesById } from "@/lib/rarity"
 import { sessionToken } from "@/lib/session"
 
 export const metadata: Metadata = {
@@ -126,14 +128,15 @@ export default async function ProfilePage() {
     ? await Promise.all([getSessionUser(token), getStaff(token), getGames()])
     : [null, null, null]
   // Données personnelles : lues avec la session, jamais en cache. Chaque bloc tolère son échec.
-  const [stats, xp, achievements] =
+  const [stats, xp, achievements, catalog] =
     token && me
       ? await Promise.all([
           getUserStats(me.user_id, token).catch(() => null),
           getXp(me.user_id, token).catch(() => null),
           getUserAchievementsAll(me.user_id).catch(() => null),
+          getAchievementCatalog(),
         ])
-      : [null, null, null]
+      : [null, null, null, null]
   const mine = me && staff ? staff.staff.find(m => m.id === me.user_id) : undefined
 
   return (
@@ -153,7 +156,7 @@ export default async function ProfilePage() {
           <section aria-labelledby="achievements-title" className="mt-10">
             <SectionHeading as="h2" id="achievements-title" title="Tes succès" className="[&_h2]:text-3xl" />
             <div className="mt-5">
-              <AchievementsPanel achievements={achievements} />
+              <AchievementsPanel achievements={achievements} rarities={raritiesById(catalog)} />
             </div>
           </section>
         )}

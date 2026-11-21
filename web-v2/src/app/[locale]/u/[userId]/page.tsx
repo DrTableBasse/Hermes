@@ -7,10 +7,11 @@ import { Chip } from "@/components/ui/chip"
 import { GradeBadge } from "@/components/ui/grade-badge"
 import { Panel } from "@/components/ui/panel"
 import { SectionHeading } from "@/components/ui/section-heading"
-import { getUserAchievementsAll, getUserActivity, getUserPublicStats } from "@/lib/api/server"
+import { getAchievementCatalog, getUserAchievementsAll, getUserActivity, getUserPublicStats } from "@/lib/api/server"
 import type { AchievementWithStatus, PublicUserStats } from "@/lib/api/types"
 import { formatNumber } from "@/lib/format"
-import { isSnowflake, isUnknownMember, TIERS, tierOf } from "@/lib/members"
+import { isSnowflake, isUnknownMember } from "@/lib/members"
+import { RARITIES, raritiesById } from "@/lib/rarity"
 
 type Props = { params: Promise<{ userId: string }> }
 
@@ -38,10 +39,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PublicProfilePage({ params }: Props) {
   const { userId } = await params
-  const [user, activity, allAchievements] = await Promise.all([
+  const [user, activity, allAchievements, catalog] = await Promise.all([
     loadUser(userId),
     isSnowflake(userId) ? getUserActivity(userId).catch(() => []) : Promise.resolve([]),
     isSnowflake(userId) ? getUserAchievementsAll(userId).catch(() => null) : Promise.resolve(null),
+    isSnowflake(userId) ? getAchievementCatalog() : Promise.resolve(null),
   ])
 
   if (user === null) notFound()
@@ -72,10 +74,12 @@ export default async function PublicProfilePage({ params }: Props) {
   const achievements: AchievementWithStatus[] =
     allAchievements ?? user.achievements.map(a => ({ ...a, condition_type: "", unlocked: true }))
 
-  const tierCounts = TIERS.map(t => ({
-    tier: t,
-    count: user.achievements.filter(a => tierOf(a.points).label === t.label).length,
-  })).filter(t => t.count > 0)
+  // Rareté réelle (part des membres, comme `/progression`) ; catalogue muet → section masquée.
+  const rarities = raritiesById(catalog)
+  const rarityCounts = RARITIES.map(r => ({
+    rarity: r,
+    count: user.achievements.filter(a => rarities[a.id]?.slug === r.slug).length,
+  })).filter(r => r.count > 0)
 
   return (
     <main className="relative pt-10 pb-24">
@@ -113,14 +117,20 @@ export default async function PublicProfilePage({ params }: Props) {
           </section>
         )}
 
-        {tierCounts.length > 0 && (
-          <section aria-labelledby="reputation-title" className="mt-10">
-            <SectionHeading as="h2" id="reputation-title" title="Réputation" className="[&_h2]:text-3xl" />
+        {rarityCounts.length > 0 && (
+          <section aria-labelledby="rarity-title" className="mt-10">
+            <SectionHeading
+              as="h2"
+              id="rarity-title"
+              title="Raretés des succès"
+              sub="D’après la part des membres qui ont débloqué chaque succès."
+              className="[&_h2]:text-3xl"
+            />
             <ul className="m-0 mt-5 flex list-none flex-wrap gap-2 p-0">
-              {tierCounts.map(({ tier, count }) => (
-                <li key={tier.label}>
-                  <Chip color={tier.color}>
-                    {tier.icon} {count} {tier.label}
+              {rarityCounts.map(({ rarity, count }) => (
+                <li key={rarity.slug}>
+                  <Chip color={rarity.color}>
+                    {count} {rarity.label}
                   </Chip>
                 </li>
               ))}
@@ -132,7 +142,7 @@ export default async function PublicProfilePage({ params }: Props) {
           <section aria-labelledby="achievements-title" className="mt-10">
             <SectionHeading as="h2" id="achievements-title" title="Succès" className="[&_h2]:text-3xl" />
             <div className="mt-5">
-              <AchievementsPanel achievements={achievements} />
+              <AchievementsPanel achievements={achievements} rarities={rarities} />
             </div>
           </section>
         )}

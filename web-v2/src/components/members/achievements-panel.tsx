@@ -5,13 +5,20 @@ import { Chip } from "@/components/ui/chip"
 import type { AchievementWithStatus } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
 import { formatDate } from "@/lib/format"
-import { achievementCategory, tierOf } from "@/lib/members"
+import { achievementCategory } from "@/lib/members"
+import type { RarityById } from "@/lib/rarity"
 
 const PER_PAGE = 12
 const ALL = "Tous"
 
+type Props = {
+  achievements: AchievementWithStatus[]
+  /** Rareté réelle (`/achievements`) ; un succès absent n'affiche pas d'étiquette de rareté. */
+  rarities?: RarityById
+}
+
 /** Succès d'un membre : filtre par catégorie, pagination, succès manquants grisés. */
-export function AchievementsPanel({ achievements }: { achievements: AchievementWithStatus[] }) {
+export function AchievementsPanel({ achievements, rarities = {} }: Props) {
   const [category, setCategory] = useState(ALL)
   const [page, setPage] = useState(1)
 
@@ -61,7 +68,7 @@ export function AchievementsPanel({ achievements }: { achievements: AchievementW
       ) : (
         <ul className="m-0 mb-6 grid list-none grid-cols-2 gap-3 p-0 max-[700px]:grid-cols-[minmax(0,1fr)]">
           {items.map(a => {
-            const tier = tierOf(a.points)
+            const rarity = rarities[a.id]
             return (
               <li
                 key={a.id}
@@ -82,9 +89,7 @@ export function AchievementsPanel({ achievements }: { achievements: AchievementW
                   </p>
                   <p className="mt-0.5 mb-0 text-sm text-muted">{a.description}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Chip color={tier.color}>
-                      {tier.icon} {tier.label}
-                    </Chip>
+                    {rarity && <Chip color={rarity.color}>{rarity.label}</Chip>}
                     <span className="text-xs font-medium text-cyan">+{a.points} pts</span>
                     {a.unlocked && a.unlocked_at && (
                       <span className="text-xs text-muted">{formatDate(a.unlocked_at)}</span>

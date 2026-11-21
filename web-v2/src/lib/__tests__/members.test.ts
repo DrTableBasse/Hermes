@@ -9,7 +9,6 @@ import {
   pageWindow,
   parsePage,
   parseTab,
-  tierOf,
   toRankRows,
 } from "@/lib/members"
 
@@ -73,12 +72,6 @@ describe("gradeForLevel", () => {
 })
 
 describe("succès", () => {
-  it("paliers aux seuils 25 / 50 / 100", () => {
-    expect(tierOf(24).label).toBe("Commun")
-    expect(tierOf(25).label).toBe("Rare")
-    expect(tierOf(50).label).toBe("Épique")
-    expect(tierOf(100).label).toBe("Légendaire")
-  })
   it("catégorie inconnue → Divers", () => {
     expect(achievementCategory("voice_hours")).toBe("Vocal")
     expect(achievementCategory("???")).toBe("Divers")
