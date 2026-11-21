@@ -2,6 +2,16 @@ import "server-only"
 
 import type {
   AchievementCatalog,
+  ActiveQuest,
+  AdminGalleryItem,
+  AdminGame,
+  AdminStats,
+  AnalyticsData,
+  CommandsResponse,
+  DiscordChannel,
+  DiscordRole,
+  QuestTemplate,
+  SettingsResponse,
   AchievementEntry,
   AchievementWithStatus,
   ActivityDay,
@@ -240,4 +250,55 @@ export function searchUserByUsername(queryText: string): Promise<LbPage<Messages
 export async function leaderboardXpWeekly(limit = 10): Promise<XpEntry[]> {
   return (await apiGet<{ leaderboard: XpEntry[] }>(`/xp/leaderboard${query({ period: "weekly", limit })}`))
     .leaderboard
+}
+
+// ── Administration (session admin ; avec un jeton, jamais de cache Next) ─────
+
+export const getAdminStats = (token: string) => apiGetOrNull<AdminStats>("/admin/stats", { token })
+
+export const getAdminCommands = (token: string) => apiGetOrNull<CommandsResponse>("/admin/commands", { token })
+
+export const getAdminSettings = (token: string) => apiGetOrNull<SettingsResponse>("/admin/settings", { token })
+
+/** Salons du serveur ; `null` : bot injoignable (502) ou accès refusé. */
+export async function getDiscordChannels(token: string): Promise<DiscordChannel[] | null> {
+  const data = await apiGetOrNull<{ channels: DiscordChannel[] }>("/admin/discord/channels", { token })
+  return data ? data.channels : null
+}
+
+export async function getDiscordRoles(token: string): Promise<DiscordRole[] | null> {
+  const data = await apiGetOrNull<{ roles: DiscordRole[] }>("/admin/discord/roles", { token })
+  return data ? data.roles : null
+}
+
+export async function getAdminGames(token: string): Promise<AdminGame[] | null> {
+  const data = await apiGetOrNull<{ games: AdminGame[] }>("/admin/games", { token })
+  return data ? data.games : null
+}
+
+export async function getAdminGallery(token: string): Promise<AdminGalleryItem[] | null> {
+  const data = await apiGetOrNull<{ items: AdminGalleryItem[] }>("/admin/gallery", { token })
+  return data ? data.items : null
+}
+
+export async function getQuestTemplates(token: string): Promise<QuestTemplate[] | null> {
+  const data = await apiGetOrNull<{ templates: QuestTemplate[] }>("/admin/quest-templates", { token })
+  return data ? data.templates : null
+}
+
+export async function getActiveQuests(token: string): Promise<ActiveQuest[] | null> {
+  const data = await apiGetOrNull<{ quests: ActiveQuest[] }>("/admin/quests/active", { token })
+  return data ? data.quests : null
+}
+
+export const getAnalytics = (token: string) => apiGetOrNull<AnalyticsData>("/admin/analytics", { token })
+
+/** Page Markdown lue fraîche pour l'éditeur (le texte public est mis en cache cinq minutes). */
+export const getPageFresh = (slug: string, token: string) =>
+  apiGetOrNull<SitePage>(`/pages/${seg(slug)}`, { token })
+
+/** Grades lus frais pour l'éditeur ; `null` en cas d'échec. */
+export async function getGradesFresh(token: string): Promise<Grade[] | null> {
+  const data = await apiGetOrNull<GradesResponse>("/grades", { token })
+  return data ? data.grades : null
 }

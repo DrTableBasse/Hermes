@@ -3,7 +3,11 @@
  * vers web-api (réseau Docker interne) en transmettant le cookie de session.
  */
 import type {
+  ActiveQuest,
   AdminLogPage,
+  CreatedChannel,
+  QuestDeployResult,
+  SettingPutResult,
   AdminStats,
   AdminWarn,
   ActivityDay,
@@ -134,6 +138,12 @@ export const api = {
       request<AdminLogPage>(`/admin/logs${query({ page, action_type: actionTypes?.join(",") })}`),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
     settings: () => request<SettingsResponse>("/admin/settings"),
+    putSetting: (key: string, value: string) =>
+      request<SettingPutResult>(`/admin/settings/${seg(key)}`, send("PUT", { value })),
+    createSettingChannel: (key: string) =>
+      request<CreatedChannel>(`/admin/settings/${seg(key)}/create-channel`, send("POST")),
+    activeQuests: () => request<{ quests: ActiveQuest[] }>("/admin/quests/active"),
+    deployQuests: (count: number) => request<QuestDeployResult>("/admin/quests/deploy", send("POST", { count })),
     questTemplates: () => request<{ templates: QuestTemplate[] }>("/admin/quest-templates"),
     createQuestTemplate: (data: QuestTemplateInput) =>
       request<QuestTemplate>("/admin/quest-templates", send("POST", data)),

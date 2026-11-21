@@ -698,3 +698,91 @@ export interface SettingsResponse {
 export interface Ok {
   ok: boolean
 }
+
+// ── Administration : lectures propres aux sous-pages ─────────────────────────
+
+/** `GET /admin/commands` : état de chaque commande slash et sa description Discord. */
+export interface CommandsResponse {
+  commands: Record<string, boolean>
+  descriptions?: Record<string, string>
+}
+
+export type DiscordChannelType = "text" | "forum" | "voice" | "category"
+
+/** `GET /admin/discord/channels` (salons et catégories du serveur, dans l'ordre Discord). */
+export interface DiscordChannel {
+  id: Snowflake
+  name: string
+  type: DiscordChannelType
+  /** Catégorie parente ; `null` à la racine ou pour une catégorie. */
+  category: string | null
+}
+
+/** `GET /admin/discord/roles` (sans @everyone, du plus haut au plus bas). */
+export interface DiscordRole {
+  id: Snowflake
+  name: string
+  /** Couleur Discord en entier (0 : pas de couleur). */
+  color: number
+}
+
+/** `PUT /admin/settings/{key}` ; `value` vide : réglage effacé, le défaut s'applique. */
+export interface SettingPutResult {
+  key: string
+  value: string
+  bot_reloaded: boolean
+}
+
+/** `POST /admin/settings/{key}/create-channel` : le salon réglé (créé s'il manquait). */
+export interface CreatedChannel {
+  id: Snowflake
+  name: string
+}
+
+/** `GET /admin/games` : tous les jeux, désactivés compris, avec leurs champs éditables. */
+export interface AdminGame {
+  key: string
+  name: string
+  color: string
+  image: string | null
+  tagline: string | null
+  discord_role_id: Snowflake | null
+  forum_channel_id: Snowflake | null
+  position: number
+  active: boolean
+}
+
+/** `GET /admin/gallery` : élément de galerie avec son état de modération. */
+export interface AdminGalleryItem extends GalleryItem {
+  hidden: boolean
+}
+
+/** `GET /admin/quests/active` : quête de la semaine et sa participation. */
+export interface ActiveQuest {
+  id: number
+  title: string
+  description: string | null
+  quest_type: string
+  target_value: number
+  xp_reward: number
+  icon: string
+  week_start: string
+  week_end: string
+  participant_count: number
+  completed_count: number
+}
+
+export interface QuestDeployResult {
+  deployed: number
+  week_start: string
+  week_end: string
+}
+
+/** `GET /admin/analytics`. */
+export interface AnalyticsData {
+  actions_14d: Array<{ date: string; label: string; warn: number; kick: number; ban: number; timeout: number }>
+  level_distribution: Array<{ level_range: string; count: number }>
+  quest_completion: Array<{ title: string; participants: number; completed: number; rate: number }>
+  top_xp_weekly: Array<{ username: string; weekly_xp: number }>
+  summary: { active_members: number; total_messages: number; warns_30d: number; quests_done_7d: number }
+}
