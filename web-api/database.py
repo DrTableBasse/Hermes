@@ -5,6 +5,12 @@ from typing import Any, Dict, List, Optional
 
 _pool: Optional[asyncpg.Pool] = None
 
+# Budget de temps : une base saturée doit faire échouer vite (le site affiche alors ses
+# sections dégradées) plutôt que suspendre chaque requête. Connexion et attente d'une
+# connexion libre : 5 s ; requête : 10 s.
+POOL_TIMEOUT_S = 5
+COMMAND_TIMEOUT_S = 10
+
 
 async def init_pool():
     global _pool
@@ -16,6 +22,8 @@ async def init_pool():
         password=os.getenv('PG_PASSWORD'),
         min_size=2,
         max_size=10,
+        timeout=POOL_TIMEOUT_S,
+        command_timeout=COMMAND_TIMEOUT_S,
     )
 
 
@@ -26,7 +34,7 @@ async def close_pool():
 
 @asynccontextmanager
 async def get_conn():
-    conn = await _pool.acquire()
+    conn = await _pool.acquire(timeout=POOL_TIMEOUT_S)
     try:
         yield conn
     finally:
