@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   achievementCategory,
+  firstParam,
   gradeForLevel,
   isSnowflake,
   isUnknownMember,
@@ -17,6 +18,15 @@ const GRADES = [
   { name: "Recrue", slug: "recrue", color: "#9A97B8", level_min: 1 },
   { name: "Caporal", slug: "caporal", color: "#3BD16F", level_min: 3 },
 ]
+
+describe("firstParam", () => {
+  it("première valeur d'un paramètre répété", () => {
+    expect(firstParam("a")).toBe("a")
+    expect(firstParam(["a", "b"])).toBe("a")
+    expect(firstParam([])).toBeUndefined()
+    expect(firstParam(undefined)).toBeUndefined()
+  })
+})
 
 describe("parseTab / parsePage", () => {
   it("onglet inconnu ou absent → vocal", () => {

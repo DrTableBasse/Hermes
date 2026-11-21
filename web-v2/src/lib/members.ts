@@ -16,6 +16,11 @@ export const RANK_TAB_LABELS: Record<RankTab, string> = {
   streaks: "Séries",
 }
 
+/** Paramètre d'URL : Next fournit `string | string[]` (`?q=a&q=b`) ; on garde la première valeur. */
+export function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value
+}
+
 /** Onglet demandé dans l'URL ; toute valeur inconnue retombe sur le vocal, comme l'ancien site. */
 export function parseTab(raw: string | undefined): RankTab {
   return RANK_TABS.find(t => t === raw) ?? "voice"

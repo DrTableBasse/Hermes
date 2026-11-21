@@ -87,6 +87,14 @@ describe("page /classement", () => {
     expect(screen.getByText(/25 résultats/)).toBeTruthy()
   })
 
+  it("paramètres répétés (?q=a&q=b) : première valeur, pas de 500", async () => {
+    await ClassementPage({
+      searchParams: Promise.resolve({ tab: ["levels", "voice"], q: ["a", "b"], page: ["2", "3"], hl: ["5", "6"] }),
+    }).then(render)
+    expect(api.leaderboardLevels).toHaveBeenCalledWith(2, 10, "a")
+    expect(screen.getByText(/pour/).textContent).toContain("a")
+  })
+
   it("page 1 sans recherche : podium des 3 premiers, tableau à partir du 4e", async () => {
     await run({ tab: "levels" })
     expect(within(screen.getByRole("list", { name: "Podium" })).getAllByRole("listitem")).toHaveLength(3)

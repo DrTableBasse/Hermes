@@ -7,14 +7,15 @@ import { getUserPublicStats } from "@/lib/api/server"
 import type { PublicUserStats } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
 import { formatNumber } from "@/lib/format"
-import { isSnowflake, isUnknownMember } from "@/lib/members"
+import { firstParam, isSnowflake, isUnknownMember } from "@/lib/members"
 
 export const metadata: Metadata = {
   title: "Comparer des membres · SaucisseLand",
   description: "Deux membres face à face : niveau, XP, messages, vocal, succès, série et bumps.",
 }
 
-type Props = { searchParams: Promise<{ u1?: string; u2?: string }> }
+type Param = string | string[] | undefined
+type Props = { searchParams: Promise<{ u1?: Param; u2?: Param }> }
 
 type Loaded = { user: PublicUserStats } | { missing: true } | { down: true }
 
@@ -74,7 +75,9 @@ function Row({ label, v1, v2 }: { label: string; v1: number | string; v2: number
 }
 
 export default async function ComparePage({ searchParams }: Props) {
-  const { u1, u2 } = await searchParams
+  const sp = await searchParams
+  const u1 = firstParam(sp.u1)
+  const u2 = firstParam(sp.u2)
 
   if (!u1 || !u2) {
     return (

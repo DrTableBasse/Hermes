@@ -24,8 +24,7 @@ export function RankTable({ rows, meId, highlightId }: RankTableProps) {
       <thead className="sr-only">
         <tr>
           <th scope="col">Rang</th>
-          <th scope="col">Membre</th>
-          <th scope="col">Grade</th>
+          <th scope="col">Membre, grade et niveau</th>
           <th scope="col">Score</th>
         </tr>
       </thead>
@@ -60,10 +59,9 @@ export function RankTable({ rows, meId, highlightId }: RankTableProps) {
                   </Link>
                   {me && <Chip color="var(--color-violet)">moi</Chip>}
                 </span>
-              </td>
-              <td className="py-3.5 pr-4 max-[760px]:hidden">
+                {/* Sous le nom, à toute largeur : le grade et le niveau ne disparaissent jamais sur téléphone. */}
                 {r.grade && (
-                  <span className="flex items-center gap-2 whitespace-nowrap">
+                  <span className="mt-1.5 ml-[46px] flex flex-wrap items-center gap-2 text-xs text-muted">
                     <GradeBadge grade={r.grade} />
                     {r.level !== null && <span className="tabular-nums">niv. {formatNumber(r.level)}</span>}
                   </span>

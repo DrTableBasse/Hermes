@@ -23,6 +23,7 @@ import {
 import type { LbPage, MyRanks } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
 import {
+  firstParam,
   pageOfRank,
   parsePage,
   parseTab,
@@ -63,7 +64,8 @@ const MY_RANK: Record<RankTab, keyof MyRanks> = {
 
 const MEDALS = ["🥇", "🥈", "🥉"]
 
-type Search = { tab?: string; page?: string; hl?: string; q?: string }
+type Param = string | string[] | undefined
+type Search = { tab?: Param; page?: Param; hl?: Param; q?: Param }
 
 function Podium({ rows }: { rows: RankRow[] }) {
   // Ordre visuel 2 · 1 · 3 ; l'ordre de lecture reste 1, 2, 3 (on ne réordonne que par CSS).
@@ -93,9 +95,11 @@ function Podium({ rows }: { rows: RankRow[] }) {
 }
 
 export default async function ClassementPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const { tab: rawTab, page: rawPage, hl, q } = await searchParams
-  const tab = parseTab(rawTab)
-  const page = parsePage(rawPage)
+  const sp = await searchParams
+  const q = firstParam(sp.q)
+  const hl = firstParam(sp.hl)
+  const tab = parseTab(firstParam(sp.tab))
+  const page = parsePage(firstParam(sp.page))
   const search = q?.trim() || undefined
 
   const token = await sessionToken()

@@ -43,6 +43,16 @@ describe("RankTable", () => {
     expect(within(rowOf("Bravo")).queryByText(/niv\./)).toBeNull()
   })
 
+  it("grade et niveau dans la cellule du nom (jamais retirés sur mobile), en-têtes alignés", () => {
+    render(<RankTable rows={rows} meId={null} />)
+    const nameCell = screen.getByRole("link", { name: "Alpha" }).closest("td")!
+    expect(within(nameCell).getByText("Sergent Merguez")).toBeTruthy()
+    expect(within(nameCell).getByText(/niv\. 12/)).toBeTruthy()
+    expect(screen.getAllByRole("columnheader")).toHaveLength(3)
+    expect(screen.getAllByRole("row")[1].querySelectorAll("td")).toHaveLength(3)
+    expect(nameCell.querySelectorAll('[class~="hidden"], [class*=":hidden"]')).toHaveLength(0)
+  })
+
   it("liste vide : message, pas de tableau", () => {
     render(<RankTable rows={[]} meId={null} />)
     expect(screen.queryByRole("table")).toBeNull()

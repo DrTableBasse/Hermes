@@ -57,6 +57,13 @@ describe("page /comparer", () => {
     expect(screen.getByRole("row", { name: /Bumps/ }).querySelectorAll("[data-win]")).toHaveLength(0)
   })
 
+  it("paramètres répétés (?u1=1&u1=9) : première valeur", async () => {
+    await ComparePage({ searchParams: Promise.resolve({ u1: ["1", "999"], u2: ["2"] }) }).then(render)
+    expect(api.getUserPublicStats).toHaveBeenCalledWith("1")
+    expect(api.getUserPublicStats).not.toHaveBeenCalledWith("999")
+    expect(screen.getByRole("heading", { level: 1, name: "Comparaison" })).toBeTruthy()
+  })
+
   it("membre inconnu : nommé dans le message", async () => {
     await run({ u1: "1", u2: "999" })
     expect(screen.getByRole("status").textContent).toBe("Membre 999 introuvable.")
