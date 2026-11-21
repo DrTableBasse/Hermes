@@ -74,3 +74,42 @@ def test_clip_urls_are_canonical():
     assert find_clip_url("https://www.twitch.tv/saucisse/clip/Funny-Clip_1?filter=x") == "https://clips.twitch.tv/Funny-Clip_1"
     assert find_clip_url("https://clips.twitch.tv/FunnyClip#a") == "https://clips.twitch.tv/FunnyClip"
     assert find_clip_url("https://medal.tv/games/dbd/clips/abc?x=1") == "https://medal.tv/games/dbd/clips/abc"
+
+
+# ── Message supprimé : ligne et fichier retirés (constat I3) ──────────────────
+
+import asyncio  # noqa: E402
+
+from utils.gallery import forget_message  # noqa: E402
+
+
+class _FakeDB:
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.calls = []
+
+    async def fetchval(self, sql, *args):
+        self.calls.append((sql, args))
+        return self.file_name
+
+
+def test_deleted_message_removes_row_and_file(tmp_path):
+    (tmp_path / "abc.png").write_bytes(PNG)
+    db = _FakeDB("abc.png")
+    assert asyncio.run(forget_message(db, tmp_path, 42)) == "abc.png"
+    assert not (tmp_path / "abc.png").exists()
+    sql, args = db.calls[0]
+    assert sql.startswith("DELETE FROM gallery_items") and args == (42,)
+
+
+def test_deleted_message_never_leaves_the_gallery_dir(tmp_path):
+    outside = tmp_path / "keep.png"
+    outside.write_bytes(PNG)
+    gallery = tmp_path / "gallery"
+    gallery.mkdir()
+    asyncio.run(forget_message(_FakeDB("../keep.png"), gallery, 1))
+    assert outside.exists()
+
+
+def test_deleted_clip_or_unknown_message_touches_no_file(tmp_path):
+    assert asyncio.run(forget_message(_FakeDB(None), tmp_path, 7)) is None

@@ -1,7 +1,8 @@
 """Galerie : un ✅ du staff sur un message de #galerie le publie sur le site.
 
 Première image valide en pièce jointe → fichier dans le volume média ; sinon premier
-lien de clip ; sinon rien. Un message supprimé est masqué (``hidden``).
+lien de clip ; sinon rien. Un message supprimé quitte la galerie, fichier compris
+(``utils.gallery.forget_message``).
 """
 import asyncio
 import logging
@@ -15,7 +16,7 @@ from discord.ext import commands
 
 from utils import settings
 from utils.database import db_manager
-from utils.gallery import MAX_IMAGE_BYTES, classify_clip, find_clip_url, sniff_image
+from utils.gallery import MAX_IMAGE_BYTES, classify_clip, find_clip_url, forget_message, sniff_image
 
 logger = logging.getLogger(__name__)
 
@@ -128,11 +129,9 @@ class Gallery(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
         try:
-            await db_manager.execute(
-                "UPDATE gallery_items SET hidden = TRUE WHERE message_id = $1", payload.message_id
-            )
+            await forget_message(db_manager, GALLERY_DIR, payload.message_id)
         except Exception:
-            logger.exception("Masquage galerie en échec (message %s)", payload.message_id)
+            logger.exception("Retrait galerie en échec (message %s)", payload.message_id)
 
 
 async def setup(bot: commands.Bot):

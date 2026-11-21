@@ -2,9 +2,14 @@
 
 Les signatures d'image reprennent celles de ``web-api/routes/media.py``.
 """
+import asyncio
+import logging
 import re
+from pathlib import PurePath
 from typing import Optional
 from urllib.parse import parse_qs, urlparse
+
+logger = logging.getLogger(__name__)
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 Mo, comme l'upload du site
 
@@ -82,3 +87,24 @@ def find_clip_url(text: Optional[str]) -> Optional[str]:
         if clip:
             return clip[1]
     return None
+
+
+async def forget_message(db, gallery_dir, message_id: int) -> Optional[str]:
+    """Message supprimé sur Discord : sa ligne disparaît de la galerie, et son fichier du volume.
+
+    Le simple masquage laissait ``/media/gallery/<uuid>`` en accès public. Le masquage par
+    un admin (réversible, depuis le site) garde, lui, le fichier. ``db`` : objet exposant
+    ``fetchval`` (``db_manager``). Renvoie le nom du fichier effacé, ou ``None``.
+    """
+    file_name = await db.fetchval(
+        "DELETE FROM gallery_items WHERE message_id = $1 RETURNING file_name", message_id
+    )
+    if not file_name:
+        return None
+    # .name : le nom vient de la base, jamais un chemin hors du dossier.
+    path = gallery_dir / PurePath(file_name).name
+    try:
+        await asyncio.to_thread(path.unlink, True)
+    except OSError:
+        logger.warning("Fichier de galerie non supprimé : %s", path, exc_info=True)
+    return file_name
