@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs"
-import { join } from "node:path"
+import { SITE_CSP } from "@/lib/security-headers"
 import { describe, expect, it } from "vitest"
 import { clipEmbedUrl, clipThumbnail, galleryImageSrc, kindLabel, parseClip } from "@/lib/gallery"
 
@@ -44,8 +43,8 @@ describe("lecteurs de clips", () => {
   })
 
   it("la CSP autorise les trois lecteurs et rien d'autre", () => {
-    const config = readFileSync(join(__dirname, "../../../next.config.ts"), "utf8")
-    const frameSrc = /"frame-src ([^"]+)"/.exec(config)?.[1].split(" ").sort()
+    // CSP du site : src/lib/security-headers.ts (appliquée par next.config.ts).
+    const frameSrc = SITE_CSP.split("; ").find(d => d.startsWith("frame-src "))?.slice(10).split(" ").sort()
     expect(frameSrc).toEqual(["https://clips.twitch.tv", "https://medal.tv", "https://www.youtube-nocookie.com"])
   })
 })
