@@ -70,6 +70,11 @@ export function LeaderboardTable({ entries }: { entries: LevelEntry[] | null }) 
           </tbody>
         </table>
       )}
+      <div className="border-t border-line px-6 py-3.5 text-right text-sm font-semibold">
+        <Link href="/classement?tab=levels" className="text-cyan hover:underline">
+          Classement complet →
+        </Link>
+      </div>
     </section>
   )
 }
