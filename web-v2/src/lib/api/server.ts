@@ -139,6 +139,11 @@ export async function getArticle(slug: string, token?: string): Promise<Article>
   return apiGet<Article>(`/articles/${seg(slug)}`, { token })
 }
 
+/** Article par identifiant numérique (éditeur) ; brouillon visible de son auteur et des administrateurs. */
+export async function getArticleById(id: number, token?: string): Promise<Article> {
+  return apiGet<Article>(`/articles/by-id/${seg(id)}`, { token })
+}
+
 export async function myArticles(token: string): Promise<Article[]> {
   return (await apiGet<{ articles: Article[] }>("/articles/mine", { token })).articles
 }

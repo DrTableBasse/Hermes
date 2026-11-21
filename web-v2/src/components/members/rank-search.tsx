@@ -5,8 +5,14 @@ import { useEffect, useRef, useState } from "react"
 
 const DELAY_MS = 350
 
-/** Recherche d'un membre : met `?q=` à jour après une courte pause et revient à la page 1. */
-export function RankSearch({ defaultValue = "" }: { defaultValue?: string }) {
+type RankSearchProps = {
+  defaultValue?: string
+  /** Texte indicatif et nom accessible du champ ; par défaut, la recherche de membre. */
+  placeholder?: string
+}
+
+/** Recherche (membre par défaut) : met `?q=` à jour après une courte pause et revient à la page 1. */
+export function RankSearch({ defaultValue = "", placeholder = "Rechercher un membre…" }: RankSearchProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -34,8 +40,8 @@ export function RankSearch({ defaultValue = "" }: { defaultValue?: string }) {
         type="search"
         value={value}
         onChange={e => setValue(e.target.value)}
-        placeholder="Rechercher un membre…"
-        aria-label="Rechercher un membre"
+        placeholder={placeholder}
+        aria-label={placeholder.replace(/…$/, "")}
         className="w-full rounded-xl border border-line bg-[rgb(19_22_42/0.9)] px-4 py-2.5 text-sm text-fg placeholder:text-muted focus:border-violet/60 focus:outline-none"
       />
     </div>

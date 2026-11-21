@@ -154,3 +154,38 @@ body {
     overflow-x: auto;
   }
 }
+
+/* Corps d'un article (Markdown rendu par components/articles/markdown.tsx). */
+.prose-hermes { color: var(--color-msg); font-size: 17px; line-height: 1.75; overflow-wrap: anywhere; }
+.prose-hermes > * + * { margin-top: 1.1em; }
+.prose-hermes h1, .prose-hermes h2, .prose-hermes h3, .prose-hermes h4 {
+  font-family: var(--font-display); color: var(--color-fg); font-weight: 800; line-height: 1.15; letter-spacing: -0.02em; margin-top: 1.8em;
+}
+.prose-hermes h1 { font-size: 2em; }
+.prose-hermes h2 { font-size: 1.55em; }
+.prose-hermes h3 { font-size: 1.25em; }
+.prose-hermes h4 { font-size: 1.05em; }
+.prose-hermes a { color: var(--color-cyan); text-decoration: underline; text-underline-offset: 3px; }
+.prose-hermes strong { color: var(--color-fg); }
+.prose-hermes ul, .prose-hermes ol { padding-left: 1.5em; }
+.prose-hermes ul { list-style: disc; }
+.prose-hermes ol { list-style: decimal; }
+.prose-hermes li + li { margin-top: 0.3em; }
+.prose-hermes blockquote { border-left: 3px solid var(--color-violet); padding-left: 1em; color: var(--color-muted); }
+.prose-hermes hr { border: 0; border-top: 1px solid var(--color-line); margin-block: 2em; }
+.prose-hermes img { max-width: 100%; height: auto; border-radius: 12px; }
+.prose-hermes table { display: block; width: max-content; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.95em; }
+.prose-hermes th, .prose-hermes td { border: 1px solid var(--color-line); padding: 0.45em 0.8em; text-align: left; }
+.prose-hermes th { color: var(--color-fg); background: rgb(255 255 255 / 0.04); }
+.prose-hermes :not(pre) > code { font-family: var(--font-mono); font-size: 0.9em; background: rgb(255 255 255 / 0.08); border-radius: 6px; padding: 0.12em 0.4em; }
+.prose-hermes pre { overflow-x: auto; background: #0A0C18; border: 1px solid var(--color-line); border-radius: 14px; padding: 1em 1.2em; font-size: 0.9em; line-height: 1.6; }
+.prose-hermes pre code { font-family: var(--font-mono); background: none; padding: 0; }
+.prose-hermes .hljs-comment, .prose-hermes .hljs-quote { color: #8B88AE; font-style: italic; }
+.prose-hermes .hljs-keyword, .prose-hermes .hljs-selector-tag, .prose-hermes .hljs-literal, .prose-hermes .hljs-doctag { color: #C3A2FF; }
+.prose-hermes .hljs-string, .prose-hermes .hljs-regexp, .prose-hermes .hljs-addition { color: #7EE2A0; }
+.prose-hermes .hljs-number, .prose-hermes .hljs-built_in, .prose-hermes .hljs-symbol, .prose-hermes .hljs-bullet { color: #FFB27A; }
+.prose-hermes .hljs-title, .prose-hermes .hljs-section, .prose-hermes .hljs-function .hljs-title { color: #6FE8F5; }
+.prose-hermes .hljs-attr, .prose-hermes .hljs-attribute, .prose-hermes .hljs-variable, .prose-hermes .hljs-template-variable, .prose-hermes .hljs-type { color: #8FB0FF; }
+.prose-hermes .hljs-deletion { color: #FF8F8F; }
+.prose-hermes .hljs-emphasis { font-style: italic; }
+.prose-hermes .hljs-strong { font-weight: 700; }

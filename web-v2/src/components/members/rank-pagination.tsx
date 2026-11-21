@@ -7,11 +7,13 @@ type RankPaginationProps = {
   totalPages: number
   /** URL de la page `p` (onglet et recherche conservés par l'appelant). */
   hrefFor: (p: number) => string
+  /** Nom accessible de la navigation ; par défaut, celle du classement. */
+  label?: string
 }
 
 const base = "flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm tabular-nums"
 
-export function RankPagination({ page, totalPages, hrefFor }: RankPaginationProps) {
+export function RankPagination({ page, totalPages, hrefFor, label = "Pagination du classement" }: RankPaginationProps) {
   if (totalPages <= 1) return null
   const step = (label: string, aria: string, target: number, disabled: boolean) =>
     disabled ? (
@@ -24,7 +26,7 @@ export function RankPagination({ page, totalPages, hrefFor }: RankPaginationProp
       </Link>
     )
   return (
-    <nav aria-label="Pagination du classement" className="mt-6 flex flex-wrap items-center justify-center gap-1">
+    <nav aria-label={label} className="mt-6 flex flex-wrap items-center justify-center gap-1">
       {step("‹", "Page précédente", page - 1, page <= 1)}
       {pageWindow(page, totalPages).map((p, i) =>
         p === "gap" ? (
