@@ -79,8 +79,14 @@ describe("GalleryModeration", () => {
     expect(within(first).getByRole("group", { name: "Supprimer définitivement ?" })).toBeTruthy()
     await click(within(first).getByRole("button", { name: "Annuler" }))
     expect(a.deleteGalleryItem).not.toHaveBeenCalled()
-    await click(within(first).getByRole("button", { name: "Supprimer" }))
-    await click(within(first).getAllByRole("button", { name: "Supprimer" })[0])
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      await click(within(first).getByRole("button", { name: "Supprimer" }))
+      vi.setSystemTime(Date.now() + 400) // au-delà de la garde anti double activation
+      await click(within(first).getAllByRole("button", { name: "Supprimer" })[0])
+    } finally {
+      vi.useRealTimers()
+    }
     expect(a.deleteGalleryItem).toHaveBeenCalledWith(1)
     expect(screen.getAllByRole("listitem")).toHaveLength(1)
     expect(screen.getByRole("status").textContent).toBe("Élément supprimé.")
@@ -232,11 +238,43 @@ describe("ModerationActions", () => {
     render(<ModerationActions target={TARGET} onTarget={vi.fn()} onDone={vi.fn()} />)
     await click(button("Bannir"))
     const group = screen.getByRole("group", { name: "Bannir Fauteur définitivement ?" })
-    expect(document.activeElement).toBe(within(group).getByRole("button", { name: "Bannir" }))
+    // Focus sur « Annuler », jamais sur l'action destructive.
+    expect(document.activeElement).toBe(within(group).getByRole("button", { name: "Annuler" }))
     fireEvent.keyDown(group, { key: "Escape" })
     expect(screen.queryByRole("group")).toBeNull()
     expect(a.ban).not.toHaveBeenCalled()
     expect(document.activeElement).toBe(button("Bannir"))
+  })
+
+  it("deux Entrée sur « Bannir » → ban non appelé", async () => {
+    render(<ModerationActions target={TARGET} onTarget={vi.fn()} onDone={vi.fn()} />)
+    // Entrée sur un bouton = activation de l'élément qui a le focus.
+    const trigger = button("Bannir")
+    trigger.focus()
+    await click(document.activeElement as HTMLElement)
+    await click(document.activeElement as HTMLElement)
+    expect(a.ban).not.toHaveBeenCalled()
+    expect(screen.queryByRole("group")).toBeNull()
+  })
+
+  it("confirmation ignorée pendant 400 ms après l'ouverture, puis acceptée avec le bon corps", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    try {
+      render(<ModerationActions target={TARGET} onTarget={vi.fn()} onDone={vi.fn()} />)
+      fireEvent.change(screen.getByLabelText("Durée (min)"), { target: { value: "30" } })
+      await click(button("Exclure temporairement"))
+      const group = screen.getByRole("group", { name: "Exclure Fauteur temporairement ?" })
+      await click(within(group).getByRole("button", { name: "Confirmer" }))
+      expect(a.timeout).not.toHaveBeenCalled()
+      vi.setSystemTime(Date.now() + 399)
+      await click(within(group).getByRole("button", { name: "Confirmer" }))
+      expect(a.timeout).not.toHaveBeenCalled()
+      vi.setSystemTime(Date.now() + 1)
+      await click(within(group).getByRole("button", { name: "Confirmer" }))
+      expect(a.timeout).toHaveBeenCalledWith({ user_id: "42", reason: "Action depuis le site", duration: 30 })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("avertir : envoi direct avec la raison ; succès annoncé et fiche relue", async () => {

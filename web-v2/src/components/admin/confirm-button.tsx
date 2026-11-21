@@ -1,8 +1,11 @@
 "use client"
 
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Button } from "@/components/ui/button"
+import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/cn"
+
+/** Délai pendant lequel le bouton de confirmation ignore toute activation après l'ouverture. */
+export const CONFIRM_GUARD_MS = 400
 
 type Props = {
   /** Libellé du bouton initial. */
@@ -33,11 +36,14 @@ export function ConfirmButton({
 }: Props) {
   const [asking, setAsking] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
-  const confirm = useRef<HTMLButtonElement>(null)
+  const cancel = useRef<HTMLButtonElement>(null)
   const wasAsking = useRef(false)
+  const openedAt = useRef(0)
 
+  // Focus sur « Annuler », jamais sur l'action : une double frappe d'Entrée (ou l'auto-répétition)
+  // sur le bouton d'origine ne doit pas confirmer.
   useEffect(() => {
-    if (asking) confirm.current?.focus()
+    if (asking) cancel.current?.focus()
     else if (wasAsking.current) trigger.current?.focus()
     wasAsking.current = asking
   }, [asking])
@@ -48,7 +54,10 @@ export function ConfirmButton({
         ref={trigger}
         type="button"
         disabled={disabled}
-        onClick={() => setAsking(true)}
+        onClick={() => {
+          openedAt.current = Date.now()
+          setAsking(true)
+        }}
         className={cn(
           "inline-flex items-center justify-center rounded-[10px] border font-semibold disabled:opacity-50",
           size === "sm" ? "px-3 py-[7px] text-[13px]" : "px-[18px] py-2.5 text-sm",
@@ -72,9 +81,10 @@ export function ConfirmButton({
     >
       <span className="text-sm text-fg">{question}</span>
       <button
-        ref={confirm}
         type="button"
         onClick={async () => {
+          // Activation trop proche de l'ouverture (double clic, clavier) : ignorée.
+          if (Date.now() - openedAt.current < CONFIRM_GUARD_MS) return
           setAsking(false)
           await onConfirm()
         }}
@@ -82,9 +92,9 @@ export function ConfirmButton({
       >
         {confirmLabel}
       </button>
-      <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>
+      <button ref={cancel} type="button" onClick={() => setAsking(false)} className={buttonVariants({ variant: "ghost", size: "sm" })}>
         Annuler
-      </Button>
+      </button>
     </span>
   )
 }
