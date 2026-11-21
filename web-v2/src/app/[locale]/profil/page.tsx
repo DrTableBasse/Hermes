@@ -31,7 +31,11 @@ export default async function ProfilePage() {
     <main className="relative pt-10 pb-24">
       <div className="relative mx-auto max-w-[1440px] px-6 min-[1100px]:px-20">
         <SectionHeading as="h1" title="Ton profil" />
-        {mine ? (
+        {/* Liste périmée : phrase et jeux peuvent y être vides (base illisible). Préremplir le formulaire
+            avec ce vide ferait écraser le vrai profil au premier « Enregistrer » : pas de formulaire. */}
+        {me && staff?.stale ? (
+          <Note>Hermes est injoignable pour l’instant, ta carte ne peut pas être modifiée. Réessaie plus tard.</Note>
+        ) : mine ? (
           <section
             aria-labelledby="staff-card-title"
             className="mt-10 max-w-[760px] rounded-[22px] border border-white/9 bg-[rgb(19_22_42/0.9)] p-7"
@@ -45,7 +49,7 @@ export default async function ProfilePage() {
             {/* Liste périmée (base illisible) : vide, elle ferait croire qu'aucun jeu n'existe. */}
             <StaffProfileForm motto={mine.motto} selected={mine.games} games={games && !games.stale ? games.games : null} />
           </section>
-        ) : !me || !staff || (staff.stale && staff.staff.length === 0) ? (
+        ) : !me || !staff ? (
           <Note>Ton profil est injoignable pour l’instant. Reviens dans un moment.</Note>
         ) : (
           <Note>Ta page de profil arrive bientôt sur ce site.</Note>

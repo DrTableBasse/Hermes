@@ -66,6 +66,14 @@ describe("page /profil", () => {
     expect(screen.getByRole("status").textContent).toMatch(/injoignable/)
   })
 
+  it("liste du staff périmée : pas de formulaire prérempli de vide, note « Hermes injoignable »", async () => {
+    api.getStaff.mockResolvedValue({ staff: [{ ...ME, motto: null, games: [] }], stale: true })
+    render(await ProfilePage())
+    expect(screen.queryByLabelText("Ta phrase")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Enregistrer" })).toBeNull()
+    expect(screen.getByRole("status").textContent).toMatch(/Hermes est injoignable.*Réessaie plus tard/)
+  })
+
   it("liste des jeux périmée : formulaire sans cases, jeux conservés", async () => {
     api.getGames.mockResolvedValue({ games: [], stale: true })
     render(await ProfilePage())
