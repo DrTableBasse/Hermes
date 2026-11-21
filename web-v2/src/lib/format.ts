@@ -37,6 +37,18 @@ export function formatSince(iso: string): string {
   return `depuis le ${dayMonth.format(new Date(iso))}`
 }
 
+const longDate = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  timeZone: "Europe/Paris",
+})
+
+/** « 15 novembre 2026 », date lue en heure de Paris. */
+export function formatDate(iso: string): string {
+  return longDate.format(new Date(iso))
+}
+
 const clock = new Intl.DateTimeFormat("fr-FR", {
   hour: "2-digit",
   minute: "2-digit",

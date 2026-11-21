@@ -3,6 +3,12 @@ import { cn } from "@/lib/cn"
 
 type MarqueeProps = {
   items: ReactNode[]
+  /**
+   * Contenu de la copie, à la place de `items`. Fourni, la copie reste cliquable (pas `inert`) :
+   * l'appelant la sort lui-même de la tabulation (`tabIndex={-1}`). Sert aux vignettes qui ouvrent
+   * un aperçu, dont la moitié visible du défilé serait sinon morte au clic.
+   */
+  copy?: ReactNode[]
   /** Défile de gauche à droite. */
   reverse?: boolean
   /** Durée d'un tour complet, en secondes. */
@@ -19,6 +25,7 @@ type MarqueeProps = {
  */
 export function Marquee({
   items,
+  copy,
   reverse = false,
   speed = 45,
   pauseOnHover = true,
@@ -42,8 +49,8 @@ export function Marquee({
         <div className="marquee-group" data-marquee-group>
           {items}
         </div>
-        <div className="marquee-group" data-marquee-group aria-hidden="true" inert>
-          {items}
+        <div className="marquee-group" data-marquee-group aria-hidden="true" inert={copy ? undefined : true}>
+          {copy ?? items}
         </div>
       </div>
     </div>

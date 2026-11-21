@@ -18,7 +18,8 @@ const securityHeaders = [
       "img-src 'self' data: https://cdn.discordapp.com https://i.ytimg.com",
       "connect-src 'self'",
       "font-src 'self'",
-      "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.twitch.tv https://medal.tv",
+      // Lecteurs de la galerie (src/lib/gallery.ts, clipEmbedUrl), et eux seuls.
+      "frame-src https://www.youtube-nocookie.com https://clips.twitch.tv https://medal.tv",
       "frame-ancestors 'none'",
     ].join("; "),
   },

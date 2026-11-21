@@ -19,6 +19,17 @@ describe("Marquee", () => {
     expect(groups[1].hasAttribute("inert")).toBe(true)
   })
 
+  it("copie fournie : rendue à la place des éléments, cachée mais cliquable", () => {
+    const { container } = render(
+      <Marquee items={[<button key="a">Original</button>]} copy={[<button key="a" tabIndex={-1}>Copie</button>]} />,
+    )
+    const groups = container.querySelectorAll("[data-marquee-group]")
+    expect(groups[0].textContent).toBe("Original")
+    expect(groups[1].textContent).toBe("Copie")
+    expect(groups[1].getAttribute("aria-hidden")).toBe("true")
+    expect(groups[1].hasAttribute("inert")).toBe(false)
+  })
+
   it("rend la région nommée focusable, pour la mettre en pause au clavier", () => {
     const { getByRole } = render(<Marquee items={["x"]} aria-label="Tous nos jeux" />)
     expect(getByRole("region", { name: "Tous nos jeux" }).getAttribute("tabindex")).toBe("0")
