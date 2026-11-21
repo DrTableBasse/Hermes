@@ -47,7 +47,7 @@ describe("métadonnées du layout", () => {
   it("noindex partout par défaut, metadataBase lu à l'exécution", async () => {
     const m = await generateMetadata()
     expect(m.robots).toEqual({ index: false, follow: false })
-    expect(m.metadataBase?.href).toBe(`${PROD}/`)
+    expect(String(m.metadataBase)).toBe(`${PROD}/`)
   })
   it("indexable : pas de robots restrictif", async () => {
     indexable()
