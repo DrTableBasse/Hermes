@@ -104,3 +104,17 @@ def test_transcript_admin_ok_and_missing_transcript_404(client, fake_db, as_user
     fake_db.rules.clear()
     fake_db.on("from tickets where id", {"user_id": 100, "transcript_html": None})
     assert client.get("/tickets/7/transcript").status_code == 404
+
+
+def test_transcript_is_served_sandboxed(client, fake_db, as_user):
+    # Constat I1 : servie sur l'origine du site, la transcription est isolée (pas de script,
+    # pas de cookie de l'origine), y compris pour les anciennes transcriptions mal échappées.
+    as_user("100")
+    fake_db.on("from tickets where id",
+               {"user_id": 100, "transcript_html": '<div class="av"><i</div><a href="x" onclick="1">'})
+    r = client.get("/tickets/7/transcript")
+    assert r.status_code == 200
+    csp = r.headers["content-security-policy"]
+    assert csp.startswith("sandbox;") and "default-src 'none'" in csp and "script-src" not in csp
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "no-store" in r.headers["cache-control"]

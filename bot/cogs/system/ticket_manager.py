@@ -17,6 +17,7 @@ from datetime import datetime
 
 from utils import settings
 from utils.database import db_manager
+from utils.transcript import message_block
 
 logger = logging.getLogger(__name__)
 
@@ -354,30 +355,15 @@ class Tickets(commands.Cog):
     async def _html_transcript(self, channel: discord.TextChannel, ticket_num: int) -> bytes:
         messages_html = ""
         async for msg in channel.history(limit=500, oldest_first=True):
-            content = html.escape(msg.content) if msg.content else ""
-            embed_html = ""
-            for emb in msg.embeds:
-                embed_html += '<div class="emb">'
-                if emb.title:
-                    embed_html += f'<b>{html.escape(emb.title)}</b><br>'
-                if emb.description:
-                    embed_html += f'<span>{html.escape(emb.description)}</span>'
-                for fld in emb.fields:
-                    embed_html += f'<div><b>{html.escape(fld.name)}</b>: {html.escape(fld.value)}</div>'
-                embed_html += "</div>"
-            attach_html = "".join(
-                f'<div class="att">📎 <a href="{a.url}">{html.escape(a.filename)}</a></div>'
-                for a in msg.attachments
-            )
-            bot_tag = '<span class="bt">BOT</span>' if msg.author.bot else ""
-            ts = msg.created_at.strftime("%d/%m/%Y %H:%M:%S")
-            initials = msg.author.display_name[:2].upper()
-            content_div = '<div class="mt">' + content + '</div>' if content else ''
-            messages_html += (
-                f'<div class="mg"><div class="av">{initials}</div><div class="mc">'
-                f'<div class="mh"><span class="un">{html.escape(str(msg.author))}</span>'
-                f'{bot_tag}<span class="ts">{ts}</span></div>'
-                f'{content_div}{embed_html}{attach_html}</div></div>'
+            messages_html += message_block(
+                author=str(msg.author),
+                display_name=msg.author.display_name,
+                is_bot=msg.author.bot,
+                timestamp=msg.created_at.strftime("%d/%m/%Y %H:%M:%S"),
+                content=msg.content or "",
+                embeds=[(e.title, e.description, [(f.name, f.value) for f in e.fields])
+                        for e in msg.embeds],
+                attachments=[(a.url, a.filename) for a in msg.attachments],
             )
         doc = (
             f'<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">'

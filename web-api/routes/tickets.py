@@ -4,6 +4,14 @@ from fastapi.responses import HTMLResponse
 from middleware.auth_middleware import get_current_user, require_admin
 import database as db
 
+# Origine opaque, aucun script, aucune ressource externe : seul le style en ligne du bot passe.
+TRANSCRIPT_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+TRANSCRIPT_HEADERS = {
+    "Content-Security-Policy": TRANSCRIPT_CSP,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, no-store",
+}
+
 router = APIRouter(prefix="/tickets", tags=["tickets"])
 
 _STATUS = "^(all|open|closed)$"
@@ -108,4 +116,6 @@ async def get_transcript(
     if not row["transcript_html"]:
         raise HTTPException(status_code=404, detail="Aucun transcript pour ce ticket")
 
-    return HTMLResponse(content=row["transcript_html"])
+    # Servie sur l'origine du site (via le proxy) : isolée par une CSP « sandbox », qui couvre
+    # aussi les transcriptions déjà en base, générées avant l'échappement complet du bot.
+    return HTMLResponse(content=row["transcript_html"], headers=TRANSCRIPT_HEADERS)
