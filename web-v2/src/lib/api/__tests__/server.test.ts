@@ -2,6 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 
+const h = vi.hoisted(() => ({
+  incoming: new Map<string, string>(),
+  refresh: vi.fn<(token: string) => Promise<void>>(async () => {}),
+}))
+vi.mock("next/headers", () => ({
+  headers: async () => ({ get: (name: string) => h.incoming.get(name) ?? null }),
+}))
+vi.mock("@/lib/role-refresh", () => ({ refreshRolesIfStale: (t: string) => h.refresh(t) }))
+
 import {
   apiGet,
   apiGetOrNull,
@@ -39,6 +48,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  h.incoming.clear()
+  h.refresh.mockClear()
   fetchMock.mockReset()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
@@ -251,5 +262,56 @@ describe("fonctions nommées", () => {
   it("une fonction non « direct » propage l'erreur HTTP", async () => {
     fetchMock.mockResolvedValue(reply(500))
     await expect(leaderboardLevels()).rejects.toThrow(/500/)
+  })
+})
+
+// ── Relecture finale : C1 (IP du visiteur), I2 (droits réévalués), I4 (budget de temps) ──
+
+describe("request : en-têtes et budget de temps vers web-api", () => {
+  it("relaie l'IP du visiteur (X-Real-IP) sur une lecture propre à la requête", async () => {
+    h.incoming.set("x-real-ip", "203.0.113.9")
+    h.incoming.set("x-forwarded-for", "1.1.1.1, 198.51.100.2")
+    fetchMock.mockResolvedValue(reply(200, { leaderboard: [] }))
+    await leaderboardLevels(2)
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBe("203.0.113.9")
+  })
+
+  it("à défaut de X-Real-IP, prend la dernière entrée de X-Forwarded-For", async () => {
+    h.incoming.set("x-forwarded-for", "6.6.6.6, 198.51.100.2")
+    fetchMock.mockResolvedValue(reply(200, {}))
+    await getSessionUser("tok")
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBe("198.51.100.2")
+  })
+
+  it("n'ajoute pas l'IP à une lecture mise en cache (clé partagée entre visiteurs)", async () => {
+    h.incoming.set("x-real-ip", "203.0.113.9")
+    fetchMock.mockResolvedValue(reply(200, {}))
+    await getLive()
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()
+  })
+
+  it("sans en-tête d'IP, n'invente rien", async () => {
+    fetchMock.mockResolvedValue(reply(200, {}))
+    await apiGet("/ping")
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()
+  })
+
+  it("pose un budget de temps sur chaque lecture", async () => {
+    fetchMock.mockResolvedValue(reply(200, {}))
+    await apiGet("/ping")
+    expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it("un délai dépassé fait passer la section en état dégradé", async () => {
+    fetchMock.mockRejectedValue(new DOMException("timeout", "TimeoutError"))
+    await expect(apiGetOrNull("/live")).resolves.toBeNull()
+  })
+
+  it("réévalue les droits de la session avant un appel authentifié, jamais sans session", async () => {
+    fetchMock.mockImplementation(async () => reply(200, {}))
+    await getSessionUser("tok.sig")
+    await getLive()
+    expect(h.refresh).toHaveBeenCalledTimes(1)
+    expect(h.refresh).toHaveBeenCalledWith("tok.sig")
   })
 })

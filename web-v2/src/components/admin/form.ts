@@ -26,6 +26,8 @@ export function adminErrorText(error: unknown): string {
     case 502:
     case 503:
       return "Hermes (le bot) ne répond pas pour l’instant. Réessaie dans un moment."
+    case 504:
+      return "Le site ne répond pas pour l’instant. Réessaie dans un moment."
     default:
       return `Échec (erreur ${error.status}). Réessaie dans un moment.`
   }

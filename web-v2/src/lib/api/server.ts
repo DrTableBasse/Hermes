@@ -48,6 +48,10 @@ import type {
   XpData,
   XpEntry,
 } from "./types"
+import { headers } from "next/headers"
+import { unstable_rethrow } from "next/navigation"
+import { refreshRolesIfStale } from "@/lib/role-refresh"
+import { clientIp, sessionCookie, SSR_TIMEOUT_MS } from "./forward"
 import { query, seg } from "./query"
 
 export interface ApiOptions {
@@ -61,14 +65,34 @@ function baseUrl(): string {
   return process.env.WEB_API_INTERNAL_URL ?? "http://web-api:8000"
 }
 
+/** IP du visiteur de la requête en cours ; `null` hors requête (prérendu, script). */
+async function visitorIp(): Promise<string | null> {
+  try {
+    return clientIp(await headers())
+  } catch (e) {
+    unstable_rethrow(e) // signal de rendu dynamique de Next : à laisser passer
+    return null
+  }
+}
+
 async function request(path: string, opts: ApiOptions): Promise<Response> {
-  const headers: Record<string, string> = {}
-  if (opts.token) headers.Cookie = `better-auth.session_token=${opts.token}`
-  const init: RequestInit = { headers }
+  const hdrs: Record<string, string> = {}
+  if (opts.token) {
+    hdrs.Cookie = sessionCookie(opts.token)
+    await refreshRolesIfStale(opts.token)
+  }
+  const init: RequestInit = { headers: hdrs, signal: AbortSignal.timeout(SSR_TIMEOUT_MS) }
   // Une réponse obtenue avec une session est personnelle : jamais dans le cache de données Next,
   // même si l'appelant a demandé un revalidate.
-  if (opts.token || opts.revalidate === undefined) init.cache = "no-store"
-  else init.next = { revalidate: opts.revalidate }
+  if (opts.token || opts.revalidate === undefined) {
+    init.cache = "no-store"
+    // Lecture propre au visiteur : comptée sous son IP par le limiteur de web-api, pas sous celle
+    // du conteneur (un seul compteur pour tout le site). Les lectures mises en cache n'en portent
+    // pas : l'en-tête entrerait dans la clé du cache de données Next, une entrée par visiteur ;
+    // elles n'atteignent web-api qu'une fois par période de revalidation.
+    const ip = await visitorIp()
+    if (ip) hdrs["X-Client-IP"] = ip
+  } else init.next = { revalidate: opts.revalidate }
   const res = await fetch(`${baseUrl()}${path}`, init)
   if (!res.ok) throw new Error(`${res.status} ${path}`)
   return res
