@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { isStaging, siteUrl } from "@/lib/site"
+import { isIndexable, siteUrl } from "@/lib/site"
 
 const env = (vars: Record<string, string>) => vars as unknown as NodeJS.ProcessEnv
 
@@ -13,15 +13,15 @@ describe("siteUrl", () => {
   })
 })
 
-describe("isStaging", () => {
-  it("vrai sur le port 3002, lu dans l'une ou l'autre variable", () => {
-    expect(isStaging(env({ NEXT_PUBLIC_APP_URL: "http://192.168.10.62:3002" }))).toBe(true)
-    expect(isStaging(env({ BETTER_AUTH_URL: "http://localhost:3002" }))).toBe(true)
-    expect(isStaging(env({}))).toBe(true)
+describe("isIndexable (fail-closed)", () => {
+  it("vrai seulement avec SITE_INDEXABLE=true", () => {
+    expect(isIndexable(env({ SITE_INDEXABLE: "true" }))).toBe(true)
   })
-  it("faux sur l'URL de production, même égale à WEB_V2_URL", () => {
-    expect(
-      isStaging(env({ NEXT_PUBLIC_APP_URL: "https://saucisseland.fr", WEB_V2_URL: "https://saucisseland.fr" })),
-    ).toBe(false)
+  it("faux sans la variable, avec une autre valeur, quelle que soit l'URL", () => {
+    expect(isIndexable(env({}))).toBe(false)
+    expect(isIndexable(env({ SITE_INDEXABLE: "1" }))).toBe(false)
+    expect(isIndexable(env({ SITE_INDEXABLE: "false" }))).toBe(false)
+    expect(isIndexable(env({ NEXT_PUBLIC_APP_URL: "https://saucisseland.fr" }))).toBe(false)
+    expect(isIndexable(env({ NEXT_PUBLIC_APP_URL: "http://host:3000" }))).toBe(false)
   })
 })

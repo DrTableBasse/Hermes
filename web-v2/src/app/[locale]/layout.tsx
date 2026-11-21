@@ -1,22 +1,29 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
+import { connection } from "next/server"
 import { hasLocale, NextIntlClientProvider } from "next-intl"
 import { Footer } from "@/components/layout/footer"
 import { Navbar } from "@/components/layout/navbar"
 import { routing } from "@/i18n/routing"
 import { getPublicSettings } from "@/lib/api/server"
-import { siteUrl } from "@/lib/site"
+import { isIndexable, siteUrl } from "@/lib/site"
 import { fontVariables } from "../fonts"
 import "../globals.css"
 
 const DESCRIPTION = "SaucisseLand, la communauté Discord où Hermes compte les points, les grades et les saucisses."
 
 // Aucune image Open Graph tant que le logo n'est pas fourni : on n'en invente pas.
-export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl()),
-  title: "SaucisseLand",
-  description: DESCRIPTION,
-  openGraph: { title: "SaucisseLand", description: DESCRIPTION, type: "website", locale: "fr_FR", siteName: "SaucisseLand" },
+export async function generateMetadata(): Promise<Metadata> {
+  // Lu à chaque requête : l’URL et SITE_INDEXABLE viennent de l’environnement du conteneur, pas du build.
+  await connection()
+  return {
+    metadataBase: new URL(siteUrl()),
+    title: "SaucisseLand",
+    description: DESCRIPTION,
+    openGraph: { title: "SaucisseLand", description: DESCRIPTION, type: "website", locale: "fr_FR", siteName: "SaucisseLand" },
+    // Fail-closed : sans SITE_INDEXABLE=true, aucune page n'est indexable (les pages qui définissent leur propre `robots` l'emportent).
+    ...(!isIndexable() && { robots: { index: false, follow: false } }),
+  }
 }
 
 export default async function LocaleLayout({

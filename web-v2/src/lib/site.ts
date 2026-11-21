@@ -1,4 +1,4 @@
-/** URL publique du site et règle d'indexation (robots, sitemap, métadonnées). */
+/** URL publique du site et règle d'indexation (robots, sitemap, métadonnées, en-tête). */
 
 const FALLBACK_URL = "http://localhost:3002"
 
@@ -9,13 +9,11 @@ export function siteUrl(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * Vrai tant que le site n'est pas servi sur son URL de production : tout est alors interdit aux robots.
- *
- * Le conteneur reçoit `NEXT_PUBLIC_APP_URL = WEB_V2_URL` (compose.yml) : comparer les deux valeurs
- * interdirait donc toujours tout, même en production. Seul le port de préproduction (:3002) discrimine.
+ * Indexation autorisée : fail-closed. Seule `SITE_INDEXABLE=true` (lue au runtime, jamais déduite de
+ * l'URL ni du port) ouvre le site aux moteurs ; absente ou autre valeur, tout reste interdit.
  */
-export function isStaging(env: NodeJS.ProcessEnv = process.env): boolean {
-  return [env.NEXT_PUBLIC_APP_URL, env.BETTER_AUTH_URL, siteUrl(env)].some(url => !!url && url.includes(":3002"))
+export function isIndexable(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.SITE_INDEXABLE === "true"
 }
 
 /** Pages publiques du site, hors articles (relatives à la racine). */

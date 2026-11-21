@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import createIntlMiddleware from "next-intl/middleware"
 import { routing } from "./i18n/routing"
+import { isIndexable } from "./lib/site"
 
 const intlMiddleware = createIntlMiddleware(routing)
 
 const PROTECTED = ["/admin", "/profil", "/quetes", "/tickets", "/editeur"]
 const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"]
+
+/** Fail-closed : sans SITE_INDEXABLE=true, chaque réponse interdit l'indexation (lu à chaque requête). */
+function guarded(response: NextResponse): NextResponse {
+  if (!isIndexable()) response.headers.set("X-Robots-Tag", "noindex, nofollow")
+  return response
+}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -15,10 +22,10 @@ export function proxy(request: NextRequest) {
     p => pathWithoutLocale === p || pathWithoutLocale.startsWith(`${p}/`)
   )
   if (isProtected && !SESSION_COOKIES.some(name => request.cookies.has(name))) {
-    return NextResponse.redirect(new URL("/", request.url))
+    return guarded(NextResponse.redirect(new URL("/", request.url)))
   }
 
-  return intlMiddleware(request)
+  return guarded(intlMiddleware(request) as NextResponse)
 }
 
 export const config = {
