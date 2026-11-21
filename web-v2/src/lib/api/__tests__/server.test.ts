@@ -11,6 +11,7 @@ import {
   getLive,
   getPage,
   getSessionUser,
+  getMyTickets,
   getStaff,
   getTickets,
   getUserAchievementsAll,
@@ -235,6 +236,16 @@ describe("fonctions nommées", () => {
     expect(fetchMock.mock.calls[0][1].cache).toBe("no-store")
     fetchMock.mockResolvedValueOnce(reply(403, { detail: "Accès refusé" }))
     await expect(getTickets("tok")).resolves.toBeNull()
+  })
+
+  it("getMyTickets interroge /tickets/mine avec la session, hors cache, et renvoie null sur un 401", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { tickets: [], total: 0, page: 1, limit: 20 }))
+    await expect(getMyTickets("tok", "closed")).resolves.toMatchObject({ limit: 20 })
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/tickets/mine?status=closed&page=1&limit=20")
+    expect(fetchMock.mock.calls[0][1].headers.Cookie).toBe("better-auth.session_token=tok")
+    expect(fetchMock.mock.calls[0][1].cache).toBe("no-store")
+    fetchMock.mockResolvedValueOnce(reply(401))
+    await expect(getMyTickets("expiré")).resolves.toBeNull()
   })
 
   it("une fonction non « direct » propage l'erreur HTTP", async () => {

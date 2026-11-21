@@ -171,7 +171,11 @@ export async function getXp(userId: string, token: string): Promise<XpData | nul
   return apiGetOrNull<XpData>(`/xp/${seg(userId)}`, { token })
 }
 
-/** Historique des tickets (`/tickets`, administrateurs) ; `null` : accès refusé ou API muette. */
+/** Tickets du membre connecté (`/tickets/mine`) ; `null` : session refusée ou API muette. */
+export const getMyTickets = (token: string, status: TicketStatus | "all" = "all", page = 1, limit = 20) =>
+  apiGetOrNull<TicketList>(`/tickets/mine${query({ status, page, limit })}`, { token })
+
+/** Historique global des tickets (`/tickets`, administrateurs) ; `null` : accès refusé ou API muette. */
 export const getTickets = (token: string, status: TicketStatus | "all" = "all", page = 1, limit = 20) =>
   apiGetOrNull<TicketList>(`/tickets${query({ status, page, limit })}`, { token })
 

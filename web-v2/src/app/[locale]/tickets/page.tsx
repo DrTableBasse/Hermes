@@ -3,7 +3,7 @@ import Link from "next/link"
 import { RankPagination } from "@/components/members/rank-pagination"
 import { Chip } from "@/components/ui/chip"
 import { SectionHeading } from "@/components/ui/section-heading"
-import { getSessionUser, getTickets } from "@/lib/api/server"
+import { getMyTickets, getSessionUser, getTickets } from "@/lib/api/server"
 import { seg } from "@/lib/api/query"
 import type { TicketStatus } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
@@ -36,13 +36,16 @@ function Note({ children }: { children: React.ReactNode }) {
   )
 }
 
-const href = (status: Filter, page: number) => `/tickets?status=${status}&page=${page}`
+type Scope = "mine" | "all"
+
+const href = (scope: Scope, status: Filter, page: number) =>
+  `/tickets?${scope === "all" ? "scope=all&" : ""}status=${status}&page=${page}`
 
 const TH = "px-4 py-3 font-semibold"
 
 /**
- * Historique des tickets. `GET /tickets` et les transcriptions sont réservés aux administrateurs
- * (web-api répond 403 aux autres) : on ne l'appelle donc que pour eux.
+ * Historique des tickets du membre connecté (`/tickets/mine`). Un administrateur peut en plus afficher
+ * l'historique global (`?scope=all`, `GET /tickets`), en attendant sa place dans l'espace admin.
  */
 export default async function TicketsPage({
   searchParams,
@@ -55,29 +58,45 @@ export default async function TicketsPage({
 
   const token = await sessionToken()
   const me = token ? await getSessionUser(token) : null
-  const data = token && me?.is_admin ? await getTickets(token, status, page, LIMIT) : null
+  // Le périmètre global n'existe que pour un administrateur : pour les autres, `scope=all` est ignoré.
+  const scope: Scope = me?.is_admin && firstParam(sp.scope) === "all" ? "all" : "mine"
+  const data =
+    token && me
+      ? scope === "all"
+        ? await getTickets(token, status, page, LIMIT)
+        : await getMyTickets(token, status, page, LIMIT)
+      : null
 
   return (
     <main className="relative pt-10 pb-24">
       <div className="relative mx-auto max-w-[1100px] px-6">
         <SectionHeading
           as="h1"
-          title="Historique des tickets"
+          title={scope === "all" ? "Tous les tickets" : "Mes tickets"}
           sub={data ? `${formatNumber(data.total)} ticket${data.total > 1 ? "s" : ""}` : undefined}
         />
         {!me ? (
           <Note>Ton espace est injoignable pour l’instant. Reviens dans un moment.</Note>
-        ) : !me.is_admin ? (
-          <Note>L’historique des tickets est réservé à l’équipe de modération.</Note>
         ) : !data ? (
           <Note>L’historique est injoignable pour l’instant. Hermes recompte, reviens dans un moment.</Note>
         ) : (
           <>
+            {me.is_admin && (
+              <p className="mt-6 mb-0 text-sm">
+                <Link
+                  href={href(scope === "all" ? "mine" : "all", "all", 1)}
+                  prefetch={false}
+                  className="font-semibold text-cyan hover:underline"
+                >
+                  {scope === "all" ? "Voir mes tickets" : "Voir tous les tickets (administration)"}
+                </Link>
+              </p>
+            )}
             <nav aria-label="Filtrer par statut" className="mt-8 flex gap-2">
               {FILTERS.map(f => (
                 <Link
                   key={f.key}
-                  href={href(f.key, 1)}
+                  href={href(scope, f.key, 1)}
                   prefetch={false}
                   aria-current={status === f.key ? "page" : undefined}
                   className={cn(
@@ -92,7 +111,7 @@ export default async function TicketsPage({
               ))}
             </nav>
             {data.tickets.length === 0 ? (
-              <Note>Aucun ticket trouvé.</Note>
+              <Note>{scope === "all" ? "Aucun ticket trouvé." : "Tu n’as ouvert aucun ticket."}</Note>
             ) : (
               <div className="mt-6 overflow-x-auto rounded-[20px] border border-line bg-[rgb(19_22_42/0.92)]">
                 <table className="w-full text-left text-sm">
@@ -100,7 +119,7 @@ export default async function TicketsPage({
                   <thead className="text-muted">
                     <tr className="border-b border-line">
                       <th scope="col" className={TH}>N°</th>
-                      <th scope="col" className={TH}>Membre</th>
+                      {scope === "all" && <th scope="col" className={TH}>Membre</th>}
                       <th scope="col" className={TH}>Sujet</th>
                       <th scope="col" className={TH}>Statut</th>
                       <th scope="col" className={TH}>Ouvert le</th>
@@ -112,7 +131,7 @@ export default async function TicketsPage({
                     {data.tickets.map(t => (
                       <tr key={t.id} className="border-b border-line/60 last:border-b-0">
                         <td className="px-4 py-3 font-mono text-muted">#{String(t.ticket_number).padStart(4, "0")}</td>
-                        <td className="px-4 py-3 font-medium">{t.username}</td>
+                        {scope === "all" && <td className="px-4 py-3 font-medium">{t.username}</td>}
                         <td className="max-w-[260px] truncate px-4 py-3 text-muted">{t.subject || "—"}</td>
                         <td className="px-4 py-3">
                           <Chip color={STATUS[t.status]?.color}>{STATUS[t.status]?.label ?? t.status}</Chip>
@@ -144,7 +163,7 @@ export default async function TicketsPage({
             <RankPagination
               page={data.page}
               totalPages={Math.ceil(data.total / data.limit)}
-              hrefFor={p => href(status, p)}
+              hrefFor={p => href(scope, status, p)}
             />
           </>
         )}

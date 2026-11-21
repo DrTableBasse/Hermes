@@ -13,7 +13,7 @@ export const MAIN_LINKS: NavLink[] = [
 export const ACCOUNT_LINKS: Array<NavLink & { role?: "isAdmin" | "isRedacteur" }> = [
   { href: "/profil", label: "Profil" },
   { href: "/quetes", label: "Quêtes" },
-  { href: "/tickets", label: "Tickets", role: "isAdmin" },
+  { href: "/tickets", label: "Tickets" },
   { href: "/editeur/nouveau", label: "Écrire un article", role: "isRedacteur" },
   { href: "/admin", label: "Admin", role: "isAdmin" },
 ]
