@@ -247,8 +247,8 @@ describe("GalleryPreview", () => {
   it("affiche au plus 3 moments : capture vers les archives, clip vers son hébergeur", () => {
     const items = [
       moment(1),
-      moment(2, { kind: "clip", url: "https://www.youtube.com/watch?v=abc", provider: "youtube", caption: null }),
-      moment(3),
+      moment(2, { kind: "clip", url: "https://www.youtube.com/watch?v=abcdefghijk", provider: "youtube", caption: null }),
+      moment(3, { kind: "clip", url: "https://evil.example/watch?v=abcdefghijk", provider: "youtube" }),
       moment(4),
     ]
     render(<GalleryPreview data={{ items }} />)
@@ -258,12 +258,20 @@ describe("GalleryPreview", () => {
 
     expect(links[0].getAttribute("href")).toBe("/galerie")
     expect(links[0].textContent).toBe("CaptureMoment 1Auteur 1")
-    expect(links[0].querySelector("img")?.getAttribute("src")).toBe("/media/gallery/1.webp")
+    // Capture lue par l'optimiseur Next (miniature), jamais l'original pleine taille.
+    const src = links[0].querySelector("img")?.getAttribute("src") ?? ""
+    expect(src.startsWith("/_next/image?url=%2Fmedia%2Fgallery%2F1.webp&w=")).toBe(true)
 
-    expect(links[1].getAttribute("href")).toBe("https://www.youtube.com/watch?v=abc")
+    expect(links[1].getAttribute("href")).toBe("https://www.youtube.com/watch?v=abcdefghijk")
     expect(links[1].getAttribute("target")).toBe("_blank")
     expect(links[1].textContent).toBe("Clip YouTubeSouvenir sans légendeAuteur 2")
-    expect(links[1].querySelector("img")).toBeNull()
+    expect(links[1].querySelector("img")?.getAttribute("src")).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg")
+
+    // URL hors forme canonique : ni lien sortant, ni libellé de fournisseur (parseClip).
+    expect(links[2].getAttribute("href")).toBe("/galerie")
+    expect(links[2].getAttribute("target")).toBeNull()
+    expect(links[2].textContent?.startsWith("Clip")).toBe(true)
+    expect(links[2].textContent?.startsWith("Clip YouTube")).toBe(false)
 
     expect(screen.getByRole("link", { name: "Toute la galerie" }).getAttribute("href")).toBe("/galerie")
   })

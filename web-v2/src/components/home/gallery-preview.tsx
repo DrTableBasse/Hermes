@@ -1,28 +1,22 @@
-import Image from "next/image"
 import type { CSSProperties } from "react"
+import { TileVisual } from "@/components/gallery/gallery-strips"
 import { Button } from "@/components/ui/button"
 import { SectionHeading } from "@/components/ui/section-heading"
 import type { GalleryItem, GalleryResponse } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
+import { captionOf, kindLabel, parseClip } from "@/lib/gallery"
 
 /** Fonds des tuiles sans image (clips) : teintes de la maquette, attribuées par position. */
 const TINTS = ["#9B6BFF", "#B3202D", "#5DAA3A"]
 
-const PROVIDERS: Record<string, string> = { youtube: "YouTube", twitch: "Twitch", medal: "Medal" }
-
-function kindLabel(item: GalleryItem): string {
-  if (item.kind === "image") return "Capture"
-  const provider = item.provider ? (PROVIDERS[item.provider.toLowerCase()] ?? item.provider) : null
-  return provider ? `Clip ${provider}` : "Clip"
-}
-
 function Moment({ item, index }: { item: GalleryItem; index: number }) {
   const tint = TINTS[index % TINTS.length]
   const isClip = item.kind === "clip"
-  // Un clip s'ouvre chez son hébergeur ; une capture renvoie aux archives.
-  const href = isClip && item.url ? item.url : "/galerie"
-  const external = href !== "/galerie"
-  const caption = item.caption?.trim() || "Souvenir sans légende"
+  // Un clip reconnu (URL canonique, `parseClip`) s'ouvre chez son hébergeur ; le reste renvoie aux archives.
+  const clip = parseClip(item)
+  const href = clip ? clip.url : "/galerie"
+  const external = clip !== null
+  const caption = captionOf(item)
 
   return (
     <li className="min-w-0">
@@ -34,11 +28,8 @@ function Moment({ item, index }: { item: GalleryItem; index: number }) {
         data-kind={item.kind}
       >
         <span className="absolute inset-0 bg-linear-to-b from-(--g1) to-(--g2)" aria-hidden="true">
-          {item.kind === "image" && item.url ? (
-            <Image src={item.url} alt="" fill sizes="(max-width: 900px) 100vw, 40vw" unoptimized className="object-cover" />
-          ) : (
-            <span className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgb(255_255_255/0.05)_0_10px,transparent_10px_36px)]" />
-          )}
+          {/* Même rendu que /galerie : capture via l'optimiseur Next, jamais l'original. */}
+          <TileVisual item={item} sizes="(max-width: 900px) 100vw, 40vw" />
           <span className="absolute inset-x-0 top-[45%] bottom-0 bg-linear-to-b from-transparent to-[rgb(12_14_26/0.95)]" />
         </span>
         <span className="absolute top-3 right-3 z-2 rounded-full bg-black/45 px-[9px] py-[3px] text-[11px] font-bold text-white">
