@@ -98,7 +98,12 @@ export const getGallery = (limit = 30) =>
 export const getGalleryHighlights = () =>
   apiGetOrNull<GalleryResponse>("/gallery/highlights", { revalidate: 60 })
 
-export const getStaff = () => apiGetOrNull<StaffResponse>("/staff", { revalidate: 300 })
+/**
+ * État-major. Avec `token` (formulaire de `/profil`), lecture fraîche hors cache Next : le membre doit
+ * retrouver la phrase qu'il vient d'enregistrer, pas celle d'il y a cinq minutes.
+ */
+export const getStaff = (token?: string) =>
+  apiGetOrNull<StaffResponse>("/staff", token ? { token } : { revalidate: 300 })
 
 export async function getGrades(): Promise<Grade[] | null> {
   const data = await apiGetOrNull<GradesResponse>("/grades", { revalidate: 600 })

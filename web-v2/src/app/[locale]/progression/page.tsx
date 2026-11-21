@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { cookies } from "next/headers"
 import { AchievementsShowcase } from "@/components/progression/achievements-showcase"
 import { CharacterSheet } from "@/components/progression/character-sheet"
 import { GradeLadder } from "@/components/progression/grade-ladder"
@@ -14,22 +13,11 @@ import {
   getWeeklyQuests,
   leaderboardLevels,
 } from "@/lib/api/server"
+import { sessionToken } from "@/lib/session"
 
 export const metadata: Metadata = {
   title: "Progression · SaucisseLand",
   description: "Grades, quêtes de la semaine, succès et classement par niveau des Généraux Saucisses.",
-}
-
-// En HTTPS, BetterAuth préfixe son cookie par `__Secure-` (même liste que `src/proxy.ts`).
-const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"]
-
-async function sessionToken(): Promise<string | null> {
-  const jar = await cookies()
-  for (const name of SESSION_COOKIES) {
-    const value = jar.get(name)?.value
-    if (value) return value
-  }
-  return null
 }
 
 export default async function ProgressionPage() {

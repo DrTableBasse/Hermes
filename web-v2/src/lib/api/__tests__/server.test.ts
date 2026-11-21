@@ -11,6 +11,7 @@ import {
   getLive,
   getPage,
   getSessionUser,
+  getStaff,
   getUserAchievementsAll,
   getUserActivity,
   getUserPublicStats,
@@ -121,6 +122,15 @@ describe("fonctions nommées", () => {
     await expect(getLive()).resolves.toBeNull()
     expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/live")
     expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: 30 })
+  })
+
+  it("getStaff : cache de 5 min en public, lecture fraîche avec la session", async () => {
+    fetchMock.mockImplementation(async () => reply(200, { staff: [] }))
+    await getStaff()
+    expect(fetchMock.mock.calls[0][1].next).toEqual({ revalidate: 300 })
+    await getStaff("tok")
+    expect(fetchMock.mock.calls[1][1].cache).toBe("no-store")
+    expect(fetchMock.mock.calls[1][1].next).toBeUndefined()
   })
 
   it("getEvents garde le drapeau stale optionnel", async () => {
