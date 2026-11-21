@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore }
 import { Avatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { glassClass } from "@/components/ui/glass"
+import { NotificationBell } from "@/components/account/notification-bell"
 import { Brand } from "@/components/layout/brand"
 import { ACCOUNT_LINKS, MAIN_LINKS, isCurrent } from "@/components/layout/nav-links"
 import { authClient } from "@/lib/auth-client"
@@ -160,6 +161,7 @@ export function Navbar({ inviteUrl }: NavbarProps) {
           </ul>
 
           <div className="flex items-center gap-2">
+            {user && <NotificationBell />}
             {user ? (
               <AccountMenu user={user} />
             ) : (

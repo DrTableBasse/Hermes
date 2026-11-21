@@ -4,7 +4,7 @@ import { routing } from "./i18n/routing"
 
 const intlMiddleware = createIntlMiddleware(routing)
 
-const PROTECTED = ["/admin", "/profil", "/editeur"]
+const PROTECTED = ["/admin", "/profil", "/quetes", "/tickets", "/editeur"]
 const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"]
 
 export function proxy(request: NextRequest) {

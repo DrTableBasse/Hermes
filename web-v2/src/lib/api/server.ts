@@ -31,8 +31,11 @@ import type {
   StaffResponse,
   StreakEntry,
   Tag,
+  TicketList,
+  TicketStatus,
   UserStats,
   VoiceEntry,
+  XpData,
   XpEntry,
 } from "./types"
 import { query, seg } from "./query"
@@ -162,6 +165,15 @@ export async function getWeeklyQuests(token: string): Promise<Quest[] | null> {
   const data = await apiGetOrNull<{ quests: Quest[] }>("/quests", { token })
   return data ? data.quests : null
 }
+
+/** Niveau, XP et grade du membre (`/xp/{id}`) ; `null` en cas d'échec. */
+export async function getXp(userId: string, token: string): Promise<XpData | null> {
+  return apiGetOrNull<XpData>(`/xp/${seg(userId)}`, { token })
+}
+
+/** Historique des tickets (`/tickets`, administrateurs) ; `null` : accès refusé ou API muette. */
+export const getTickets = (token: string, status: TicketStatus | "all" = "all", page = 1, limit = 20) =>
+  apiGetOrNull<TicketList>(`/tickets${query({ status, page, limit })}`, { token })
 
 export async function getUserAchievementsAll(userId: string): Promise<AchievementWithStatus[]> {
   return (await apiGet<{ achievements: AchievementWithStatus[] }>(`/users/${seg(userId)}/achievements`))

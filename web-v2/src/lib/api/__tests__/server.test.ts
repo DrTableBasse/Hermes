@@ -12,11 +12,13 @@ import {
   getPage,
   getSessionUser,
   getStaff,
+  getTickets,
   getUserAchievementsAll,
   getUserActivity,
   getUserPublicStats,
   getUserStats,
   getWeeklyQuests,
+  getXp,
   leaderboardLevels,
   listTags,
 } from "@/lib/api/server"
@@ -213,6 +215,26 @@ describe("fonctions nommées", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/auth/me")
     fetchMock.mockResolvedValueOnce(reply(401))
     await expect(getSessionUser("expiré")).resolves.toBeNull()
+  })
+
+  it("getXp encode l'identifiant, transmet la session et renvoie null sur un échec", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { user_id: "42", current_level: 3 }))
+    await expect(getXp("42", "tok")).resolves.toMatchObject({ current_level: 3 })
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/xp/42")
+    expect(fetchMock.mock.calls[0][1].headers.Cookie).toBe("better-auth.session_token=tok")
+    expect(fetchMock.mock.calls[0][1].cache).toBe("no-store")
+    fetchMock.mockResolvedValueOnce(reply(503))
+    await expect(getXp("42", "tok")).resolves.toBeNull()
+    await expect(getXp("..", "tok")).rejects.toThrow(/invalide/)
+  })
+
+  it("getTickets passe filtre, page et limite, hors cache, et renvoie null sur un 403", async () => {
+    fetchMock.mockResolvedValueOnce(reply(200, { tickets: [], total: 0, page: 2, limit: 20 }))
+    await expect(getTickets("tok", "open", 2)).resolves.toMatchObject({ page: 2 })
+    expect(fetchMock.mock.calls[0][0]).toBe("http://web-api:8000/tickets?status=open&page=2&limit=20")
+    expect(fetchMock.mock.calls[0][1].cache).toBe("no-store")
+    fetchMock.mockResolvedValueOnce(reply(403, { detail: "Accès refusé" }))
+    await expect(getTickets("tok")).resolves.toBeNull()
   })
 
   it("une fonction non « direct » propage l'erreur HTTP", async () => {
