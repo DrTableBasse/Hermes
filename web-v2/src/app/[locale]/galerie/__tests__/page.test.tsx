@@ -97,6 +97,16 @@ describe("page /galerie", () => {
     )
   })
 
+  it("vignette d'une capture : miniature de l'optimiseur, jamais l'original", async () => {
+    render(await GalleryPage())
+    const src = visibleTiles()[0].querySelector("img")!.getAttribute("src")!
+    expect(src.startsWith("/_next/image?url=%2Fmedia%2Fgallery%2Face.png&w=")).toBe(true)
+    // Miniature YouTube : déjà légère, lue chez le fournisseur.
+    expect(visibleTiles()[2].querySelector("img")!.getAttribute("src")).toBe(
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    )
+  })
+
   it("aperçu d'une capture : l'image, sans lecteur", async () => {
     render(await GalleryPage())
     fireEvent.click(visibleTiles()[0])

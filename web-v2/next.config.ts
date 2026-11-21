@@ -36,6 +36,9 @@ const appHostname = (() => {
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
+    // Seules les images du volume média (galerie) passent par l'optimiseur, qui les lit à travers le
+    // rewrite /media → web-api ; tout autre chemin local est refusé par /_next/image.
+    localPatterns: [{ pathname: "/media/**" }],
     remotePatterns: [
       { protocol: "https", hostname: "cdn.discordapp.com" },
       { protocol: "http",  hostname: "localhost" },

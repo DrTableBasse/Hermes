@@ -30,9 +30,14 @@ function fill(strip: GalleryItem[], offset: number): Slot[] {
 }
 
 function TileVisual({ item }: { item: GalleryItem }) {
+  // Capture : miniature redimensionnée par l'optimiseur Next (`images.localPatterns`, `/media/**`), pas
+  // l'original de plusieurs Mo ; l'aperçu agrandi, lui, garde l'original.
+  const image = galleryImageSrc(item)
+  if (image) return <Image src={image} alt="" fill sizes="380px" className="object-cover" />
+  // Miniature YouTube : déjà petite, lue directement chez le fournisseur (CSP `img-src`).
   const clip = parseClip(item)
-  const src = galleryImageSrc(item) ?? (clip && clipThumbnail(clip))
-  if (src) return <Image src={src} alt="" fill sizes="380px" unoptimized className="object-cover" />
+  const thumbnail = clip && clipThumbnail(clip)
+  if (thumbnail) return <Image src={thumbnail} alt="" fill sizes="380px" unoptimized className="object-cover" />
   return (
     <span className="absolute inset-0 bg-[repeating-linear-gradient(135deg,rgb(255_255_255/0.05)_0_10px,transparent_10px_36px)]" />
   )
