@@ -5,11 +5,18 @@ import { Footer } from "@/components/layout/footer"
 import { Navbar } from "@/components/layout/navbar"
 import { routing } from "@/i18n/routing"
 import { getPublicSettings } from "@/lib/api/server"
+import { siteUrl } from "@/lib/site"
 import { fontVariables } from "../fonts"
 import "../globals.css"
 
+const DESCRIPTION = "SaucisseLand, la communauté Discord où Hermes compte les points, les grades et les saucisses."
+
+// Aucune image Open Graph tant que le logo n'est pas fourni : on n'en invente pas.
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: "SaucisseLand",
+  description: DESCRIPTION,
+  openGraph: { title: "SaucisseLand", description: DESCRIPTION, type: "website", locale: "fr_FR", siteName: "SaucisseLand" },
 }
 
 export default async function LocaleLayout({
