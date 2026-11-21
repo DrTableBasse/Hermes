@@ -70,3 +70,23 @@ def test_gallery_admin_patch_and_delete(client, fake_db, monkeypatch, tmp_path):
     assert client.patch("/admin/gallery/1", json={"hidden": True}).status_code == 200
     assert client.delete("/admin/gallery/1").status_code == 204
     assert not (tmp_path / "a.png").exists()
+
+
+def test_gallery_admin_list_includes_hidden(client, fake_db, monkeypatch):
+    _session(monkeypatch, is_admin=True)
+    client.cookies.set("better-auth.session_token", "t")
+    fake_db.on("from gallery_items", [_row(1, hidden=True), _row(2)])
+    r = client.get("/admin/gallery")
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert [(i["id"], i["hidden"]) for i in items] == [(1, True), (2, False)]
+    assert items[0]["url"] == "/media/gallery/a.png"
+    sql = next(s for m, s, a in fake_db.calls if "gallery_items" in s)
+    assert "hidden = FALSE" not in sql
+
+
+def test_gallery_admin_list_requires_admin(client, fake_db, monkeypatch):
+    _session(monkeypatch, is_admin=False)
+    client.cookies.set("better-auth.session_token", "t")
+    assert client.get("/admin/gallery").status_code == 403
+    assert not [c for c in fake_db.calls if "gallery_items" in c[1]]

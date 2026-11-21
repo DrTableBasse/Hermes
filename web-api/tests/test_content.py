@@ -352,3 +352,27 @@ def test_content_admin_only(client, fake_db, as_user, method, url, body):
     as_user("2", is_admin=False)
     assert getattr(client, method)(url, **kwargs).status_code == 403
     assert not _writes(fake_db)
+
+
+# ── GET /admin/games ──────────────────────────────────────────────────────────
+
+def test_admin_games_lists_inactive_with_editable_fields(client, fake_db, as_user):
+    as_user()
+    fake_db.on("FROM site_games", [
+        {**TABLE[1], "discord_role_id": None},
+        {**TABLE[0], "discord_role_id": 1234567890123456789},
+    ])
+    r = client.get("/admin/games")
+    assert r.status_code == 200
+    old, lol = r.json()["games"]
+    assert old["key"] == "old" and old["active"] is False and old["discord_role_id"] is None
+    # Identifiants Discord en chaîne : un nombre JS perdrait les derniers chiffres.
+    assert lol["discord_role_id"] == "1234567890123456789" and lol["forum_channel_id"] == "555"
+    assert lol["position"] == 3 and lol["tagline"] == "Toxicité laissée au vestiaire."
+    sql = next(s for m, s, a in fake_db.calls if "site_games" in s)
+    assert "where active" not in sql.lower()
+
+
+def test_admin_games_requires_admin(client, fake_db, as_user):
+    as_user(is_admin=False)
+    assert client.get("/admin/games").status_code == 403

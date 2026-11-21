@@ -161,6 +161,25 @@ def _clean_game(body: Any, *, partial: bool) -> dict:
     return {k: _CLEANERS[k](body[k]) for k in GAME_FIELDS if k in body}
 
 
+@router.get("/admin/games")
+async def admin_list_games(user: dict = Depends(get_current_user)):
+    """Tous les jeux, désactivés compris, avec les champs éditables (rôle, forum, position)."""
+    require_admin(user)
+    rows = await db.fetch(
+        "SELECT key, name, color, image, tagline, discord_role_id, forum_channel_id, position, active "
+        "FROM site_games ORDER BY position, key")
+
+    def snowflake(value):
+        return str(value) if value else None
+
+    return {"games": [
+        {"key": r["key"], "name": r["name"], "color": r["color"], "image": r["image"], "tagline": r["tagline"],
+         "discord_role_id": snowflake(r["discord_role_id"]), "forum_channel_id": snowflake(r["forum_channel_id"]),
+         "position": r["position"], "active": r["active"]}
+        for r in rows
+    ]}
+
+
 @router.post("/admin/games", status_code=201)
 async def create_game(body: dict, user: dict = Depends(get_current_user)):
     require_admin(user)

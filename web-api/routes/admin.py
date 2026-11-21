@@ -547,6 +547,21 @@ class GalleryVisibility(BaseModel):
     hidden: bool
 
 
+@router.get("/gallery")
+async def list_gallery_admin(user: dict = Depends(get_current_user),
+                             limit: int = Query(100, ge=1, le=200)):
+    """Galerie complète pour la modération : éléments masqués compris, avec leur état."""
+    require_admin(user)
+    rows = await db.fetch(
+        """SELECT g.id, g.kind, g.file_name, g.clip_url, g.clip_provider, g.caption, g.hidden,
+                  g.author_id, g.created_at, v.username, v.discord_avatar
+           FROM gallery_items g
+           LEFT JOIN user_voice_data v ON v.user_id = g.author_id
+           ORDER BY g.created_at DESC
+           LIMIT $1""", limit)
+    return {"items": [{**gallery._item(r), "hidden": bool(r["hidden"])} for r in rows]}
+
+
 @router.patch("/gallery/{item_id}")
 async def set_gallery_hidden(item_id: int, body: GalleryVisibility,
                              user: dict = Depends(get_current_user)):
