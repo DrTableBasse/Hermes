@@ -18,6 +18,7 @@ const message = (e: unknown) => (e instanceof Error ? e.message : "Erreur inatte
 export function ArticleComments({ articleId, viewer }: Props) {
   const [comments, setComments] = useState<ArticleComment[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [content, setContent] = useState("")
   const [sending, setSending] = useState(false)
   const [error, setError] = useState("")
@@ -27,7 +28,7 @@ export function ArticleComments({ articleId, viewer }: Props) {
     api.comments
       .list(articleId)
       .then(r => alive && setComments(r.comments))
-      .catch(() => {})
+      .catch(() => alive && setFailed(true))
       .finally(() => alive && setLoaded(true))
     return () => {
       alive = false
@@ -74,7 +75,7 @@ export function ArticleComments({ articleId, viewer }: Props) {
   return (
     <section aria-labelledby="comments-title" className="mt-12 border-t border-line pt-8">
       <h2 id="comments-title" className="mb-6 font-display text-xl font-bold">
-        Commentaires ({comments.length})
+        {loaded && !failed ? `Commentaires (${comments.length})` : "Commentaires"}
       </h2>
 
       {viewer && (
@@ -105,7 +106,12 @@ export function ArticleComments({ articleId, viewer }: Props) {
         </p>
       )}
 
-      {loaded && comments.length === 0 && <p className="text-sm text-muted">Aucun commentaire pour l’instant.</p>}
+      {failed && (
+        <p role="status" className="text-sm text-muted">
+          Commentaires indisponibles pour l’instant.
+        </p>
+      )}
+      {loaded && !failed && comments.length === 0 && <p className="text-sm text-muted">Aucun commentaire pour l’instant.</p>}
       <ul className="space-y-5">
         {comments.map(c => (
           <li key={c.id} className="flex gap-3">
