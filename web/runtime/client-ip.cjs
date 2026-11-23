@@ -62,18 +62,29 @@ function stampRequest(req, trustedHeader) {
 
 let uninstallCurrent = null
 
-/** Intercepte l'évènement `request` de tous les serveurs HTTP du processus ; renvoie l'annulation. */
-function install(env = process.env) {
+// `upgrade` (WebSocket) contourne `request` : Next relaie ces requêtes vers les rewrites
+// (`/media/*`) sans repasser par l'évènement `request` (constat m4).
+const STAMPED_EVENTS = new Set(["request", "upgrade"])
+
+/**
+ * Intercepte les évènements `request` et `upgrade` de tous les serveurs HTTP du processus ;
+ * renvoie l'annulation. `log` reçoit une ligne à l'installation (constat m6 : le démarrage dit
+ * si le preload est actif, et selon quelle source).
+ */
+function install(env = process.env, log = console.info) {
   if (uninstallCurrent) return uninstallCurrent
   const trusted = trustedHeaderFrom(env)
   const proto = http.Server.prototype
   const hadOwn = Object.prototype.hasOwnProperty.call(proto, "emit")
   const original = proto.emit
   proto.emit = function emit(event, ...args) {
-    if (event === "request" && args[0]) stampRequest(args[0], trusted)
+    if (STAMPED_EVENTS.has(event) && args[0]) stampRequest(args[0], trusted)
     return original.call(this, event, ...args)
   }
   env[MARKER] = trusted ? `header:${trusted}` : "socket"
+  if (typeof log === "function") {
+    log(`[client-ip] preload actif : x-client-ip posé depuis ${trusted ? `l'en-tête ${trusted}` : "la socket TCP"}`)
+  }
   uninstallCurrent = () => {
     if (hadOwn) proto.emit = original
     else delete proto.emit

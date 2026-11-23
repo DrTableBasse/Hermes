@@ -15,7 +15,7 @@ interface ClientIpModule {
     remoteAddress: string | undefined,
     trustedHeader: string | null,
   ): string | null
-  install(env?: Record<string, string | undefined>): () => void
+  install(env?: Record<string, string | undefined>, log?: ((line: string) => void) | null): () => void
 }
 
 const mod = createRequire(import.meta.url)("../../../runtime/client-ip.cjs") as ClientIpModule
@@ -28,7 +28,7 @@ afterEach(() => {
 
 /** Serveur réel : renvoie le `x-client-ip` vu par le gestionnaire, après interception. */
 async function seenIp(env: Record<string, string | undefined>, headers: Record<string, string>) {
-  uninstall = mod.install(env)
+  uninstall = mod.install(env, null)
   const server = http.createServer((req, res) => res.end(String(req.headers["x-client-ip"] ?? "")))
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
   const { port } = server.address() as AddressInfo
@@ -78,9 +78,50 @@ describe("runtime/client-ip.cjs (constat I1)", () => {
     expect(await seenIp({ ...env }, { "cf-connecting-ip": "pas-une-ip" })).toBe("127.0.0.1")
   })
 
+  it("requête Upgrade (WebSocket) : x-client-ip aussi écrasé (constat m4)", async () => {
+    const env: Record<string, string | undefined> = {}
+    uninstall = mod.install(env, null)
+    const server = http.createServer()
+    server.on("upgrade", (req, socket) => {
+      const seen = String(req.headers["x-client-ip"] ?? "")
+      socket.end(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nX-Seen: ${seen}\r\n\r\n`)
+    })
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve))
+    const { port } = server.address() as AddressInfo
+    try {
+      const seen = await new Promise<string>((resolve, reject) => {
+        http
+          .request({
+            host: "127.0.0.1",
+            port,
+            path: "/media/x",
+            headers: { connection: "Upgrade", upgrade: "websocket", "x-client-ip": "6.6.6.6" },
+          })
+          .on("upgrade", (res, socket) => {
+            socket.destroy()
+            resolve(String(res.headers["x-seen"]))
+          })
+          .on("error", reject)
+          .end()
+      })
+      expect(seen).toBe("127.0.0.1")
+    } finally {
+      await new Promise(resolve => server.close(resolve))
+    }
+  })
+
+  it("installation : une ligne de log dit la source de l'IP (constat m6)", () => {
+    const lines: string[] = []
+    mod.install({ TRUSTED_IP_HEADER: "cf-connecting-ip" }, line => lines.push(line))()
+    mod.install({}, line => lines.push(line))()
+    expect(lines).toHaveLength(2)
+    expect(lines[0]).toContain("cf-connecting-ip")
+    expect(lines[1]).toContain("socket")
+  })
+
   it("annulation : l'interception disparaît avec le marqueur", async () => {
     const env: Record<string, string | undefined> = {}
-    mod.install(env)()
+    mod.install(env, null)()
     expect(env[CLIENT_IP_MARKER]).toBeUndefined()
     const server = http.createServer()
     expect(Object.prototype.hasOwnProperty.call(http.Server.prototype, "emit")).toBe(false)
