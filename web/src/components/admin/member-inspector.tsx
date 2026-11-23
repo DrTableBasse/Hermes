@@ -16,15 +16,19 @@ import { warnDate } from "./warns-list"
 type Loaded = { for: string } & ({ status: "error"; text: string } | { status: "ok"; profile: UserStats; warns: Warn[] })
 
 type Props = {
+  /** `id` de la section : cible des liens « auteur » / « cible » du journal. */
+  id?: string
+  /** Membre ouvert (contrôlé par le parent, que le journal peut aussi changer). */
+  member: UserSearchResult | null
+  onMember: (user: UserSearchResult | null) => void
   /** Change à chaque sanction réussie : la fiche ouverte est relue. */
   refreshKey: number
   onSanction: (user: UserSearchResult) => void
 }
 
 /** Fiche d'un membre : statistiques, sanctions (supprimables après confirmation), succès. */
-export function MemberInspector({ refreshKey, onSanction }: Props) {
+export function MemberInspector({ id, member, onMember, refreshKey, onSanction }: Props) {
   const ids = useId()
-  const [member, setMember] = useState<UserSearchResult | null>(null)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [warnError, setWarnError] = useState<string | null>(null)
   const tag = member ? `${member.user_id}:${refreshKey}` : null
@@ -53,7 +57,7 @@ export function MemberInspector({ refreshKey, onSanction }: Props) {
   }
 
   return (
-    <Panel as="section" aria-labelledby={`${ids}-title`} className="grid gap-5">
+    <Panel as="section" id={id} tabIndex={-1} aria-labelledby={`${ids}-title`} className="grid scroll-mt-24 gap-5">
       <h2 id={`${ids}-title`} className="m-0 font-display text-xl font-extrabold">
         Fiche d’un membre
       </h2>
@@ -61,8 +65,8 @@ export function MemberInspector({ refreshKey, onSanction }: Props) {
         <UserSearchInput
           label="Rechercher un membre"
           selected={member}
-          onSelect={setMember}
-          onClear={() => setMember(null)}
+          onSelect={onMember}
+          onClear={() => onMember(null)}
         />
       </div>
       {member && !data && <p className="m-0 text-sm text-muted">Chargement…</p>}

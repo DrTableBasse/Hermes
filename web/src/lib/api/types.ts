@@ -606,22 +606,49 @@ export interface AdminWarn extends Warn {
   discord_avatar: string | null
 }
 
-export interface AdminLog {
+/** Ligne du journal unique (`GET /admin/audit`). Dates en UTC (ISO 8601 avec décalage). */
+export interface AuditEvent {
   id: number
-  action_type: string
+  occurred_at: string
+  kind: string
+  action: string
+  source: string
   actor_id: Snowflake | null
   actor_name: string | null
   target_id: Snowflake | null
   target_name: string | null
+  channel_id: Snowflake | null
+  channel_name: string | null
+  success: boolean
+  /** Jamais null : `{}` si vide. */
   details: Record<string, unknown>
-  created_at: string
 }
 
-export interface AdminLogPage {
-  logs: AdminLog[]
+export interface AuditPage {
+  events: AuditEvent[]
   total: number
   page: number
   pages: number
+}
+
+/** Actions présentes par type, et salons connus du journal (`GET /admin/audit/facets`). */
+export interface AuditFacets {
+  kinds: Record<string, string[]>
+  channels: { id: Snowflake; name: string }[]
+}
+
+/** Filtres du journal ; champs absents ou vides = pas de filtre. `from`/`to` : `YYYY-MM-DD`. */
+export interface AuditFilters {
+  kind?: string[]
+  action?: string[]
+  source?: string[]
+  channelId?: Snowflake
+  actor?: string
+  target?: string
+  from?: string
+  to?: string
+  failedOnly?: boolean
+  q?: string
 }
 
 export interface UserSearchResult {

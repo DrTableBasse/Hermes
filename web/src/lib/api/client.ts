@@ -4,7 +4,9 @@
  */
 import type {
   ActiveQuest,
-  AdminLogPage,
+  AuditFacets,
+  AuditFilters,
+  AuditPage,
   CreatedChannel,
   QuestDeployResult,
   SettingPutResult,
@@ -48,6 +50,7 @@ import type {
   UserStats,
 } from "./types"
 
+import { auditQuery } from "../audit"
 import { query, seg } from "./query"
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/proxy"
@@ -84,6 +87,12 @@ const send = (method: string, body?: unknown): RequestInit => ({
   method,
   body: body === undefined ? undefined : JSON.stringify(body),
 })
+
+/** Export CSV du journal avec les mêmes filtres (lien GET : le proxy relaie le cookie). */
+export function auditCsvUrl(filters: AuditFilters): string {
+  const qs = auditQuery(filters)
+  return `${API}/admin/audit.csv${qs ? `?${qs}` : ""}`
+}
 
 export const api = {
   auth: {
@@ -134,8 +143,8 @@ export const api = {
     allWarns: () => request<{ warns: AdminWarn[] }>("/admin/warns"),
     getWarns: (userId: Snowflake) => request<{ warns: Warn[] }>(`/admin/warns/${seg(userId)}`),
     deleteWarn: (warnId: number) => request<{ success: boolean }>(`/admin/warns/${seg(warnId)}`, send("DELETE")),
-    logs: (page = 1, actionTypes?: string[]) =>
-      request<AdminLogPage>(`/admin/logs${query({ page, action_type: actionTypes?.join(",") })}`),
+    audit: (filters: AuditFilters, page = 1) => request<AuditPage>(`/admin/audit?${auditQuery(filters, page)}`),
+    auditFacets: () => request<AuditFacets>("/admin/audit/facets"),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
     settings: () => request<SettingsResponse>("/admin/settings"),
     putSetting: (key: string, value: string) =>

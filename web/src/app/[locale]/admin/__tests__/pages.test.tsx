@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "tok" }) }) }))
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }))
 
 const api = vi.hoisted(() => {
   const names = [
@@ -15,7 +16,8 @@ const api = vi.hoisted(() => {
 vi.mock("@/lib/api/server", () => api)
 
 const client = vi.hoisted(() => ({
-  api: { admin: { allWarns: vi.fn(), logs: vi.fn() } },
+  api: { admin: { allWarns: vi.fn(), audit: vi.fn(), auditFacets: vi.fn() } },
+  auditCsvUrl: () => "/api/proxy/admin/audit.csv",
   ApiError: class extends Error {},
 }))
 vi.mock("@/lib/api/client", () => client)
@@ -48,7 +50,8 @@ beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockResolvedValue(null)
   api.getSessionUser.mockResolvedValue({ user_id: "1", is_admin: true, is_redacteur: true })
   client.api.admin.allWarns.mockResolvedValue({ warns: [] })
-  client.api.admin.logs.mockResolvedValue({ logs: [], total: 0, page: 1, pages: 1 })
+  client.api.admin.audit.mockResolvedValue({ events: [], total: 0, page: 1, pages: 1 })
+  client.api.admin.auditFacets.mockResolvedValue({ kinds: {}, channels: [] })
 })
 
 afterEach(() => {
@@ -154,9 +157,9 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
       render(await ModerationPage())
     })
     expect(screen.getByRole("heading", { name: "Sanctionner un membre" })).toBeTruthy()
-    expect(client.api.admin.logs).toHaveBeenCalledWith(1, undefined)
+    expect(client.api.admin.audit).toHaveBeenCalledWith({}, 1)
     expect(screen.getByText(/Le site ne répond pas/)).toBeTruthy()
-    expect(screen.getByText("Aucune action dans cette catégorie.")).toBeTruthy()
+    expect(screen.getByText("Aucun évènement pour ces filtres.")).toBeTruthy()
   })
 
   it("quêtes : bibliothèque et semaine ; échecs séparés", async () => {
