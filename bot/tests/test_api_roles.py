@@ -116,6 +116,8 @@ class FakeEngine:
     def __init__(self):
         self.reloads = 0
         self.applied = []
+        self.apply_result = {"gain": [42, 43], "lose": [44], "missing_role": False,
+                             "added": 1, "removed": 0, "skipped": 1}
 
     async def reload(self):
         self.reloads += 1
@@ -130,7 +132,7 @@ class FakeEngine:
 
     async def apply(self, rule_id):
         self.applied.append(rule_id)
-        return {"gain": [42, 43], "lose": [44], "missing_role": False, "added": 2, "removed": 0}
+        return dict(self.apply_result)
 
 
 @pytest.fixture
@@ -432,9 +434,18 @@ def test_apply_runs_as_job(env):
     r = env.http.post("/role-rules/7/apply")
     assert r.status_code == 200
     job = _wait_job(env.http, r.json()["job_id"])
+    # 3 membres : 1 ajouté, 1 sauté (déjà pourvu), 1 retrait échoué → 1 seule erreur
     assert job == {"state": "done", "done": 3, "total": 3, "errors": 1,
-                   "added": 2, "removed": 0, "missing_role": False}
+                   "added": 1, "removed": 0, "skipped": 1, "missing_role": False}
     assert env.engine.applied == [7]
+
+
+def test_apply_skipped_members_are_not_errors(env):
+    env.engine.apply_result = {"gain": [42, 43], "lose": [44], "missing_role": False,
+                               "added": 1, "removed": 1, "skipped": 1}
+    r = env.http.post("/role-rules/7/apply")
+    job = _wait_job(env.http, r.json()["job_id"])
+    assert job["errors"] == 0 and job["skipped"] == 1 and job["total"] == 3
 
 
 def test_apply_unknown_rule_is_404(env):

@@ -314,7 +314,8 @@ def test_apply_reconciles_rule_and_counts(env):
         return e, await e.engine.apply(1)
 
     e, result = run(scenario)
-    assert result == {"gain": [1], "lose": [2], "missing_role": False, "added": 1, "removed": 1}
+    assert result == {"gain": [1], "lose": [2], "missing_role": False, "added": 1, "removed": 1,
+                      "skipped": 0}
     assert e.a.calls == [("add", 60)] and e.b.calls == [("remove", 60)] and e.c.calls == []
 
 

@@ -275,7 +275,8 @@ class RoleEngine(commands.Cog):
         """Réconcilie une règle sur tous les membres ; même forme que preview + comptes."""
         rule = await self._find_rule(rule_id)
         guild = self._guild()
-        result = {"gain": [], "lose": [], "missing_role": False, "added": 0, "removed": 0}
+        result = {"gain": [], "lose": [], "missing_role": False, "added": 0, "removed": 0,
+                  "skipped": 0}
         if guild is None:
             return result
         gain, lose = await self._rule_changes(guild, rule)
@@ -289,6 +290,7 @@ class RoleEngine(commands.Cog):
         role = guild.get_role(rule.role_id)
         for m in gain:  # séquentiel : discord.py gère les limites
             if role in m.roles:  # rôle homonyme réutilisé, déjà porté
+                result["skipped"] += 1
                 continue
             if await self._change(m, role, rule, True):
                 result["added"] += 1

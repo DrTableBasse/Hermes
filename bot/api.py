@@ -589,7 +589,8 @@ async def role_rule_apply(rule_id: int):
 
     Le moteur ne publie pas sa progression : ``total``/``done`` sont connus à la fin
     (gagnants + perdants), ``added``/``removed`` comptent les changements réels et
-    ``errors`` les changements non faits (échec Discord ou rôle déjà porté).
+    ``skipped`` les membres déjà pourvus (rôle homonyme réutilisé), ``errors`` les
+    seuls échecs : ``total − added − removed − skipped``.
     """
     engine = _role_engine()
     try:
@@ -601,11 +602,12 @@ async def role_rule_apply(rule_id: int):
         result = await engine.apply(rule_id)
         changed = result["added"] + result["removed"]
         job["total"] = job["done"] = len(result["gain"]) + len(result["lose"])
-        job["errors"] = job["total"] - changed
+        job["errors"] = job["total"] - changed - result["skipped"]
         job["added"], job["removed"] = result["added"], result["removed"]
+        job["skipped"] = result["skipped"]
         job["missing_role"] = result["missing_role"]
 
-    return {"job_id": _start_job(0, run, added=0, removed=0, missing_role=False)}
+    return {"job_id": _start_job(0, run, added=0, removed=0, skipped=0, missing_role=False)}
 
 
 @app.get("/discord/members/{user_id}/rank", dependencies=[Depends(_require_token)])
