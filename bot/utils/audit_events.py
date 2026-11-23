@@ -1,6 +1,7 @@
 """Journal unique des évènements (table audit_events) : écriture et helpers purs."""
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 
 import discord
@@ -48,11 +49,14 @@ def map_audit_action(action: discord.AuditLogAction) -> Optional[tuple]:
 
 def timeout_change(before, after) -> Optional[str]:
     """'timeout' / 'untimeout' selon l'évolution de timed_out_until, sinon None."""
+    moment = datetime.now(timezone.utc)
     was = getattr(before, "timed_out_until", None)
     now = getattr(after, "timed_out_until", None)
-    if was is None and now is not None:
+    was_active = was is not None and was > moment
+    now_active = now is not None and now > moment
+    if now_active and not was_active:
         return "timeout"
-    if was is not None and now is None:
+    if was_active and not now_active:
         return "untimeout"
     return None
 

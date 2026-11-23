@@ -71,6 +71,18 @@ def test_timeout_change():
     assert timeout_change(N(timed_out_until=None), N(timed_out_until=None)) is None
 
 
+def test_timeout_change_ignores_past_dates():
+    past = datetime.now(timezone.utc) - timedelta(minutes=10)
+    # None -> date passée : pas de sanction
+    assert timeout_change(N(timed_out_until=None), N(timed_out_until=past)) is None
+
+
+def test_timeout_change_expired_timeout_cleared_is_not_untimeout():
+    past = datetime.now(timezone.utc) - timedelta(minutes=10)
+    # date déjà expirée -> None : aucune levée de sanction
+    assert timeout_change(N(timed_out_until=past), N(timed_out_until=None)) is None
+
+
 def test_record_never_raises(monkeypatch, caplog):
     monkeypatch.setattr(audit_events, "db_manager", FakeDb(error=RuntimeError("panne")))
     with caplog.at_level(logging.WARNING):
