@@ -8,17 +8,19 @@ import {
   ROLE_TTL_MS,
   UNKNOWN_TTL_MS,
   type RoleRefreshDeps,
+  type StaffRoles,
 } from "@/lib/role-refresh"
 
 // Jetons au format BetterAuth (32 caractères alphanumériques).
 const TOK = "a".repeat(32)
 const TOK_B = "b".repeat(32)
+const NONE: StaffRoles = { isAdmin: false, isRedacteur: false, permissions: [] }
 
 function setup(over: Partial<RoleRefreshDeps> = {}, checkedAgoMs = ROLE_TTL_MS + 1) {
   let now = 1_000_000_000
   const deps: RoleRefreshDeps = {
     lookup: vi.fn(async () => ({ userId: "u1", discordId: "42", checkedAt: new Date(now - checkedAgoMs) })),
-    resolve: vi.fn(async () => [false, false] as [boolean, boolean]),
+    resolve: vi.fn(async (): Promise<StaffRoles | null> => NONE),
     store: vi.fn(async () => {}),
     now: () => now,
     ...over,
@@ -38,7 +40,7 @@ describe("réévaluation des droits (TTL 10 min)", () => {
     await refresh(`${TOK}.signature`)
     expect(deps.lookup).toHaveBeenCalledWith(TOK)
     expect(deps.resolve).toHaveBeenCalledWith("42")
-    expect(deps.store).toHaveBeenCalledWith("u1", [false, false])
+    expect(deps.store).toHaveBeenCalledWith("u1", NONE)
   })
 
   it("ne recalcule pas des droits de moins de 10 minutes", async () => {

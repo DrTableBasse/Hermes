@@ -1,7 +1,8 @@
 /**
  * Droits du site réévalués en cours de session (constat I2 de la relecture finale).
  *
- * `isAdmin`/`isRedacteur` sont stockés dans la table `user` et lus par web-api à chaque requête.
+ * `isAdmin`/`isRedacteur`/`sitePermissions` sont stockés dans la table `user` et lus par web-api
+ * à chaque requête.
  * Calculés seulement à la connexion, ils survivaient au retrait du rôle Discord tant que la
  * session glissante restait active. Ici, à chaque appel à web-api portant une session, les
  * droits plus vieux que `ROLE_TTL_MS` sont recalculés auprès de Discord, en arrière-plan : la
@@ -10,6 +11,8 @@
  * Discord injoignable : les droits en base sont conservés et plus aucune session ne rappelle
  * Discord pendant `RECHECK_MS`. Membre parti du serveur : droits retirés.
  */
+
+import type { SitePermission } from "./permissions"
 
 export const ROLE_TTL_MS = 10 * 60 * 1000
 /** Mémoire locale : au plus une lecture en base par session et par minute. */
@@ -37,7 +40,12 @@ export const MAX_INFLIGHT = 64
  */
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/
 
-export type StaffRoles = [isAdmin: boolean, isRedacteur: boolean]
+/** Droits du site d'un membre (`isRedacteur` = possède `articles.write`). */
+export interface StaffRoles {
+  isAdmin: boolean
+  isRedacteur: boolean
+  permissions: SitePermission[]
+}
 
 export interface SessionRoles {
   userId: string
