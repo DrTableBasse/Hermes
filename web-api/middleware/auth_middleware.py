@@ -63,6 +63,16 @@ def require_permission(user: Optional[dict], perm: str) -> dict:
     return user
 
 
+def require_any_permission(user: Optional[dict], *perms: str) -> dict:
+    """403 sauf si ``user`` détient au moins un des ``perms`` (admin : toujours)."""
+    if not perms:
+        raise ValueError("Au moins un droit attendu")
+    if not any([has_permission(user, p) for p in perms]):  # liste : chaque clé est vérifiée
+        labels = " ou ".join(PERMISSIONS[p] for p in perms)
+        raise HTTPException(status_code=403, detail=f"Droit requis : {labels}")
+    return user
+
+
 def effective_permissions(user: dict) -> list[str]:
     """Droits effectifs triés : tout le catalogue pour un admin."""
     if user.get("is_admin"):

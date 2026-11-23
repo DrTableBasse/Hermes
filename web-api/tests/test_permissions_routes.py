@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from limiter import limiter
-from middleware.auth_middleware import has_permission, require_permission
+from middleware.auth_middleware import has_permission, require_any_permission, require_permission
 from permissions import PERMISSIONS
 
 QUEST = {"title": "t", "quest_type": "messages", "target_value": 1}
@@ -44,8 +44,6 @@ CASES = [
     ("get", "/admin/settings", "settings.manage", None),
     ("put", "/admin/settings/bump_role_threshold", "settings.manage", {"value": "5"}),
     ("post", "/admin/settings/ticket_category/create-channel", "settings.manage", None),
-    ("get", "/admin/discord/channels", "admin.view", None),
-    ("get", "/admin/discord/roles", "admin.view", None),
     # audit.py
     ("get", "/admin/audit", "moderation.view", None),
     ("get", "/admin/audit.csv", "moderation.view", None),
@@ -121,6 +119,33 @@ def test_admin_passes_everywhere(api, session_with, method, path, perm, body):
     assert _call(api, method, path, body).status_code != 403
 
 
+# ── Listes Discord (lecture seule, plusieurs droits) ─────────────────────────
+
+DISCORD_LISTS = ["/admin/discord/channels", "/admin/discord/roles"]
+DISCORD_RIGHTS = ["admin.view", "games.manage", "settings.manage", "permissions.manage"]
+
+
+@pytest.mark.parametrize("path", DISCORD_LISTS)
+@pytest.mark.parametrize("perm", DISCORD_RIGHTS)
+def test_discord_lists_open_to_each_reader_right(api, session_with, path, perm):
+    session_with({perm})
+    assert api.get(path).status_code != 403
+
+
+@pytest.mark.parametrize("path", DISCORD_LISTS)
+def test_discord_lists_refused_with_other_rights(api, session_with, path):
+    session_with(set(PERMISSIONS) - set(DISCORD_RIGHTS))
+    r = api.get(path)
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Droit requis : " + " ou ".join(PERMISSIONS[p] for p in DISCORD_RIGHTS)
+
+
+@pytest.mark.parametrize("path", DISCORD_LISTS)
+def test_discord_lists_refused_with_tickets_only(api, session_with, path):
+    session_with({"tickets.manage"})
+    assert api.get(path).status_code == 403
+
+
 # ── Publication d'articles ──────────────────────────────────────────────────
 
 def test_creating_published_article_needs_publish_right(api, session_with):
@@ -169,6 +194,29 @@ def test_require_permission_message():
         require_permission({"is_admin": False, "permissions": frozenset()}, "tickets.manage")
     assert exc.value.status_code == 403
     assert exc.value.detail == "Droit requis : Gérer les tickets"
+
+
+def test_require_any_permission_accepts_any_listed_right():
+    user = {"is_admin": False, "permissions": frozenset({"games.manage"})}
+    assert require_any_permission(user, "admin.view", "games.manage") is user
+    admin = {"is_admin": True, "permissions": frozenset()}
+    assert require_any_permission(admin, "admin.view") is admin
+
+
+def test_require_any_permission_message_lists_labels():
+    with pytest.raises(Exception) as exc:
+        require_any_permission({"is_admin": False, "permissions": frozenset({"tickets.manage"})},
+                               "admin.view", "games.manage")
+    assert exc.value.status_code == 403
+    assert exc.value.detail == (
+        f"Droit requis : {PERMISSIONS['admin.view']} ou {PERMISSIONS['games.manage']}")
+
+
+def test_require_any_permission_rejects_unknown_key_and_empty():
+    with pytest.raises(ValueError):
+        require_any_permission({"is_admin": True, "permissions": frozenset()}, "admin.voir")
+    with pytest.raises(ValueError):
+        require_any_permission({"is_admin": True, "permissions": frozenset()})
 
 
 def test_session_reads_site_permissions(fake_db):

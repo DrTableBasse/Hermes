@@ -7,8 +7,11 @@ from pydantic import BaseModel
 
 import bot_client
 import database as db
-from middleware.auth_middleware import get_current_user, require_permission
+from middleware.auth_middleware import get_current_user, require_any_permission, require_permission
 from settings_registry import ID_KINDS, SETTINGS, validate
+
+# Listes Discord en lecture seule : lues par la vue d'ensemble, Jeux, Réglages et Accès.
+DISCORD_LIST_RIGHTS = ("admin.view", "games.manage", "settings.manage", "permissions.manage")
 
 router = APIRouter(tags=["settings"])
 
@@ -104,7 +107,7 @@ async def create_channel(key: str, user: dict = Depends(get_current_user)):
 
 @router.get("/admin/discord/channels")
 async def discord_channels(user: dict = Depends(get_current_user)):
-    require_permission(user, "admin.view")
+    require_any_permission(user, *DISCORD_LIST_RIGHTS)
     data = await bot_client.bot_get("/discord/channels")
     if data is None:
         raise HTTPException(status_code=502, detail="Bot injoignable")
@@ -113,7 +116,7 @@ async def discord_channels(user: dict = Depends(get_current_user)):
 
 @router.get("/admin/discord/roles")
 async def discord_roles(user: dict = Depends(get_current_user)):
-    require_permission(user, "admin.view")
+    require_any_permission(user, *DISCORD_LIST_RIGHTS)
     data = await bot_client.bot_get("/discord/roles")
     if data is None:
         raise HTTPException(status_code=502, detail="Bot injoignable")
