@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({
   headers: async () => ({ get: (name: string) => h.incoming.get(name) ?? null }),
 }))
-vi.mock("@/lib/role-refresh", () => ({ refreshRolesIfStale: (t: string) => h.refresh(t) }))
+vi.mock("@/lib/role-refresh", () => ({ refreshRolesInBackground: (t: string) => void h.refresh(t) }))
 
 import {
   apiGet,
@@ -312,6 +312,13 @@ describe("request : en-têtes et budget de temps vers web-api", () => {
     await getSessionUser("tok.sig")
     await getLive()
     expect(h.refresh).toHaveBeenCalledTimes(1)
+    expect(h.refresh).toHaveBeenCalledWith("tok.sig")
+  })
+
+  it("n'attend pas la réévaluation des droits (Discord lent ou bloqué)", { timeout: 1000 }, async () => {
+    h.refresh.mockImplementationOnce(() => new Promise<void>(() => {}))
+    fetchMock.mockImplementation(async () => reply(200, { id: "u1" }))
+    await expect(getSessionUser("tok.sig")).resolves.toEqual({ id: "u1" })
     expect(h.refresh).toHaveBeenCalledWith("tok.sig")
   })
 })

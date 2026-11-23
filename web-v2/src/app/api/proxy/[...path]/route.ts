@@ -5,7 +5,7 @@ import {
   sessionCookie,
   sessionFromCookieHeader,
 } from '@/lib/api/forward'
-import { refreshRolesIfStale } from '@/lib/role-refresh'
+import { refreshRolesInBackground } from '@/lib/role-refresh'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
 
@@ -36,7 +36,7 @@ async function proxy(
   const token = sessionFromCookieHeader(req.headers.get('cookie'))
   if (token) {
     fwdHeaders['cookie'] = sessionCookie(token)
-    await refreshRolesIfStale(token)
+    refreshRolesInBackground(token)
   }
   const contentType = req.headers.get('content-type')
   if (contentType) fwdHeaders['content-type'] = contentType

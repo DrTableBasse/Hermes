@@ -8,6 +8,8 @@ const pool = new Pool({
   database: process.env.PG_DB,
   user:     process.env.PG_USER,
   password: process.env.PG_PASSWORD,
+  // Base injoignable : échec en 5 s plutôt qu'une attente sans fin d'une connexion libre.
+  connectionTimeoutMillis: 5000,
 })
 
 const DISCORD_API        = "https://discord.com/api/v10"
@@ -62,6 +64,7 @@ function loadGuildRoles(): Promise<void> {
     try {
       const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/roles`, {
         headers: { Authorization: `Bot ${BOT_TOKEN}` },
+        signal: AbortSignal.timeout(5000),
       })
       if (res.ok) {
         const roles = (await res.json()) as Array<{ id: string; name: string }>

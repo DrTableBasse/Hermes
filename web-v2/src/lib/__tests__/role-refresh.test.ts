@@ -40,6 +40,16 @@ describe("réévaluation des droits (TTL 10 min)", () => {
     expect(deps.store).not.toHaveBeenCalled()
   })
 
+  it("Discord injoignable : aucune autre session ne le rappelle avant une minute", async () => {
+    const { deps, refresh, tick } = setup({ resolve: vi.fn(async () => null) })
+    await refresh("tok-a")
+    await refresh("tok-b")
+    expect(deps.resolve).toHaveBeenCalledTimes(1)
+    tick(RECHECK_MS + 1)
+    await refresh("tok-b")
+    expect(deps.resolve).toHaveBeenCalledTimes(2)
+  })
+
   it("au plus une lecture en base par minute et par session, appels simultanés fusionnés", async () => {
     const { deps, refresh, tick } = setup({}, 0)
     await Promise.all([refresh("tok"), refresh("tok.sig")])
@@ -59,5 +69,20 @@ describe("réévaluation des droits (TTL 10 min)", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {})
     await expect(refresh("tok")).resolves.toBeUndefined()
     spy.mockRestore()
+  })
+})
+
+describe("refreshRolesInBackground", () => {
+  it("rend la main tout de suite et journalise une erreur au lieu de la propager", async () => {
+    vi.resetModules()
+    vi.doMock("@/lib/auth", () => {
+      throw new Error("auth indisponible")
+    })
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const { refreshRolesInBackground } = await import("@/lib/role-refresh")
+    expect(refreshRolesInBackground("tok")).toBeUndefined()
+    await vi.waitFor(() => expect(spy).toHaveBeenCalled())
+    spy.mockRestore()
+    vi.doUnmock("@/lib/auth")
   })
 })

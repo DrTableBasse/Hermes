@@ -50,7 +50,7 @@ import type {
 } from "./types"
 import { headers } from "next/headers"
 import { unstable_rethrow } from "next/navigation"
-import { refreshRolesIfStale } from "@/lib/role-refresh"
+import { refreshRolesInBackground } from "@/lib/role-refresh"
 import { clientIp, sessionCookie, SSR_TIMEOUT_MS } from "./forward"
 import { query, seg } from "./query"
 
@@ -79,7 +79,7 @@ async function request(path: string, opts: ApiOptions): Promise<Response> {
   const hdrs: Record<string, string> = {}
   if (opts.token) {
     hdrs.Cookie = sessionCookie(opts.token)
-    await refreshRolesIfStale(opts.token)
+    refreshRolesInBackground(opts.token)
   }
   const init: RequestInit = { headers: hdrs, signal: AbortSignal.timeout(SSR_TIMEOUT_MS) }
   // Une réponse obtenue avec une session est personnelle : jamais dans le cache de données Next,

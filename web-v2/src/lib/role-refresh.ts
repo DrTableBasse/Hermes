@@ -3,11 +3,12 @@
  *
  * `isAdmin`/`isRedacteur` sont stockés dans la table `user` et lus par web-api à chaque requête.
  * Calculés seulement à la connexion, ils survivaient au retrait du rôle Discord tant que la
- * session glissante restait active. Ici, avant tout appel à web-api portant une session, les
- * droits plus vieux que `ROLE_TTL_MS` sont recalculés auprès de Discord.
+ * session glissante restait active. Ici, à chaque appel à web-api portant une session, les
+ * droits plus vieux que `ROLE_TTL_MS` sont recalculés auprès de Discord, en arrière-plan : la
+ * requête n'attend jamais Discord, le retrait de droits s'applique à la requête suivante.
  *
- * Discord injoignable : les droits en base sont conservés (nouvel essai au plus tard dans
- * `RECHECK_MS`). Membre parti du serveur : droits retirés.
+ * Discord injoignable : les droits en base sont conservés et plus aucune session ne rappelle
+ * Discord pendant `RECHECK_MS`. Membre parti du serveur : droits retirés.
  */
 
 export const ROLE_TTL_MS = 10 * 60 * 1000
@@ -34,14 +35,18 @@ export interface RoleRefreshDeps {
 export function createRoleRefresher(deps: RoleRefreshDeps) {
   const recent = new Map<string, number>()
   const inflight = new Map<string, Promise<void>>()
+  /** Discord injoignable : pas de nouvel appel, toutes sessions confondues, avant cette date. */
+  let discordRetryAt = 0
 
   async function run(token: string): Promise<void> {
     try {
       const session = await deps.lookup(token)
       if (!session?.discordId) return
       if (deps.now() - session.checkedAt.getTime() < ROLE_TTL_MS) return
+      if (deps.now() < discordRetryAt) return
       const roles = await deps.resolve(session.discordId)
       if (roles) await deps.store(session.userId, roles)
+      else discordRetryAt = deps.now() + RECHECK_MS
     } catch (e) {
       console.error("[auth] réévaluation des droits impossible:", e)
     } finally {
@@ -77,4 +82,9 @@ export async function refreshRolesIfStale(token: string): Promise<void> {
     defaultRefresher = createRoleRefresher(roleRefreshDeps)
   }
   return defaultRefresher(token)
+}
+
+/** Lance la réévaluation sans l'attendre : la requête en cours ne dépend jamais de Discord. */
+export function refreshRolesInBackground(token: string): void {
+  refreshRolesIfStale(token).catch(e => console.error("[auth] réévaluation des droits impossible:", e))
 }

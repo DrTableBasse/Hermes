@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextRequest } from "next/server"
 
 const h = vi.hoisted(() => ({ refresh: vi.fn<(token: string) => Promise<void>>(async () => {}) }))
-vi.mock("@/lib/role-refresh", () => ({ refreshRolesIfStale: (t: string) => h.refresh(t) }))
+vi.mock("@/lib/role-refresh", () => ({ refreshRolesInBackground: (t: string) => void h.refresh(t) }))
 
 import { GET } from "../[...path]/route"
 import { TRANSCRIPT_CSP } from "@/lib/security-headers"
@@ -29,6 +29,14 @@ describe("route proxy vers web-api", () => {
     fetchMock.mockResolvedValue(new Response("{}"))
     await call("quests", { cookie: "theme=dark; __Secure-better-auth.session_token=abc.sig" })
     expect(sent().cookie).toBe("better-auth.session_token=abc.sig")
+    expect(h.refresh).toHaveBeenCalledWith("abc.sig")
+  })
+
+  it("n'attend pas la réévaluation des droits (Discord lent ou bloqué)", { timeout: 1000 }, async () => {
+    h.refresh.mockImplementationOnce(() => new Promise<void>(() => {}))
+    fetchMock.mockResolvedValue(new Response("{}"))
+    const res = await call("quests", { cookie: "better-auth.session_token=abc.sig" })
+    expect(res.status).toBe(200)
     expect(h.refresh).toHaveBeenCalledWith("abc.sig")
   })
 
