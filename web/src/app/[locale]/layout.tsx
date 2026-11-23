@@ -6,13 +6,12 @@ import { Footer } from "@/components/layout/footer"
 import { Navbar } from "@/components/layout/navbar"
 import { routing } from "@/i18n/routing"
 import { getPublicSettings } from "@/lib/api/server"
-import { isIndexable, siteUrl } from "@/lib/site"
+import { isIndexable, OG_IMAGES, siteUrl } from "@/lib/site"
 import { fontVariables } from "../fonts"
 import "../globals.css"
 
 const DESCRIPTION = "SaucisseLand, la communauté Discord où Hermes compte les points, les grades et les saucisses."
 
-// Aucune image Open Graph tant que le logo n'est pas fourni : on n'en invente pas.
 export async function generateMetadata(): Promise<Metadata> {
   // Lu à chaque requête : l’URL et SITE_INDEXABLE viennent de l’environnement du conteneur, pas du build.
   await connection()
@@ -20,7 +19,8 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(siteUrl()),
     title: "SaucisseLand",
     description: DESCRIPTION,
-    openGraph: { title: "SaucisseLand", description: DESCRIPTION, type: "website", locale: "fr_FR", siteName: "SaucisseLand" },
+    openGraph: { title: "SaucisseLand", description: DESCRIPTION, type: "website", locale: "fr_FR", siteName: "SaucisseLand", images: OG_IMAGES },
+    twitter: { card: "summary_large_image", images: OG_IMAGES },
     // Fail-closed : sans SITE_INDEXABLE=true, aucune page n'est indexable (les pages qui définissent leur propre `robots` l'emportent).
     ...(!isIndexable() && { robots: { index: false, follow: false } }),
   }

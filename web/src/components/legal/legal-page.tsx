@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { OG_IMAGES } from "@/lib/site"
 import { Markdown } from "@/components/articles/markdown"
 import { SectionHeading } from "@/components/ui/section-heading"
 import { getPage } from "@/lib/api/server"
@@ -24,7 +25,7 @@ export async function legalMetadata(slug: LegalSlug): Promise<Metadata> {
   return {
     title: `${title} · SaucisseLand`,
     description,
-    openGraph: { title, description, type: "website", locale: "fr_FR", siteName: "SaucisseLand" },
+    openGraph: { title, description, type: "website", locale: "fr_FR", siteName: "SaucisseLand", images: OG_IMAGES },
     ...(!published && { robots: { index: false, follow: false } }),
   }
 }

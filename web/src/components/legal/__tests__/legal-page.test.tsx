@@ -42,7 +42,7 @@ describe("page légale", () => {
     const meta = await legalMetadata("reglement")
     expect(meta.robots).toBeUndefined()
     expect(meta.openGraph).toMatchObject({ title: "Règlement", locale: "fr_FR" })
-    expect(meta.openGraph).not.toHaveProperty("images")
+    expect(meta.openGraph).toMatchObject({ images: [{ url: "/opengraph-image.png", width: 1200, height: 630 }] })
   })
 })
 

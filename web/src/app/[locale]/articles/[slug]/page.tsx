@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { OG_IMAGES } from "@/lib/site"
 import Image from "next/image"
 import Link from "next/link"
 import { notFound } from "next/navigation"
@@ -40,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description,
       type: "article",
       locale: "fr_FR",
-      ...(cover && { images: [{ url: cover }] }),
+      images: cover ? [{ url: cover }] : OG_IMAGES,
     },
   }
 }

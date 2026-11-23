@@ -32,3 +32,6 @@ export const PUBLIC_PATHS = [
 
 /** Zones privées : jamais indexées. */
 export const PRIVATE_PATHS = ["/admin", "/profil", "/editeur", "/quetes", "/tickets"] as const
+
+/** Image d'aperçu des liens partagés (src/app/opengraph-image.png), relative à metadataBase. */
+export const OG_IMAGES = [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "SaucisseLand" }]
