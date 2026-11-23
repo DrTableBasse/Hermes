@@ -7,11 +7,14 @@ import { getAdminSettings, getDiscordChannels, getDiscordRoles } from "@/lib/api
 export default async function AdminSettingsPage() {
   const gate = await adminGate("settings.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
-  const [settings, channels, roles] = await Promise.all([
+  const [settings, channelList, roleList] = await Promise.all([
     getAdminSettings(gate.token),
     getDiscordChannels(gate.token),
     getDiscordRoles(gate.token),
   ])
+  const forbidden = channelList === "forbidden" || roleList === "forbidden"
+  const channels = Array.isArray(channelList) ? channelList : null
+  const roles = Array.isArray(roleList) ? roleList : null
 
   return (
     <div className="grid gap-8">
@@ -24,11 +27,18 @@ export default async function AdminSettingsPage() {
         <AdminNote tone="error">Réglages illisibles pour l’instant : le site ne répond pas. Réessaie dans un moment.</AdminNote>
       ) : (
         <>
-          {(!channels || !roles) && (
+          {forbidden ? (
+            <AdminNote>
+              Votre accès ne couvre pas les listes de salons et de rôles : les identifiants restent modifiables à la
+              main.
+            </AdminNote>
+          ) : (
+            (!channels || !roles) && (
             <AdminNote tone="error">
               Hermes ne répond pas : les listes de salons et de rôles sont indisponibles. Les identifiants restent
               modifiables à la main.
             </AdminNote>
+            )
           )}
           <SettingsPanel groups={settings.groups} channels={channels} roles={roles} />
         </>

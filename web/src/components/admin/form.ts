@@ -7,14 +7,18 @@ export const LABEL = "text-sm font-semibold text-fg"
 
 export type Feedback = { kind: "ok" | "error"; text: string } | null
 
-/** Message lisible pour une erreur de web-api (422 et 409 : le détail rédigé par l'API). */
+/** Messages par défaut d'une erreur sans détail : `statusText` du navigateur ou repli du client. */
+const NO_DETAIL = new Set(["", "Forbidden", "Erreur API"])
+
+/** Message lisible pour une erreur de web-api (403, 422 et 409 : le détail rédigé par l'API). */
 export function adminErrorText(error: unknown): string {
   if (!(error instanceof ApiError)) return "Le site ne répond pas : vérifie ta connexion et réessaie."
   switch (error.status) {
     case 401:
       return "Ta session a expiré : reconnecte-toi avec Discord, puis réessaie."
     case 403:
-      return "Action réservée à l’administration."
+      // « Droit requis : … » nomme le droit manquant, plus utile que le message générique.
+      return NO_DETAIL.has(error.message) ? "Action réservée à l’administration." : error.message
     case 404:
       return `Introuvable : ${error.message}.`
     case 409:

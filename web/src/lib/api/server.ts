@@ -285,19 +285,30 @@ export const getAdminCommands = (token: string) => apiGetOrNull<CommandsResponse
 
 export const getAdminSettings = (token: string) => apiGetOrNull<SettingsResponse>("/admin/settings", { token })
 
-/** Salons du serveur ; `null` : bot injoignable (502) ou accès refusé. */
-export async function getDiscordChannels(token: string): Promise<DiscordChannel[] | null> {
-  const data = await apiGetOrNull<{ channels: DiscordChannel[] }>("/admin/discord/channels", { token })
-  return data ? data.channels : null
+/** Liste Discord de l'admin : `"forbidden"` sur un 403 (droit absent), `null` si illisible (bot muet). */
+export type DiscordList<T> = T[] | null | "forbidden"
+
+async function discordList<T>(path: string, key: string, token: string): Promise<DiscordList<T>> {
+  try {
+    const res = await request(path, { token })
+    if (res.status === 204) return null
+    const data = (await res.json()) as Record<string, T[]>
+    return data[key] ?? null
+  } catch (e) {
+    // `request` lève `Error("<statut> <chemin>")` sur une réponse non 2xx.
+    return e instanceof Error && e.message.startsWith("403 ") ? "forbidden" : null
+  }
 }
+
+/** Salons du serveur. */
+export const getDiscordChannels = (token: string) =>
+  discordList<DiscordChannel>("/admin/discord/channels", "channels", token)
 
 /** Rôles et droits d'accès au site (`permissions.manage`). */
 export const getAdminAccess = (token: string) => apiGetOrNull<AccessOverview>("/admin/access", { token })
 
-export async function getDiscordRoles(token: string): Promise<DiscordRole[] | null> {
-  const data = await apiGetOrNull<{ roles: DiscordRole[] }>("/admin/discord/roles", { token })
-  return data ? data.roles : null
-}
+/** Rôles du serveur. */
+export const getDiscordRoles = (token: string) => discordList<DiscordRole>("/admin/discord/roles", "roles", token)
 
 export async function getAdminGames(token: string): Promise<AdminGame[] | null> {
   const data = await apiGetOrNull<{ games: AdminGame[] }>("/admin/games", { token })

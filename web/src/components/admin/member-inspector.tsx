@@ -23,7 +23,8 @@ type Props = {
   onMember: (user: UserSearchResult | null) => void
   /** Change à chaque sanction réussie : la fiche ouverte est relue. */
   refreshKey: number
-  onSanction: (user: UserSearchResult) => void
+  /** Absent sans le droit `moderation.act` : ni « Sanctionner » ni « Retirer ». */
+  onSanction?: (user: UserSearchResult) => void
 }
 
 /** Fiche d'un membre : statistiques, sanctions (supprimables après confirmation), succès. */
@@ -83,9 +84,11 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction }
               <p className="m-0 text-lg font-semibold">{data.profile.user.nickname ?? data.profile.user.username}</p>
               <p className="m-0 font-mono text-xs text-muted">ID {member.user_id}</p>
             </div>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onSanction(member)}>
-              Sanctionner
-            </Button>
+            {onSanction && (
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onSanction(member)}>
+                Sanctionner
+              </Button>
+            )}
           </div>
           <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
@@ -119,9 +122,11 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction }
                         {warnDate(w.create_time)} · par {w.moderator_username ?? `#${w.moderator_id}`}
                       </p>
                     </div>
-                    <ConfirmButton question="Retirer cette sanction ?" confirmLabel="Retirer" onConfirm={() => removeWarn(w.id)}>
-                      Retirer
-                    </ConfirmButton>
+                    {onSanction && (
+                      <ConfirmButton question="Retirer cette sanction ?" confirmLabel="Retirer" onConfirm={() => removeWarn(w.id)}>
+                        Retirer
+                      </ConfirmButton>
+                    )}
                   </li>
                 ))}
               </ul>

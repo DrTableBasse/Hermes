@@ -13,7 +13,7 @@ export default async function AdminModerationPage() {
         title="Modération"
         sub="Expulsion, bannissement et exclusion demandent une confirmation. Chaque action est journalisée."
       />
-      <ModerationPanel />
+      <ModerationPanel canAct={gate.permissions.includes("moderation.act")} />
     </div>
   )
 }

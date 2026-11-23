@@ -20,7 +20,8 @@ export const warnDate = (seconds: number) =>
   })
 
 /** Toutes les sanctions du serveur, filtrables par pseudo ou raison. */
-export function WarnsList({ refreshKey }: { refreshKey: number }) {
+/** `canAct` faux : liste en lecture seule (retirer une sanction demande `moderation.act`). */
+export function WarnsList({ refreshKey, canAct = true }: { refreshKey: number; canAct?: boolean }) {
   const ids = useId()
   const [warns, setWarns] = useState<AdminWarn[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -98,9 +99,11 @@ export function WarnsList({ refreshKey }: { refreshKey: number }) {
                   {w.moderator_username ? ` · par ${w.moderator_username}` : ""}
                 </p>
               </div>
-              <ConfirmButton question="Retirer cette sanction ?" confirmLabel="Retirer" onConfirm={() => remove(w.id)}>
-                Retirer
-              </ConfirmButton>
+              {canAct && (
+                <ConfirmButton question="Retirer cette sanction ?" confirmLabel="Retirer" onConfirm={() => remove(w.id)}>
+                  Retirer
+                </ConfirmButton>
+              )}
             </li>
           ))}
         </ul>

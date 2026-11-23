@@ -175,9 +175,9 @@ describe("AuditJournal", () => {
   })
 
   it("API en erreur : message, pas de tableau", async () => {
-    admin.audit.mockRejectedValue(new ApiError(403, "Admin requis"))
+    admin.audit.mockRejectedValue(new ApiError(403, "Droit requis : Voir la modération"))
     await mount()
-    expect(screen.getByRole("alert").textContent).toBe("Action réservée à l’administration.")
+    expect(screen.getByRole("alert").textContent).toBe("Droit requis : Voir la modération")
     expect(screen.queryByRole("table")).toBeNull()
   })
 

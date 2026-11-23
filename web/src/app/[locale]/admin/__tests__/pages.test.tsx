@@ -97,6 +97,35 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/Réglages illisibles/)
   })
 
+  it("réglages : listes Discord refusées (403) → accès signalé, pas « Hermes ne répond pas »", async () => {
+    api.getAdminSettings.mockResolvedValue(SETTINGS)
+    api.getDiscordChannels.mockResolvedValue("forbidden")
+    api.getDiscordRoles.mockResolvedValue("forbidden")
+    render(await SettingsPage())
+    expect(screen.queryByText(/Hermes ne répond pas/)).toBeNull()
+    expect(screen.getByText(/Votre accès ne couvre pas les listes de salons et de rôles/)).toBeTruthy()
+  })
+
+  it("jeux : listes Discord refusées (403) → accès signalé, pas « Hermes ne répond pas »", async () => {
+    api.getAdminGames.mockResolvedValue([])
+    api.getDiscordRoles.mockResolvedValue("forbidden")
+    api.getDiscordChannels.mockResolvedValue([])
+    render(await GamesPage())
+    expect(screen.queryByText(/Hermes ne répond pas/)).toBeNull()
+    expect(screen.getByText(/Votre accès ne couvre pas les listes de rôles et de forums/)).toBeTruthy()
+  })
+
+  it("modération sans moderation.act : consultation seule, aucun formulaire de sanction", async () => {
+    api.getSessionUser.mockResolvedValue({ user_id: "2", is_admin: false, is_redacteur: false, permissions: ["moderation.view"] })
+    await act(async () => {
+      render(await ModerationPage())
+    })
+    expect(screen.queryByRole("heading", { name: "Sanctionner un membre" })).toBeNull()
+    for (const name of [/Avertir/, /Exclure/, /Bannir/]) expect(screen.queryByRole("button", { name })).toBeNull()
+    expect(screen.getByText("Vous pouvez consulter la modération, pas sanctionner.")).toBeTruthy()
+    expect(client.api.admin.audit).toHaveBeenCalled()
+  })
+
   it("commandes : interrupteurs triés avec description ; bot muet → erreur", async () => {
     api.getAdminCommands.mockResolvedValue({ commands: { rank: true, ban: false }, descriptions: { rank: "Ton rang" } })
     render(await CommandsPage())
