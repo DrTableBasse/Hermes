@@ -44,8 +44,10 @@ quest_xp_reward        = Gauge('hermes_quest_xp_reward',      'Récompense XP pa
 # ── Avec labels — distribution des niveaux ────────────────────────────────────
 level_distribution     = Gauge('hermes_level_distribution',   'Membres par tranche de niveau', ['range'])
 
-# ── Avec labels — avertissements par membre ───────────────────────────────────
-user_warn_count        = Gauge('hermes_user_warn_count',      'Avertissements par membre', ['username', 'user_id'])
+# ── Avec labels — répartition des avertissements (agrégat, jamais nominatif) ──
+# Données de modération personnelles : aucun libellé ne désigne un membre (constat I2).
+WARN_BUCKETS = ('1', '2', '3-4', '5+')
+warned_members         = Gauge('hermes_warned_members',       "Membres par nombre d'avertissements", ['warns'])
 
 # ── Avec labels — top 15 XP ───────────────────────────────────────────────────
 user_xp_top            = Gauge('hermes_user_xp_top',          'XP des 15 meilleurs membres', ['username', 'level'])
@@ -57,9 +59,7 @@ invites_uses_7d        = Gauge('hermes_invites_uses_7d',       'Membres ayant re
 
 # ── Avec labels — top 15 inviters ─────────────────────────────────────────────
 top_inviters           = Gauge('hermes_top_inviters',          'Classement invitations (comme /classement et le site)', ['username', 'user_id', 'rank'])
-
-# ── Avec labels — liste des codes d'invitation actifs ─────────────────────────
-invite_codes_list      = Gauge('hermes_invite_codes',          'Invitations actives par code', ['code', 'host', 'expires_at'])
+invites_permanent      = Gauge('hermes_invites_permanent',     "Codes d'invitation actifs sans expiration")
 
 
 async def refresh(guild=None):
@@ -221,19 +221,21 @@ async def refresh(guild=None):
         for row in levels:
             level_distribution.labels(range=row['range']).set(row['cnt'])
 
-        # ── Labeled : avertissements par membre ───────────────────────────────
-        warned = await db_manager.fetch("""
-            SELECT v.username, w.user_id, COUNT(*) AS cnt
-            FROM warn w
-            JOIN user_voice_data v ON v.user_id = w.user_id
-            GROUP BY v.username, w.user_id
-            ORDER BY cnt DESC
+        # ── Labeled : répartition des avertissements ──────────────────────────
+        buckets = await db_manager.fetch("""
+            SELECT CASE
+                       WHEN cnt = 1 THEN '1'
+                       WHEN cnt = 2 THEN '2'
+                       WHEN cnt <= 4 THEN '3-4'
+                       ELSE '5+'
+                   END AS warns,
+                   COUNT(*) AS members
+            FROM (SELECT user_id, COUNT(*) AS cnt FROM warn GROUP BY user_id) w
+            GROUP BY 1
         """)
-        user_warn_count._metrics.clear()
-        for row in warned:
-            user_warn_count.labels(
-                username=row['username'], user_id=str(row['user_id'])
-            ).set(row['cnt'])
+        counts = {row['warns']: row['members'] for row in buckets}
+        for bucket in WARN_BUCKETS:
+            warned_members.labels(warns=bucket).set(counts.get(bucket, 0))
 
         # ── Labeled : top 15 XP ───────────────────────────────────────────────
         top_xp = await db_manager.fetch("""
@@ -266,15 +268,9 @@ async def refresh(guild=None):
                 rank=str(row['rank'])
             ).set(row['uses'])
 
+        # Codes d'invitation : jamais exposés (une invitation valide ouvre le serveur).
         active_invites = await invite_manager.get_active_invites()
-        invite_codes_list._metrics.clear()
-        for row in active_invites:
-            expires = row['expires_at'].strftime('%d/%m/%Y %H:%M') if row['expires_at'] else '∞'
-            invite_codes_list.labels(
-                code=row['code'],
-                host=row['username'] or str(row['inviter_id']),
-                expires_at=expires
-            ).set(row['uses'])
+        invites_permanent.set(sum(1 for row in active_invites if not row['expires_at']))
 
     except Exception as e:
         logger.warning("metrics refresh error: %s", e)

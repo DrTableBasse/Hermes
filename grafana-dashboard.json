@@ -197,7 +197,7 @@
     {
       "id": 12,
       "type": "table",
-      "title": "🚨 Membres avec avertissements",
+      "title": "🚨 Membres par nombre d'avertissements",
       "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "options": { "sortBy": [{ "displayName": "Avertissements", "desc": true }] },
@@ -220,13 +220,13 @@
           "id": "organize",
           "options": {
             "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true, "user_id": true },
-            "renameByName": { "username": "Membre", "Value": "Avertissements" }
+            "renameByName": { "warns": "Avertissements", "Value": "Membres" }
           }
         },
         { "id": "sortBy", "options": { "fields": [{ "displayName": "Avertissements", "desc": true }] } }
       ],
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_user_warn_count", "legendFormat": "", "instant": true }
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_warned_members", "legendFormat": "", "instant": true }
       ]
     },
 
@@ -656,7 +656,7 @@
     {
       "id": 37,
       "type": "table",
-      "title": "📋 Liens d'invitation actifs",
+      "title": "📋 Invitations actives sans expiration",
       "gridPos": { "x": 0, "y": 66, "w": 24, "h": 10 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "options": {
@@ -684,7 +684,7 @@
         }
       ],
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "sort_desc(hermes_invite_codes)", "format": "table", "instant": true, "legendFormat": "__auto" }
+        { "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" }, "expr": "hermes_invites_permanent", "format": "table", "instant": true, "legendFormat": "__auto" }
       ]
     }
   ]

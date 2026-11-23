@@ -30,11 +30,11 @@ services:
     volumes:
       - media_data:/app/media
     # API interne (kick/ban/warn) : jamais publiée sur l'hôte, seul web-api y accède via le réseau Docker
+    # Métriques Prometheus (9101) : non publiées sur l'hôte (constat I2), joignables seulement
+    # depuis le réseau Docker `hermes` (cible `bot:9101`, cf. prometheus/prometheus.yml).
     expose:
       - "8001"
-    # Métriques Prometheus uniquement (lecture seule), pour le Prometheus/Grafana externe
-    ports:
-      - "9101:9101"
+      - "9101"
     networks:
       - hermes
     healthcheck:
