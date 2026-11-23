@@ -3,8 +3,8 @@
 - Constat M6 : un PDF est servi en `Content-Disposition: attachment` (jamais affiché sur
   l'origine du site) ; un dossier répond 404 (comportement de `StaticFiles` sans `html=True`).
 - Constat M7 : un élément de galerie masqué par un admin n'est plus servi publiquement. Le
-  fichier reste en place (démasquage immédiat, sans déplacement) ; seule une session admin le
-  voit encore, pour la modération (`/admin/galerie` l'affiche par `<img>`, cookie relayé par le
+  fichier reste en place (démasquage immédiat, sans déplacement) ; seule une session admin ou
+  munie de `gallery.manage` le voit encore, pour la modération (`/admin/galerie` l'affiche par `<img>`, cookie relayé par le
   rewrite `/media/*` de Next).
 - Constat m4 : `/media` est hors limiteur. Une image de galerie absente répond 404 sans toucher
   la base, et les noms masqués sont gardés en mémoire (`HIDDEN_TTL` secondes, invalidés par
@@ -27,13 +27,14 @@ SESSION_COOKIES = ("better-auth.session_token", "__Secure-better-auth.session_to
 ATTACHMENT_EXTENSIONS = {".pdf"}
 
 
-async def _is_admin(scope) -> bool:
+async def _can_see_hidden(scope) -> bool:
+    """Admin ou détenteur de `gallery.manage` : il doit voir l'image pour la juger."""
     cookies = Request(scope).cookies
     token = next((cookies[name] for name in SESSION_COOKIES if cookies.get(name)), None)
     if not token:
         return False
     user = await auth_middleware._fetch_session(token)
-    return bool(user and user.get("is_admin"))
+    return auth_middleware.has_permission(user, "gallery.manage")
 
 
 HIDDEN_TTL = 30.0
@@ -73,7 +74,7 @@ class MediaFiles(StaticFiles):
             _, found = await anyio.to_thread.run_sync(self.lookup_path, path)
             if found is None or not stat.S_ISREG(found.st_mode):
                 raise HTTPException(status_code=404)
-            if await _gallery_item_hidden(parts[1]) and not await _is_admin(scope):
+            if await _gallery_item_hidden(parts[1]) and not await _can_see_hidden(scope):
                 raise HTTPException(status_code=404)
         response = await super().get_response(path, scope)
         if PurePosixPath(path).suffix.lower() in ATTACHMENT_EXTENSIONS and response.status_code == 200:

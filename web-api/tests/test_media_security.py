@@ -78,6 +78,19 @@ def test_element_masque_visible_par_un_admin(client, fake_db, media_dir, monkeyp
     assert client.get("/media/gallery/cachee.png").status_code == 200
 
 
+def test_element_masque_visible_avec_le_droit_galerie(client, fake_db, media_dir, session_with):
+    """Le modérateur de galerie (gallery.manage, non admin) voit l'image qu'il doit juger."""
+    _hidden_rule(fake_db)
+    session_with({"gallery.manage"})
+    assert client.get("/media/gallery/cachee.png").status_code == 200
+
+
+def test_element_masque_non_servi_avec_un_autre_droit(client, fake_db, media_dir, session_with):
+    _hidden_rule(fake_db)
+    session_with({"admin.view", "articles.write"})
+    assert client.get("/media/gallery/cachee.png").status_code == 404
+
+
 def _gallery_sql(fake_db):
     return [c for c in fake_db.calls if "gallery_items" in c[1]]
 
