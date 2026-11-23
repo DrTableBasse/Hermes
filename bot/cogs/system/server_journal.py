@@ -106,6 +106,8 @@ class ServerJournal(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
+        if member.bot:
+            return
         for action in voice_actions(before, after):
             channel = before.channel if action == "leave" else after.channel
             details = {}

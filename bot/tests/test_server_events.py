@@ -296,3 +296,10 @@ def test_member_join_with_invite_and_leave(journal):
     assert join["details"] == {"invite_code": "abc", "inviter_id": 9, "inviter_name": "Alice"}
     assert join_unknown["details"] == {"invite_code": None}
     assert (leave["kind"], leave["action"]) == ("member", "leave")
+
+
+def test_voice_of_bots_is_ignored(journal):
+    cog, record = journal
+    music_bot = V(id=9, bot=True, display_name="Musique")
+    asyncio.run(cog.on_voice_state_update(music_bot, vs(), vs(channel=V(id=301, name="vocal"))))
+    assert record.calls == []
