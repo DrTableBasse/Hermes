@@ -1,25 +1,12 @@
 import { betterAuth } from "better-auth"
-import { Pool } from "pg"
+import { ADMIN_ROLE_NAME, readAdminRoleRef, type RoleRef } from "./admin-role"
+import { pool } from "./db"
 import { computePermissions } from "./permissions"
 import type { RoleRefreshDeps, StaffRoles } from "./role-refresh"
-
-const pool = new Pool({
-  host:     process.env.PG_HOST,
-  port:     parseInt(process.env.PG_PORT ?? "5432"),
-  database: process.env.PG_DB,
-  user:     process.env.PG_USER,
-  password: process.env.PG_PASSWORD,
-  // Base injoignable : échec en 5 s plutôt qu'une attente sans fin d'une connexion libre.
-  connectionTimeoutMillis: 5000,
-})
 
 const DISCORD_API        = "https://discord.com/api/v10"
 const GUILD_ID           = process.env.GUILD_ID ?? ""
 const BOT_TOKEN          = process.env.DISCORD_TOKEN ?? ""
-const ADMIN_ROLE_NAME    = process.env.ADMIN_ROLE_NAME ?? "Administration"
-
-// Rôle par identifiant (réglage en base) ou par nom (repli sur l'environnement).
-type RoleRef = { id: string } | { name: string }
 
 let _guildRoles: Record<string, string> = {}
 let _adminRole: RoleRef = { name: ADMIN_ROLE_NAME }
@@ -34,20 +21,11 @@ const OWNER_TTL_MS = 10 * 60 * 1000
 
 const NO_RIGHTS = (): StaffRoles => ({ isAdmin: false, isRedacteur: false, permissions: [] })
 
-// Réglage admin_role (identifiant) ; ligne absente → nom de l'environnement.
+// Réglage admin_role (identifiant) ; ligne absente → nom de l'environnement ; base illisible → inchangé.
 // Le rédacteur n'est plus un rôle à part : il découle du droit `articles.write`.
 async function loadStaffRoles(): Promise<void> {
-  try {
-    const res = await pool.query<{ key: string; value: string | null }>(
-      `SELECT key, value FROM bot_settings WHERE key = ANY($1::text[])`,
-      [["admin_role"]]
-    )
-    const stored: Record<string, string> = {}
-    for (const row of res.rows) if (row.value) stored[row.key] = row.value
-    _adminRole = stored.admin_role ? { id: stored.admin_role } : { name: ADMIN_ROLE_NAME }
-  } catch (e) {
-    console.error("[auth] lecture de bot_settings impossible, repli sur l'environnement:", e)
-  }
+  const ref = await readAdminRoleRef()
+  if (ref) _adminRole = ref
 }
 
 function hasRole(ref: RoleRef, memberRoleIds: string[]): boolean {
@@ -201,6 +179,14 @@ export const auth = betterAuth({
       isRedacteur: {
         type:         "boolean",
         defaultValue: false,
+      },
+      // Droits effectifs (colonne TEXT[] de la migration 021), écrits par storeRoles : lus par le
+      // menu (« Admin », « Écrire un article »). Jamais saisis par le client ; sans valeur à la
+      // création, la colonne prend son défaut '{}'.
+      sitePermissions: {
+        type:     "string[]",
+        required: false,
+        input:    false,
       },
     },
   },

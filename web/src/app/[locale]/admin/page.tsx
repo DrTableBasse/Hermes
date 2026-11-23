@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { AdminDenied, AdminNote } from "@/components/admin/admin-denied"
-import { ADMIN_SECTIONS } from "@/lib/admin-sections"
+import { allowedSections } from "@/lib/admin-sections"
 import { KEY_SETTINGS, settingState } from "@/components/admin/key-settings"
 import { Chip } from "@/components/ui/chip"
 import { Panel } from "@/components/ui/panel"
@@ -20,12 +20,18 @@ const SECTION_HINTS: Record<string, string> = {
   "/admin/jeux": "Jeux de la communauté : ordre, couleur, visuel, rôle.",
   "/admin/contenus": "Règlement, mentions légales, grades.",
   "/admin/analytique": "Sanctions, niveaux, quêtes et XP en un coup d’œil.",
+  "/admin/acces": "Droits d’administration du site, rôle par rôle.",
 }
 
 export default async function AdminHome() {
-  const gate = await adminGate()
+  const gate = await adminGate("admin.view")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
-  const [stats, settings] = await Promise.all([getAdminStats(gate.token), getAdminSettings(gate.token)])
+  // Les réglages exigent `settings.manage` : sans ce droit, le bloc n'est pas affiché (ni lu).
+  const showSettings = gate.permissions.includes("settings.manage")
+  const [stats, settings] = await Promise.all([
+    getAdminStats(gate.token),
+    showSettings ? getAdminSettings(gate.token) : null,
+  ])
   const items = settings?.groups.flatMap(g => g.items) ?? []
 
   return (
@@ -50,39 +56,41 @@ export default async function AdminHome() {
         <AdminNote tone="error">Statistiques du serveur indisponibles pour l’instant.</AdminNote>
       )}
 
-      <section aria-labelledby="key-settings" className="grid gap-4">
-        <h2 id="key-settings" className="m-0 font-display text-2xl font-extrabold">
-          Réglages à vérifier
-        </h2>
-        {!settings ? (
-          <AdminNote tone="error">Réglages illisibles pour l’instant.</AdminNote>
-        ) : (
-          <ul className="m-0 grid list-none gap-3 p-0 md:grid-cols-3">
-            {KEY_SETTINGS.map(k => {
-              const item = items.find(i => i.key === k.key)
-              const state = settingState(item)
-              return (
-                <li key={k.key}>
-                  <Panel className="grid h-full gap-2 p-5">
-                    <Chip color={state.ok ? "var(--color-green)" : "var(--color-orange)"}>{state.label}</Chip>
-                    <Link href={`/admin/reglages#setting-${k.key}`} prefetch={false} className="font-semibold text-fg hover:text-cyan">
-                      {item?.label ?? k.key}
-                    </Link>
-                    <p className="m-0 text-sm text-muted">{k.why}</p>
-                  </Panel>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+      {showSettings && (
+        <section aria-labelledby="key-settings" className="grid gap-4">
+          <h2 id="key-settings" className="m-0 font-display text-2xl font-extrabold">
+            Réglages à vérifier
+          </h2>
+          {!settings ? (
+            <AdminNote tone="error">Réglages illisibles pour l’instant.</AdminNote>
+          ) : (
+            <ul className="m-0 grid list-none gap-3 p-0 md:grid-cols-3">
+              {KEY_SETTINGS.map(k => {
+                const item = items.find(i => i.key === k.key)
+                const state = settingState(item)
+                return (
+                  <li key={k.key}>
+                    <Panel className="grid h-full gap-2 p-5">
+                      <Chip color={state.ok ? "var(--color-green)" : "var(--color-orange)"}>{state.label}</Chip>
+                      <Link href={`/admin/reglages#setting-${k.key}`} prefetch={false} className="font-semibold text-fg hover:text-cyan">
+                        {item?.label ?? k.key}
+                      </Link>
+                      <p className="m-0 text-sm text-muted">{k.why}</p>
+                    </Panel>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section aria-labelledby="sections" className="grid gap-4">
         <h2 id="sections" className="m-0 font-display text-2xl font-extrabold">
           Outils
         </h2>
         <ul className="m-0 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
-          {ADMIN_SECTIONS.filter(s => s.href !== "/admin").map(s => (
+          {allowedSections(gate.permissions).filter(s => s.href !== "/admin").map(s => (
             <li key={s.href}>
               <Link href={s.href} prefetch={false} className="block h-full">
                 <Panel className="grid h-full gap-1.5 p-5">

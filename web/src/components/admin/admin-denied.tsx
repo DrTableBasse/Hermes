@@ -1,23 +1,43 @@
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/ui/panel"
 import type { AdminGate } from "@/lib/admin-gate"
+import { PERMISSIONS } from "@/lib/permissions"
 
-/** Accès refusé (403) ou vérification impossible : page propre, sans rien des outils d'administration. */
+function deniedText(gate: Exclude<AdminGate, { kind: "ok" }>): { code: string; title: string; body: string } {
+  switch (gate.kind) {
+    case "signin":
+      return {
+        code: "Connexion requise",
+        title: "Connecte-toi pour continuer",
+        body: "L’administration est réservée aux membres connectés avec Discord. Utilise « Connexion » dans le menu.",
+      }
+    case "unavailable":
+      return {
+        code: "Vérification impossible",
+        title: "Impossible de vérifier tes droits",
+        body: "Le site ne répond pas pour l’instant. Réessaie dans un moment.",
+      }
+    case "forbidden":
+      return {
+        code: "Erreur 403",
+        title: "Zone réservée à l’administration",
+        body: gate.permission
+          ? `Cette page demande le droit « ${PERMISSIONS[gate.permission]} », que ton compte n’a pas. Si c’est une erreur, demande-le à un admin ; il prend effet sous 10 minutes.`
+          : "Ton compte n’a aucun droit d’administration sur le site. Si c’est une erreur, demande-le à un admin puis reconnecte-toi.",
+      }
+  }
+}
+
+/** Accès refusé (403), connexion requise ou vérification impossible : page propre, sans rien des outils d'administration. */
 export function AdminDenied({ gate }: { gate: Exclude<AdminGate, { kind: "ok" }> }) {
-  const forbidden = gate.kind === "forbidden"
+  const text = deniedText(gate)
   return (
     <div className="relative pt-6 pb-24">
       <div className="mx-auto max-w-[640px]">
         <Panel className="grid gap-4 text-center">
-          <p className="m-0 font-mono text-sm text-muted">{forbidden ? "Erreur 403" : "Vérification impossible"}</p>
-          <h1 className="m-0 font-display text-3xl font-extrabold">
-            {forbidden ? "Zone réservée à l’administration" : "Impossible de vérifier tes droits"}
-          </h1>
-          <p className="m-0 text-muted">
-            {forbidden
-              ? "Ton compte n’a pas le rôle d’administration sur le serveur. Si c’est une erreur, demande-le à un admin puis reconnecte-toi."
-              : "Le site ne répond pas pour l’instant. Réessaie dans un moment."}
-          </p>
+          <p className="m-0 font-mono text-sm text-muted">{text.code}</p>
+          <h1 className="m-0 font-display text-3xl font-extrabold">{text.title}</h1>
+          <p className="m-0 text-muted">{text.body}</p>
           <div>
             <Button href="/" variant="ghost">
               Retour à l’accueil

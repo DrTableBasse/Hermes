@@ -5,7 +5,7 @@ import { adminGate } from "@/lib/admin-gate"
 import { getAdminCommands } from "@/lib/api/server"
 
 export default async function AdminCommandsPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("settings.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const data = await getAdminCommands(gate.token)
 

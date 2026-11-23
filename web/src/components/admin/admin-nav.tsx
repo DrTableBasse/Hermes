@@ -3,14 +3,17 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/cn"
-import { ADMIN_SECTIONS } from "@/lib/admin-sections"
+import { allowedSections } from "@/lib/admin-sections"
 
-/** Sous-navigation de l'administration ; la page courante est marquée `aria-current`. */
-export function AdminNav() {
+/**
+ * Sous-navigation de l'administration : seules les sections que `permissions` (droits effectifs de la
+ * session) ouvrent ; la page courante est marquée `aria-current`.
+ */
+export function AdminNav({ permissions }: { permissions: readonly string[] }) {
   const pathname = (usePathname() ?? "").replace(/^\/fr(?=\/|$)/, "") || "/"
   return (
     <nav aria-label="Administration" className="-mx-1 flex gap-1.5 overflow-x-auto pb-2">
-      {ADMIN_SECTIONS.map(s => {
+      {allowedSections(permissions).map(s => {
         const current = s.href === "/admin" ? pathname === "/admin" : pathname.startsWith(s.href)
         return (
           <Link

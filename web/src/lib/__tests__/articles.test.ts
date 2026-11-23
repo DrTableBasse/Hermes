@@ -5,6 +5,7 @@ const me = (over: Partial<{ user_id: string; is_admin: boolean; is_redacteur: bo
   user_id: "100",
   is_admin: false,
   is_redacteur: false,
+  permissions: [],
   ...over,
 })
 

@@ -5,7 +5,7 @@ import { adminGate } from "@/lib/admin-gate"
 import { getAnalytics } from "@/lib/api/server"
 
 export default async function AdminAnalyticsPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("analytics.view")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const data = await getAnalytics(gate.token)
 

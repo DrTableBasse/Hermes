@@ -1,20 +1,42 @@
 import "server-only"
 
 import { cache } from "react"
+import { hasAdminAccess } from "@/lib/admin-sections"
 import { getSessionUser } from "@/lib/api/server"
+import type { SitePermission } from "@/lib/permissions"
 import { sessionToken } from "@/lib/session"
 
 /**
- * Accès à `/admin` : `ok` (session administrateur, `isAdmin` de la session BetterAuth lu par `/auth/me`),
- * `forbidden` (connecté sans droit, ou sans session) ou `unavailable` (session illisible : API muette).
+ * Accès à une page de `/admin` :
+ * - `ok` : la session porte le droit demandé (`permissions` de `/auth/me`, droits effectifs) ;
+ * - `forbidden` : connecté sans ce droit (`permission` : le droit manquant, absent pour le cadre) ;
+ * - `signin` : aucune session (visiteur) ;
+ * - `unavailable` : session illisible (API muette).
  */
-export type AdminGate = { kind: "ok"; token: string } | { kind: "forbidden" } | { kind: "unavailable" }
+export type AdminGate =
+  | { kind: "ok"; token: string; permissions: SitePermission[] }
+  | { kind: "forbidden"; permission?: SitePermission }
+  | { kind: "signin" }
+  | { kind: "unavailable" }
 
-/** Vérifié par le layout et par chaque page (le layout n'est pas rejoué à chaque navigation). */
-export const adminGate = cache(async (): Promise<AdminGate> => {
+const readSession = cache(async () => {
   const token = await sessionToken()
-  if (!token) return { kind: "forbidden" }
-  const me = await getSessionUser(token)
+  if (!token) return null
+  return { token, me: await getSessionUser(token) }
+})
+
+/**
+ * Vérifié par le layout (sans argument : au moins une section ouverte) et par chaque page avec le
+ * droit de ses routes (le layout n'est pas rejoué à chaque navigation). web-api refuse de toute façon
+ * une route admin appelée sans son droit.
+ */
+export const adminGate = cache(async (permission?: SitePermission): Promise<AdminGate> => {
+  const session = await readSession()
+  if (!session) return { kind: "signin" }
+  const { token, me } = session
   if (!me) return { kind: "unavailable" }
-  return me.is_admin ? { kind: "ok", token } : { kind: "forbidden" }
+  const permissions = me.permissions ?? []
+  const allowed = permission ? permissions.includes(permission) : hasAdminAccess(permissions)
+  if (!allowed) return permission ? { kind: "forbidden", permission } : { kind: "forbidden" }
+  return { kind: "ok", token, permissions }
 })

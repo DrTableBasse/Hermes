@@ -10,8 +10,9 @@ export const metadata: Metadata = {
 
 /**
  * Cadre de l'administration. `src/proxy.ts` renvoie déjà l'absence de session à l'accueil ; ici, un
- * membre connecté sans `isAdmin` reçoit une page 403. Chaque page refait la vérification (navigation
- * entre sous-pages : le layout n'est pas rejoué), et web-api refuse de toute façon les routes admin.
+ * membre connecté sans aucun droit d'administration reçoit une page 403, les autres une navigation
+ * limitée aux sections que leurs droits ouvrent. Chaque page vérifie son propre droit (navigation
+ * entre sous-pages : le layout n'est pas rejoué), et web-api refuse de toute façon une route sans son droit.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const gate = await adminGate()
@@ -25,7 +26,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <main className="relative pt-10 pb-24">
       <div className="relative mx-auto grid max-w-[1200px] gap-8 px-6">
-        <AdminNav />
+        <AdminNav permissions={gate.permissions} />
         {children}
       </div>
     </main>

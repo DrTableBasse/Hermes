@@ -1,6 +1,7 @@
 import "server-only"
 
 import type {
+  AccessOverview,
   AchievementCatalog,
   ActiveQuest,
   AdminGalleryItem,
@@ -289,6 +290,9 @@ export async function getDiscordChannels(token: string): Promise<DiscordChannel[
   const data = await apiGetOrNull<{ channels: DiscordChannel[] }>("/admin/discord/channels", { token })
   return data ? data.channels : null
 }
+
+/** Rôles et droits d'accès au site (`permissions.manage`). */
+export const getAdminAccess = (token: string) => apiGetOrNull<AccessOverview>("/admin/access", { token })
 
 export async function getDiscordRoles(token: string): Promise<DiscordRole[] | null> {
   const data = await apiGetOrNull<{ roles: DiscordRole[] }>("/admin/discord/roles", { token })

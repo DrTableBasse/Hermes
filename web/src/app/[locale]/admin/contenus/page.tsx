@@ -12,7 +12,7 @@ const PAGES = [
 ] as const
 
 export default async function AdminContentPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("content.edit")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const [pages, grades] = await Promise.all([
     Promise.all(PAGES.map(p => getPageFresh(p.slug, gate.token))),

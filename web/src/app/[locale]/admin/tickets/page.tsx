@@ -27,13 +27,13 @@ const STATUS: Record<TicketStatus, { label: string; color: string }> = {
 const href = (status: Filter, page: number) => `/admin/tickets?status=${status}&page=${page}`
 const TH = "px-4 py-3 font-semibold"
 
-/** Historique global des tickets (`GET /tickets`, administrateurs) et transcriptions. */
+/** Historique global des tickets (`GET /tickets`, droit `tickets.manage`) et transcriptions. */
 export default async function AdminTicketsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const gate = await adminGate()
+  const gate = await adminGate("tickets.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const sp = await searchParams
   const status: Filter = FILTERS.find(f => f.key === firstParam(sp.status))?.key ?? "all"

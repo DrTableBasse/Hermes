@@ -208,3 +208,12 @@ describe("resolveDiscordRoles", () => {
     expect(updates().map(q => q.params)).toEqual([[false, false, [], "u1"]])
   })
 })
+
+describe("PERMISSION_GROUPS", () => {
+  it("couvre tout le catalogue, chaque droit une seule fois", async () => {
+    const { PERMISSION_GROUPS } = await import("@/lib/permissions")
+    const keys = PERMISSION_GROUPS.flatMap(g => g.permissions)
+    expect([...keys].sort()).toEqual(ALL)
+    expect(PERMISSION_GROUPS.map(g => g.label)).toEqual(["Modération", "Contenu", "Serveur", "Administration"])
+  })
+})

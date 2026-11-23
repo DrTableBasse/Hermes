@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { glassClass } from "@/components/ui/glass"
 import { NotificationBell } from "@/components/account/notification-bell"
 import { Brand } from "@/components/layout/brand"
-import { ACCOUNT_LINKS, MAIN_LINKS, isCurrent } from "@/components/layout/nav-links"
+import { MAIN_LINKS, accountLinks, isCurrent, sessionPermissions } from "@/components/layout/nav-links"
 import { authClient } from "@/lib/auth-client"
 import { cn } from "@/lib/cn"
 
@@ -18,6 +18,8 @@ type SessionUser = {
   image?: string | null
   isAdmin?: boolean
   isRedacteur?: boolean
+  /** Droits effectifs (colonne `sitePermissions`), réévalués toutes les 10 minutes. */
+  sitePermissions?: string[] | null
 }
 
 const sessionAtom = authClient.useSession
@@ -59,7 +61,7 @@ function useDismiss(
 }
 
 function accountLinksFor(user: SessionUser) {
-  return ACCOUNT_LINKS.filter(l => !l.role || user[l.role])
+  return accountLinks(sessionPermissions(user))
 }
 
 function signIn(callbackURL: string) {

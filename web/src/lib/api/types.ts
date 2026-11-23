@@ -9,6 +9,8 @@
  * - Dates : chaînes ISO 8601, sauf `Warn.create_time` (timestamp Unix en secondes).
  */
 
+import type { SitePermission } from "@/lib/permissions"
+
 /** Identifiant Discord (snowflake). */
 export type Snowflake = string
 
@@ -232,6 +234,8 @@ export interface SessionUser {
   user_id: Snowflake
   is_admin: boolean
   is_redacteur: boolean
+  /** Droits effectifs, triés (tout le catalogue pour le propriétaire et le rôle admin). */
+  permissions: SitePermission[]
 }
 
 // ── Articles et tags ─────────────────────────────────────────────────────────
@@ -753,6 +757,34 @@ export interface DiscordRole {
   name: string
   /** Couleur Discord en entier (0 : pas de couleur). */
   color: number
+}
+
+// ── Accès au site par rôle : /admin/access ───────────────────────────────────
+
+export interface AccessRole {
+  id: Snowflake
+  name: string
+  color: number
+  /** Position Discord (plus haut = plus grand). */
+  position: number
+  /** Rôle géré par une intégration (bot) : non attribuable à la main. */
+  managed: boolean
+  permissions: string[]
+  /** Propriétaire, ou rôle strictement sous le rôle le plus haut de l'acteur. */
+  editable: boolean
+}
+
+/** `GET /admin/access` : rôles par position décroissante, sans @everyone. */
+export interface AccessOverview {
+  catalog: Array<{ key: string; label: string }>
+  roles: AccessRole[]
+  actor: { top_position: number; is_owner: boolean; permissions: string[] }
+}
+
+/** `PUT /admin/access/{role_id}` : droits enregistrés, dédoublonnés et triés. */
+export interface AccessUpdateResult {
+  id: Snowflake
+  permissions: string[]
 }
 
 /** `PUT /admin/settings/{key}` ; `value` vide : réglage effacé, le défaut s'applique. */

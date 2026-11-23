@@ -5,7 +5,7 @@ import { adminGate } from "@/lib/admin-gate"
 import { getAdminGallery } from "@/lib/api/server"
 
 export default async function AdminGalleryPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("gallery.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const items = await getAdminGallery(gate.token)
 

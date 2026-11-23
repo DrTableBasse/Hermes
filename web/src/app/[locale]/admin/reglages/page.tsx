@@ -5,7 +5,7 @@ import { adminGate } from "@/lib/admin-gate"
 import { getAdminSettings, getDiscordChannels, getDiscordRoles } from "@/lib/api/server"
 
 export default async function AdminSettingsPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("settings.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const [settings, channels, roles] = await Promise.all([
     getAdminSettings(gate.token),

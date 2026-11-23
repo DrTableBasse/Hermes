@@ -1,5 +1,6 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { PERMISSIONS } from "@/lib/permissions"
 
 vi.mock("server-only", () => ({}))
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: "tok" }) }) }))
@@ -48,7 +49,12 @@ const SETTINGS = {
 
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockResolvedValue(null)
-  api.getSessionUser.mockResolvedValue({ user_id: "1", is_admin: true, is_redacteur: true })
+  api.getSessionUser.mockResolvedValue({
+    user_id: "1",
+    is_admin: true,
+    is_redacteur: true,
+    permissions: Object.keys(PERMISSIONS).sort(),
+  })
   client.api.admin.allWarns.mockResolvedValue({ warns: [] })
   client.api.admin.audit.mockResolvedValue({ events: [], total: 0, page: 1, pages: 1 })
   client.api.admin.auditFacets.mockResolvedValue({ kinds: {}, channels: [] })

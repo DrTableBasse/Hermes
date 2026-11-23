@@ -6,7 +6,7 @@ import { adminGate } from "@/lib/admin-gate"
 import { getActiveQuests, getQuestTemplates } from "@/lib/api/server"
 
 export default async function AdminQuestsPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("quests.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const [templates, active] = await Promise.all([getQuestTemplates(gate.token), getActiveQuests(gate.token)])
 

@@ -4,7 +4,7 @@ import { SectionHeading } from "@/components/ui/section-heading"
 import { adminGate } from "@/lib/admin-gate"
 
 export default async function AdminModerationPage() {
-  const gate = await adminGate()
+  const gate = await adminGate("moderation.view")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   return (
     <div className="grid gap-8">

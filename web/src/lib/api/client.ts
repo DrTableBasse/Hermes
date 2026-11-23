@@ -3,6 +3,7 @@
  * vers web-api (réseau Docker interne) en transmettant le cookie de session.
  */
 import type {
+  AccessUpdateResult,
   ActiveQuest,
   AuditFacets,
   AuditFilters,
@@ -145,6 +146,8 @@ export const api = {
     deleteWarn: (warnId: number) => request<{ success: boolean }>(`/admin/warns/${seg(warnId)}`, send("DELETE")),
     audit: (filters: AuditFilters, page = 1) => request<AuditPage>(`/admin/audit?${auditQuery(filters, page)}`),
     auditFacets: () => request<AuditFacets>("/admin/audit/facets"),
+    putAccess: (roleId: Snowflake, permissions: string[]) =>
+      request<AccessUpdateResult>(`/admin/access/${seg(roleId)}`, send("PUT", { permissions })),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
     settings: () => request<SettingsResponse>("/admin/settings"),
     putSetting: (key: string, value: string) =>

@@ -50,3 +50,14 @@ export function computePermissions(input: {
   }
   return [...granted].sort()
 }
+
+/** Groupes d'affichage de la grille des accès ; couvre tout le catalogue, chaque droit une fois. */
+export const PERMISSION_GROUPS: ReadonlyArray<{ label: string; permissions: readonly SitePermission[] }> = [
+  { label: 'Modération', permissions: ['moderation.view', 'moderation.act', 'moderation.content', 'tickets.manage'] },
+  {
+    label: 'Contenu',
+    permissions: ['articles.write', 'articles.publish', 'gallery.manage', 'content.edit', 'quests.manage', 'games.manage'],
+  },
+  { label: 'Serveur', permissions: ['roles.manage', 'members.roles', 'channels.manage'] },
+  { label: 'Administration', permissions: ['admin.view', 'permissions.manage', 'settings.manage', 'analytics.view'] },
+]
