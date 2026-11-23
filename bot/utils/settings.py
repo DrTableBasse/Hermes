@@ -52,6 +52,18 @@ def get_int(key: str, default: Optional[int] = None) -> Optional[int]:
     return default
 
 
+# (clé, valeur) déjà signalées : get_role est appelé à chaque vérification de commande,
+# l'avertissement n'est écrit qu'une fois par valeur (une nouvelle valeur réarme le signal).
+_warned: set[tuple[str, str]] = set()
+
+
+def _warn_once(key: str, stored: str, message: str, *args) -> None:
+    if (key, stored) in _warned:
+        return
+    _warned.add((key, stored))
+    logger.warning(message, *args)
+
+
 def get_role(guild: discord.Guild, key: str) -> Optional[discord.Role]:
     """Rôle réglé, par identifiant seulement ; repli sur le nom du registre si la ligne est absente.
 
@@ -63,13 +75,13 @@ def get_role(guild: discord.Guild, key: str) -> Optional[discord.Role]:
     ref = role_ref(stored, definition.default if definition else None)
     if ref is None:
         if stored:
-            logger.warning("Réglage %s invalide (%r) : aucun rôle retenu", key, stored)
+            _warn_once(key, stored, "Réglage %s invalide (%r) : aucun rôle retenu", key, stored)
         return None
     kind, target = ref
     if kind == "id":
         role = guild.get_role(target)
         if role is None and stored:
-            logger.warning("Réglage %s : le rôle %s n'existe plus, aucun rôle retenu", key, target)
+            _warn_once(key, stored, "Réglage %s : le rôle %s n'existe plus, aucun rôle retenu", key, target)
         return role
     return discord.utils.get(guild.roles, name=target)
 
