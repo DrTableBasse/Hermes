@@ -79,3 +79,26 @@ def client(monkeypatch):
 
     with TestClient(main.app) as test_client:
         yield test_client
+
+
+def _fake_session(monkeypatch, client, *, is_admin):
+    import middleware.auth_middleware as auth_mw
+
+    async def fake_fetch_session(token):
+        return {"sub": "1", "is_admin": is_admin, "is_redacteur": False}
+
+    monkeypatch.setattr(auth_mw, "_fetch_session", fake_fetch_session)
+    client.cookies.set("better-auth.session_token", "tok")
+    return client
+
+
+@pytest.fixture
+def admin_session(monkeypatch, client):
+    """Session administrateur simulée (cookie + ``_fetch_session`` remplacé)."""
+    return _fake_session(monkeypatch, client, is_admin=True)
+
+
+@pytest.fixture
+def member_session(monkeypatch, client):
+    """Session membre simple (non admin) simulée."""
+    return _fake_session(monkeypatch, client, is_admin=False)

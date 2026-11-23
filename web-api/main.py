@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import database as db
-from routes import auth, users, leaderboard, articles, tags, media, admin
+from routes import auth, users, leaderboard, articles, tags, media, admin, audit
 from routes import xp, notifications, endorsements, activity, quests, comments, tickets, settings, grades, live, events, hermes, gallery, staff, content, achievements
 
 
@@ -54,6 +54,7 @@ app.include_router(articles.router)
 app.include_router(tags.router)
 app.include_router(media.router)
 app.include_router(admin.router)
+app.include_router(audit.router)
 app.include_router(xp.router)
 app.include_router(notifications.router)
 app.include_router(endorsements.router)

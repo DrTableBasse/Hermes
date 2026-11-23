@@ -237,57 +237,6 @@ async def delete_warn(warn_id: int, user: dict = Depends(get_current_user)):
     return {"success": True}
 
 
-# ── Admin logs ────────────────────────────────────────────────────────────────
-
-@router.get("/logs")
-async def get_admin_logs(
-    user: dict = Depends(get_current_user),
-    action_type: Optional[str] = Query(None),
-    page: int = Query(1, ge=1),
-):
-    require_admin(user)
-    limit  = 50
-    offset = (page - 1) * limit
-
-    if action_type:
-        types = action_type.split(',')
-        rows = await db.fetch(
-            """SELECT * FROM admin_logs
-               WHERE action_type = ANY($1::varchar[])
-               ORDER BY created_at DESC LIMIT $2 OFFSET $3""",
-            types, limit, offset,
-        )
-        total = await db.fetchval(
-            "SELECT COUNT(*) FROM admin_logs WHERE action_type = ANY($1::varchar[])", types
-        )
-    else:
-        rows = await db.fetch(
-            "SELECT * FROM admin_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2",
-            limit, offset,
-        )
-        total = await db.fetchval("SELECT COUNT(*) FROM admin_logs")
-
-    total = int(total or 0)
-    return {
-        "logs": [
-            {
-                "id":          r["id"],
-                "action_type": r["action_type"],
-                "actor_id":    str(r["actor_id"]) if r["actor_id"] else None,
-                "actor_name":  r["actor_name"],
-                "target_id":   str(r["target_id"]) if r["target_id"] else None,
-                "target_name": r["target_name"],
-                "details":     r["details"] or {},
-                "created_at":  r["created_at"].isoformat(),
-            }
-            for r in rows
-        ],
-        "total": total,
-        "page":  page,
-        "pages": max(1, -(-total // limit)),
-    }
-
-
 # ── User search ───────────────────────────────────────────────────────────────
 
 @router.get("/users/search")
@@ -458,12 +407,13 @@ async def get_analytics(user: dict = Depends(get_current_user)):
     # Admin actions last 14 days, grouped by day + action type
     action_rows = await db.fetch("""
         SELECT
-            DATE(created_at AT TIME ZONE 'UTC') AS day,
-            action_type,
+            DATE(occurred_at AT TIME ZONE 'UTC') AS day,
+            action AS action_type,
             COUNT(*) AS cnt
-        FROM admin_logs
-        WHERE created_at >= NOW() - INTERVAL '14 days'
-          AND action_type IN ('warn', 'kick', 'ban', 'timeout')
+        FROM audit_events
+        WHERE occurred_at >= NOW() - INTERVAL '14 days'
+          AND kind = 'sanction'
+          AND action IN ('warn', 'kick', 'ban', 'timeout')
         GROUP BY 1, 2
         ORDER BY 1
     """)

@@ -9,3 +9,4 @@ aiofiles>=23.0.0
 slugify>=0.0.1
 python-slugify>=8.0.0
 slowapi>=0.1.9
+tzdata>=2024.1
