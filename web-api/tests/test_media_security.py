@@ -9,8 +9,10 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 
 @pytest.fixture(autouse=True)
 def _fresh():
+    import media_files
     from limiter import limiter
     limiter.reset()
+    media_files.invalidate_hidden_gallery()
 
 
 @pytest.fixture
@@ -38,7 +40,7 @@ def _session(monkeypatch, client, *, is_admin=False, redacteur=False):
 
 
 def _hidden_rule(fake_db):
-    fake_db.on("FROM gallery_items WHERE file_name", lambda sql, name: name == "cachee.png")
+    fake_db.on("FROM gallery_items WHERE hidden", [{"file_name": "cachee.png"}])
 
 
 # ── M6 : lecture ─────────────────────────────────────────────────────────────
@@ -73,6 +75,51 @@ def test_element_masque_visible_par_un_admin(client, fake_db, media_dir, monkeyp
     _hidden_rule(fake_db)
     _session(monkeypatch, client, is_admin=True)
     assert client.get("/media/gallery/cachee.png").status_code == 200
+
+
+def _gallery_sql(fake_db):
+    return [c for c in fake_db.calls if "gallery_items" in c[1]]
+
+
+def test_galerie_fichier_absent_sans_requete_sql(client, fake_db, media_dir):
+    """m4 : un nom inexistant (ou un dossier) répond 404 sans toucher la base."""
+    _hidden_rule(fake_db)
+    for path in ("/media/gallery/absent.png", "/media/gallery/x" + "a" * 40 + ".png"):
+        assert client.get(path).status_code == 404
+    assert _gallery_sql(fake_db) == []
+
+
+def test_galerie_noms_masques_en_cache(client, fake_db, media_dir):
+    """m4 : une seule requête SQL pour une rafale de lectures de la galerie."""
+    _hidden_rule(fake_db)
+    for _ in range(5):
+        assert client.get("/media/gallery/visible.png").status_code == 200
+        assert client.get("/media/gallery/cachee.png").status_code == 404
+    assert len(_gallery_sql(fake_db)) == 1
+
+
+def test_galerie_cache_expire_apres_ttl(client, fake_db, media_dir, monkeypatch):
+    import media_files
+
+    monkeypatch.setattr(media_files, "HIDDEN_TTL", 0.0)
+    _hidden_rule(fake_db)
+    client.get("/media/gallery/visible.png")
+    client.get("/media/gallery/visible.png")
+    assert len(_gallery_sql(fake_db)) == 2
+
+
+def test_galerie_cache_invalide_par_le_patch_admin(client, fake_db, media_dir, monkeypatch):
+    hidden = {"cachee.png"}
+    fake_db.on("FROM gallery_items WHERE hidden",
+               lambda sql: [{"file_name": n} for n in sorted(hidden)])
+    fake_db.on("UPDATE gallery_items", {"id": 1})
+    assert client.get("/media/gallery/visible.png").status_code == 200
+
+    _session(monkeypatch, client, is_admin=True)
+    hidden.add("visible.png")
+    assert client.patch("/admin/gallery/1", json={"hidden": True}).status_code == 200
+    client.cookies.clear()
+    assert client.get("/media/gallery/visible.png").status_code == 404
 
 
 # ── M6 : envoi ───────────────────────────────────────────────────────────────

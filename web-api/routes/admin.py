@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from middleware.auth_middleware import get_current_user, require_admin
 import database as db
+from media_files import invalidate_hidden_gallery
 from routes import gallery
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -570,6 +571,7 @@ async def set_gallery_hidden(item_id: int, body: GalleryVisibility,
         "UPDATE gallery_items SET hidden = $1 WHERE id = $2 RETURNING id", body.hidden, item_id)
     if not row:
         raise HTTPException(status_code=404, detail="Élément introuvable")
+    invalidate_hidden_gallery()
     return {"id": item_id, "hidden": body.hidden}
 
 
@@ -580,6 +582,7 @@ async def delete_gallery_item(item_id: int, user: dict = Depends(get_current_use
         "DELETE FROM gallery_items WHERE id = $1 RETURNING file_name", item_id)
     if not row:
         raise HTTPException(status_code=404, detail="Élément introuvable")
+    invalidate_hidden_gallery()
     if row["file_name"]:
         try:
             # .name : le nom vient de la base, jamais un chemin hors du dossier.
