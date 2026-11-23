@@ -36,12 +36,15 @@ class AchievementsNotifier(commands.Cog):
             desc = ach['description'] or ''
 
             # ── Rôle de succès : règle « créer au premier déblocage » (cog RoleEngine)
-            guild = self.bot.get_guild(GUILD_ID)
-            engine = self.bot.get_cog('RoleEngine')
-            if guild and engine:
-                member = await self._member(guild, user_id)
-                if member:
-                    await engine.evaluate_member(member)
+            try:
+                guild = self.bot.get_guild(GUILD_ID)
+                engine = self.bot.get_cog('RoleEngine')
+                if guild and engine:
+                    member = await self._member(guild, user_id)
+                    if member:
+                        await engine.evaluate_member(member)
+            except Exception as e:
+                logger.error(f"évaluation des rôles (succès {achievement_id}) : {e}", exc_info=True)
 
             await notification_manager.create(
                 user_id, 'achievement',

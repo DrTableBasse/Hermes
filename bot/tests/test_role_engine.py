@@ -253,6 +253,24 @@ def test_achievement_unlock_creates_role_records_id_and_assigns(env, monkeypatch
     assert ("role", "create") in [(r["kind"], r["action"]) for r in e.records]
 
 
+def test_achievement_notification_survives_engine_error(env, monkeypatch, caplog):
+    async def scenario():
+        e = _notifier_env(env, monkeypatch)
+        e.guild.member(7)
+
+        async def boom(member):
+            raise RuntimeError("moteur en panne")
+
+        e.engine.evaluate_member = boom
+        await notifier_module.AchievementsNotifier(e.bot).notify(7, 3)
+        return e
+
+    with caplog.at_level(logging.ERROR, logger=notifier_module.__name__):
+        e = run(scenario)
+    assert e.notifications == [(7, "achievement", "Achievement débloqué : Pipelette", "d", 3)]
+    assert any("moteur" in r.getMessage() for r in caplog.records)
+
+
 def test_achievement_unlock_reuses_existing_role_with_same_name(env, monkeypatch):
     existing = FakeRole(77, "💬 Pipelette")
 
