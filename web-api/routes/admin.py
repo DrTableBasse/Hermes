@@ -55,7 +55,8 @@ KIND_OF_ACTION: dict[str, str] = {
 
 async def _log(action_type: str, actor_id: int,
                target_id: int | None = None,
-               details: dict | None = None):
+               details: dict | None = None,
+               success: bool = True):
     """Insert into audit_events (source 'site'). Never raises."""
     try:
         actor = await db.fetchrow(
@@ -75,14 +76,31 @@ async def _log(action_type: str, actor_id: int,
         await db.execute(
             """INSERT INTO audit_events
                    (kind, action, source, actor_id, actor_name,
-                    target_id, target_name, details)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)""",
+                    target_id, target_name, details, success)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9)""",
             KIND_OF_ACTION.get(action_type, "setting"), action_type, "site",
             actor_id, actor_name, target_id, target_name,
-            json.dumps(details or {}),
+            json.dumps(details or {}), success,
         )
     except Exception as e:
         logger.warning(f"audit_events insert failed: {e}")
+
+
+async def _sanction(action_type: str, path: str, payload: dict,
+                    actor_id: int, target_id: int, details: dict):
+    """Call the bot for a sanction and journal it, success or failure.
+
+    On failure, writes a ``success=false`` row with ``details.error`` then re-raises.
+    """
+    try:
+        result = await _bot('post', path, json=payload)
+    except Exception as e:
+        error = e.detail if isinstance(e, HTTPException) else str(e)
+        await _log(action_type, actor_id, target_id,
+                   {**details, "error": str(error)}, success=False)
+        raise
+    await _log(action_type, actor_id, target_id, details)
+    return result
 
 
 class ModerationAction(BaseModel):
@@ -133,36 +151,30 @@ async def toggle_command(body: CommandToggle, user: dict = Depends(get_current_u
 @router.post("/kick")
 async def kick(body: ModerationAction, user: dict = Depends(get_current_user)):
     require_admin(user)
-    result = await _bot('post', '/moderation/kick', json={
+    return await _sanction('kick', '/moderation/kick', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
-    })
-    await _log('kick', int(user['sub']), body.user_id_int, {"reason": body.reason})
-    return result
+    }, int(user['sub']), body.user_id_int, {"reason": body.reason})
 
 
 @router.post("/ban")
 async def ban(body: ModerationAction, user: dict = Depends(get_current_user)):
     require_admin(user)
-    result = await _bot('post', '/moderation/ban', json={
+    return await _sanction('ban', '/moderation/ban', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
-    })
-    await _log('ban', int(user['sub']), body.user_id_int, {"reason": body.reason})
-    return result
+    }, int(user['sub']), body.user_id_int, {"reason": body.reason})
 
 
 @router.post("/timeout")
 async def timeout(body: ModerationAction, user: dict = Depends(get_current_user)):
     require_admin(user)
     duration = body.duration or 60
-    result = await _bot('post', '/moderation/timeout', json={
+    return await _sanction('timeout', '/moderation/timeout', {
         "user_id": body.user_id_int, "reason": body.reason,
         "moderator_id": int(user['sub']),
         "duration_minutes": duration,
-    })
-    await _log('timeout', int(user['sub']), body.user_id_int, {
+    }, int(user['sub']), body.user_id_int, {
         "reason": body.reason, "duration_minutes": duration
     })
-    return result
 
 
 # ── Warns ─────────────────────────────────────────────────────────────────────
@@ -218,11 +230,9 @@ async def get_warns(user_id: str, user: dict = Depends(get_current_user)):
 @router.post("/warns")
 async def add_warn(body: ModerationAction, user: dict = Depends(get_current_user)):
     require_admin(user)
-    result = await _bot('post', '/warns', json={
+    return await _sanction('warn', '/warns', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
-    })
-    await _log('warn', int(user['sub']), body.user_id_int, {"reason": body.reason})
-    return result
+    }, int(user['sub']), body.user_id_int, {"reason": body.reason})
 
 
 @router.delete("/warns/{warn_id}")
