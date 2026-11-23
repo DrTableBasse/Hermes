@@ -88,6 +88,10 @@ def test_invalid_date_is_422(client, admin_session):
     assert client.get("/admin/audit?from=2026-13-40").status_code == 422
     assert client.get("/admin/audit?to=hier").status_code == 422
     assert client.get("/admin/audit.csv?from=2026-13-40").status_code == 422
+    # Hors bornes (2000-2100) : 422, jamais 500 (dépassement de date).
+    assert client.get("/admin/audit?to=9999-12-31").status_code == 422
+    assert client.get("/admin/audit?from=0001-01-01").status_code == 422
+    assert client.get("/admin/audit.csv?to=9999-12-31").status_code == 422
 
 
 def test_invalid_success_is_422(client, admin_session):

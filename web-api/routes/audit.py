@@ -56,10 +56,14 @@ def _closed_list(name: str, value: str, allowed: frozenset) -> list[str]:
 def _paris_midnight(name: str, value: str, *, plus_days: int = 0) -> datetime:
     try:
         day = datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError:
-        raise _unprocessable(f"Date invalide pour « {name} » (format AAAA-MM-JJ)")
-    day = day + timedelta(days=plus_days)
-    return datetime(day.year, day.month, day.day, tzinfo=PARIS)
+        if not 2000 <= day.year <= 2100:
+            raise ValueError("année hors bornes")
+        day = day + timedelta(days=plus_days)
+        return datetime(day.year, day.month, day.day, tzinfo=PARIS)
+    except (ValueError, OverflowError):
+        raise _unprocessable(
+            f"Date invalide pour « {name} » (format AAAA-MM-JJ, années 2000 à 2100)"
+        )
 
 
 def _like(value: str) -> str:
