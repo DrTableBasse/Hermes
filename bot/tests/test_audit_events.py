@@ -133,3 +133,25 @@ def test_purge_uses_365_days(monkeypatch):
     assert "DELETE FROM audit_events" in query
     assert "make_interval(days => $1)" in query
     assert args == (365,)
+
+
+def test_attach_deleted_by_completes_every_row_of_author_in_channel(monkeypatch):
+    """Discord regroupe les suppressions d'un modérateur : toutes les lignes du même
+    auteur et du même salon sont complétées, pas seulement la dernière."""
+    db = FakeDb(result=3)
+    monkeypatch.setattr(audit_events, "db_manager", db)
+    ok = asyncio.run(audit_events.attach_deleted_by(
+        author_id=5, author_name="Bob", channel_id=300, moderator_id=7, moderator_name="Modo"))
+    assert ok is True
+    query, args = db.calls[0]
+    matched = query.split("matched AS (")[1].split("), fallback")[0]
+    assert "actor_id = $3" in matched and "LIMIT" not in matched
+    assert "NOT details ? 'deleted_by'" in matched
+    assert "count(*)" in query
+    assert args == (7, "Modo", 5, "Bob", 300, 10)
+
+
+def test_attach_deleted_by_false_when_no_row(monkeypatch):
+    monkeypatch.setattr(audit_events, "db_manager", FakeDb(result=0))
+    assert asyncio.run(audit_events.attach_deleted_by(
+        author_id=5, author_name="Bob", channel_id=300, moderator_id=7, moderator_name="Modo")) is False

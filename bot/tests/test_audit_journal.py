@@ -218,10 +218,21 @@ def test_message_delete_by_moderator_completes_message_row(journal, monkeypatch)
     entry.extra = N(channel=N(id=300, name="general"), count=1)
     asyncio.run(cog.on_audit_log_entry_create(entry))
     assert [(r["kind"], r["action"]) for r in record.calls] == [("sanction", "message_delete")]
+    assert record.calls[0]["details"]["count"] == 1
     assert deleted_by.calls == [{
         "author_id": 5, "author_name": "Bob", "channel_id": 300,
         "moderator_id": MOD_ID, "moderator_name": f"user{MOD_ID}",
     }]
+
+
+def test_grouped_message_delete_reports_count(journal, monkeypatch):
+    cog, record, _ = journal
+    monkeypatch.setattr(audit_journal, "attach_deleted_by", Spy(result=True))
+    entry = _entry(discord.AuditLogAction.message_delete, MOD_ID)
+    entry.extra = N(channel=N(id=300, name="general"), count=4)
+    asyncio.run(cog.on_audit_log_entry_create(entry))
+    row, = record.calls
+    assert row["details"]["count"] == 4
 
 
 def test_message_delete_retries_once_when_row_not_yet_written(journal, monkeypatch):

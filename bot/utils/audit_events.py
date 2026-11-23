@@ -127,34 +127,52 @@ async def attach_deleted_by(
     *, author_id: Optional[int], author_name: Optional[str], channel_id: Optional[int],
     moderator_id: Optional[int], moderator_name: Optional[str], window_s: int = 10,
 ) -> bool:
-    """Complète la ligne message/delete récente (même auteur, même salon) avec `deleted_by`.
+    """Complète avec `deleted_by` les lignes message/delete récentes (même auteur, même salon).
 
-    Une ligne hors cache (auteur inconnu) du même salon convient aussi, en dernier
+    Discord regroupe en une seule entrée d'audit les suppressions successives d'un
+    modérateur visant le même auteur dans le même salon : **toutes** les lignes sans
+    `deleted_by` de la fenêtre sont donc complétées. Sans aucune ligne de cet auteur,
+    la ligne hors cache (auteur inconnu) la plus récente du salon convient, en dernier
     choix ; l'auteur lu dans l'entrée d'audit y est alors reporté.
+
+    Limite : Discord n'émet l'évènement qu'à la création de l'entrée ; les suppressions
+    suivantes ne font qu'augmenter son `count` sans nouvel évènement. Elles restent
+    sans `deleted_by` (le total figure dans `details.count` de la ligne sanction).
     """
     try:
         updated = await db_manager.fetchval(
             """
-            UPDATE audit_events
-            SET details = details || jsonb_build_object(
-                    'deleted_by', jsonb_build_object('id', $1::bigint, 'name', $2::text)),
-                actor_id = COALESCE(actor_id, $3),
-                actor_name = COALESCE(actor_name, $4)
-            WHERE id = (
+            WITH matched AS (
                 SELECT id FROM audit_events
                 WHERE kind = 'message' AND action = 'delete'
                   AND channel_id IS NOT DISTINCT FROM $5
-                  AND (actor_id = $3 OR actor_id IS NULL)
+                  AND actor_id = $3
                   AND occurred_at > NOW() - make_interval(secs => $6)
                   AND NOT details ? 'deleted_by'
-                ORDER BY (actor_id IS NULL), occurred_at DESC
+            ), fallback AS (
+                SELECT id FROM audit_events
+                WHERE kind = 'message' AND action = 'delete'
+                  AND channel_id IS NOT DISTINCT FROM $5
+                  AND actor_id IS NULL
+                  AND occurred_at > NOW() - make_interval(secs => $6)
+                  AND NOT details ? 'deleted_by'
+                  AND NOT EXISTS (SELECT 1 FROM matched)
+                ORDER BY occurred_at DESC
                 LIMIT 1
+            ), u AS (
+                UPDATE audit_events
+                SET details = details || jsonb_build_object(
+                        'deleted_by', jsonb_build_object('id', $1::bigint, 'name', $2::text)),
+                    actor_id = COALESCE(actor_id, $3),
+                    actor_name = COALESCE(actor_name, $4)
+                WHERE id IN (SELECT id FROM matched UNION ALL SELECT id FROM fallback)
+                RETURNING 1
             )
-            RETURNING id
+            SELECT count(*) FROM u
             """,
             moderator_id, moderator_name, author_id, author_name, channel_id, window_s,
         )
-        return updated is not None
+        return bool(updated)
     except Exception as e:
         logger.warning("Complément de suppression impossible : %s", e)
         return False

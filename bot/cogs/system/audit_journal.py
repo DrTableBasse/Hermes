@@ -141,7 +141,12 @@ class AuditJournal(commands.Cog):
         )
 
     async def _complete_message_delete(self, entry):
-        """Suppression par un modérateur : `deleted_by` sur la ligne message/delete."""
+        """Suppression par un modérateur : `deleted_by` sur les lignes message/delete.
+
+        Limite connue : Discord ne réémet pas l'évènement quand il regroupe une
+        suppression suivante dans la même entrée (seul `count` augmente) ; ces
+        suppressions-là restent sans `deleted_by`.
+        """
         channel = getattr(getattr(entry, "extra", None), "channel", None)
         for attempt in range(2):
             if attempt:
@@ -157,11 +162,16 @@ class AuditJournal(commands.Cog):
         target_id = _int_id(entry.target)
         if should_merge(entry.user_id, self.bot.user.id) and await self._attach(entry, action, target_id):
             return
+        details = {"reason": entry.reason, "discord_audit_id": entry.id}
+        count = getattr(getattr(entry, "extra", None), "count", None)
+        if action in ("message_delete", "message_bulk_delete") and isinstance(count, int):
+            # Discord regroupe les suppressions successives : nombre de messages de l'entrée.
+            details["count"] = count
         await record(
             kind=kind, action=action, source="discord",
             actor_id=entry.user_id, actor_name=_name(entry.user),
             target_id=target_id, target_name=_name(entry.target),
-            details={"reason": entry.reason, "discord_audit_id": entry.id},
+            details=details,
         )
 
     async def _attach(self, entry, action: str, target_id: Optional[int]) -> bool:
