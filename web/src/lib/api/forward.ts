@@ -44,5 +44,13 @@ export const sessionCookie = (token: string) => `better-auth.session_token=${tok
 /** Budget de temps d'une lecture du rendu serveur : au-delà, la section passe en état dégradé. */
 export const SSR_TIMEOUT_MS = 3000
 
-/** Budget de temps d'une requête du navigateur (envois de fichiers compris). */
+/** Budget de temps d'une requête du navigateur. */
 export const PROXY_TIMEOUT_MS = 15000
+
+/** Envoi de fichier (multipart, jusqu'à 10 Mo) : le délai couvre aussi la montée du corps, d'où 2 min. */
+export const UPLOAD_TIMEOUT_MS = 120_000
+
+/** Délai d'une requête relayée selon son type de corps. */
+export function proxyTimeoutFor(contentType: string | null): number {
+  return contentType?.toLowerCase().startsWith("multipart/form-data") ? UPLOAD_TIMEOUT_MS : PROXY_TIMEOUT_MS
+}

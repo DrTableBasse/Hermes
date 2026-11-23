@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   clientIp,
-  PROXY_TIMEOUT_MS,
+  proxyTimeoutFor,
   sessionCookie,
   sessionFromCookieHeader,
 } from '@/lib/api/forward'
@@ -47,7 +47,7 @@ async function proxy(
   const init: RequestInit & { duplex?: string } = {
     method:  req.method,
     headers: fwdHeaders,
-    signal:  AbortSignal.timeout(PROXY_TIMEOUT_MS),
+    signal:  AbortSignal.timeout(proxyTimeoutFor(contentType)),
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     init.body   = req.body
