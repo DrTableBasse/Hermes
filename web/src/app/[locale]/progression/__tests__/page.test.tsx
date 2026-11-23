@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const cookieJar = new Map<string, string>()
@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   getAchievementCatalog: vi.fn(),
   getGrades: vi.fn(),
   getSessionUser: vi.fn(),
+  getUserStats: vi.fn(),
   getUserAchievementsAll: vi.fn(),
   getWeeklyQuests: vi.fn(),
   leaderboardLevels: vi.fn(),
@@ -42,6 +43,11 @@ beforeEach(() => {
   ])
   api.getSessionUser.mockResolvedValue({ user_id: "7", is_admin: false, is_redacteur: false })
   api.getWeeklyQuests.mockResolvedValue([])
+  api.getUserStats.mockResolvedValue({
+    user: { user_id: "7", username: "kefir", nickname: "Kéfir le Brave", discord_avatar: null, last_seen: null },
+    stats: { total_messages: 4321, voice_hours: 12.7, xp_total: 21300, current_level: 14, current_streak: 5 },
+    achievements: [],
+  })
 })
 
 afterEach(() => {
@@ -74,6 +80,26 @@ describe("page /progression", () => {
     expect(api.getUserAchievementsAll).toHaveBeenCalledWith("7")
     expect(screen.getByText(/Pas de quête cette semaine/)).toBeTruthy()
     expect(screen.getByText(/0 sur 1 débloqués/)).toBeTruthy()
+  })
+
+  it("membre connecté : sa propre fiche remplace l'exemple", async () => {
+    cookieJar.set("better-auth.session_token", "tok")
+    render(await ProgressionPage())
+    expect(api.getUserStats).toHaveBeenCalledWith("7", "tok")
+    const sheet = within(screen.getByTestId("character-sheet"))
+    expect(sheet.queryByText("Exemple")).toBeNull()
+    expect(sheet.getByText("Ta fiche, en direct")).toBeTruthy()
+    expect(sheet.getByText("Kéfir le Brave")).toBeTruthy()
+    expect(sheet.getByText("5 jours")).toBeTruthy()
+    expect(sheet.getByText(/4.321/)).toBeTruthy()
+    expect(sheet.getByText("12 h")).toBeTruthy()
+  })
+
+  it("statistiques du membre indisponibles : retombe sur la fiche d'exemple", async () => {
+    cookieJar.set("better-auth.session_token", "tok")
+    api.getUserStats.mockRejectedValue(new Error("500"))
+    render(await ProgressionPage())
+    expect(within(screen.getByTestId("character-sheet")).getByText("Exemple")).toBeTruthy()
   })
 
   it("reste debout quand web-api est indisponible", async () => {

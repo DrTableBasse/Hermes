@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import { AchievementsShowcase } from "@/components/progression/achievements-showcase"
-import { CharacterSheet } from "@/components/progression/character-sheet"
+import { CharacterSheet, type SheetMember } from "@/components/progression/character-sheet"
 import { GradeLadder } from "@/components/progression/grade-ladder"
 import { LeaderboardTable } from "@/components/progression/leaderboard-table"
 import { WeeklyQuests } from "@/components/progression/weekly-quests"
@@ -9,6 +9,7 @@ import {
   getAchievementCatalog,
   getGrades,
   getSessionUser,
+  getUserStats,
   getUserAchievementsAll,
   getWeeklyQuests,
   leaderboardLevels,
@@ -25,7 +26,7 @@ export default async function ProgressionPage() {
   const me = token ? await getSessionUser(token) : null
 
   // Chaque bloc tolère sa source absente (`null`) : une API muette ne casse pas la page.
-  const [grades, levels, quests, catalog, mine] = await Promise.all([
+  const [grades, levels, quests, catalog, mine, myStats] = await Promise.all([
     getGrades(),
     leaderboardLevels(1, 10).then(
       page => page.leaderboard,
@@ -35,7 +36,19 @@ export default async function ProgressionPage() {
     getAchievementCatalog(),
     // Succès du membre connecté, pour griser ceux qui lui manquent ; échec → vitrine sans grisé.
     me ? getUserAchievementsAll(me.user_id).catch(() => null) : Promise.resolve(null),
+    // Fiche du membre connecté ; échec → fiche d'exemple.
+    token && me ? getUserStats(me.user_id, token).catch(() => null) : Promise.resolve(null),
   ])
+  const member: SheetMember | null = myStats
+    ? {
+        name: myStats.user.nickname ?? myStats.user.username,
+        avatar: myStats.user.discord_avatar,
+        xp: myStats.stats.xp_total,
+        streakDays: myStats.stats.current_streak,
+        messages: myStats.stats.total_messages,
+        voiceHours: myStats.stats.voice_hours,
+      }
+    : null
   const unlockedIds = mine ? new Set(mine.filter(a => a.unlocked).map(a => a.id)) : null
 
   return (
@@ -51,7 +64,7 @@ export default async function ProgressionPage() {
           <GradeLadder grades={grades} />
           <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] max-[1000px]:grid-cols-[minmax(0,1fr)]">
             <div className="border-r border-line p-7 max-[1000px]:border-r-0 max-[1000px]:border-b">
-              <CharacterSheet grades={grades} />
+              <CharacterSheet grades={grades} member={member} />
             </div>
             <div className="p-7">
               {/* Cookie présent mais session illisible (API muette) : « indisponibles », pas « connecte-toi ». */}
