@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Un journal unique en base (`audit_events`) alimenté par le site, les commandes Hermes et la modération native Discord, consultable et filtrable dans `/admin/moderation`, avec export CSV.
+**Goal:** Un journal unique en base (`audit_events`) de **tout ce qui se passe sur le serveur** (commandes, sanctions, messages modifiés/supprimés, vocal, membres, rôles, salons, invitations, fils, émojis, réglages du serveur) et des actions du site, consultable dans `/admin/moderation` avec des filtres qui s'adaptent au type choisi, et export CSV.
 
 **Architecture:** Nouvelle table `audit_events` (migration 020, reprise de `admin_logs`). Écrivains : web-api (`_log`, source `site`), bot (module `utils/audit_events.py` : commandes, sanctions Hermes, entrées du journal d'audit Discord, purge 365 j). Lecture : web-api `GET /admin/audit` et `GET /admin/audit.csv`. Affichage : composant `AuditJournal` qui remplace `AdminLogs`.
 
@@ -15,7 +15,10 @@
 - Async uniquement ; aucune I/O bloquante dans le bot ni dans web-api.
 - Toute écriture de journal ne lève jamais d'exception vers l'appelant (une panne de journal ne casse pas une sanction).
 - Rétention : lignes de plus de **365 jours** purgées une fois par jour.
-- Sources : `site`, `hermes`, `discord`. Kinds : `command`, `sanction`, `role`, `channel`, `member_role`, `permission`, `setting`, `game`, `site_access`, `content`.
+- Sources : `site`, `hermes`, `discord`. Kinds : `command`, `sanction`, `message`, `voice`, `member`, `member_role`, `role`, `channel`, `thread`, `invite`, `emoji`, `server`, `permission`, `setting`, `game`, `site_access`, `content`.
+- Actions par kind (liste fermée, sert aux filtres) : `message` → `edit`, `delete`, `bulk_delete` ; `voice` → `join`, `leave`, `move`, `server_mute`, `server_deafen`, `self_mute`, `self_deafen`, `stream_start`, `stream_stop` ; `member` → `join`, `leave`, `nickname`, `avatar` ; `member_role` → `add`, `remove` ; `role`/`channel`/`thread`/`emoji` → `create`, `update`, `delete` ; `invite` → `create`, `delete` ; `server` → `update` ; `sanction` → `kick`, `ban`, `unban`, `timeout`, `untimeout`, `warn`, `clear`, `message_delete` ; `command` → `/<nom>`.
+- Contenu des messages : enregistré pour `edit` (avant/après) et `delete` (si le message était en cache ; sinon `"[contenu indisponible]"`), tronqué à 2 000 caractères ; les messages **envoyés** ne sont pas journalisés (volume). Les messages des bots sont ignorés.
+- Qui a fait quoi : les changements structurels (rôles, salons, fils, émojis, invitations, réglages du serveur, rôles et pseudos des membres) sont lus **dans le journal d'audit Discord** (auteur et avant/après fiables) ; les évènements sans entrée d'audit (vocal, message modifié/supprimé par son auteur, arrivée/départ) viennent des évènements Discord directs. Une suppression de message par un modérateur complète la ligne `message`/`delete` avec `details.deleted_by`.
 - Commandes anonymes (`confess`) : valeurs des options remplacées par `"[masqué]"`.
 - Entrée du journal d'audit Discord dont l'auteur est le bot : pas de doublon ; elle complète la ligne `site`/`hermes` correspondante (même `action`, même `target_id`, moins de 120 s) via `details.discord_audit_id` ; sans correspondance, ligne `source='discord'`.
 - Accès : routes de lecture réservées aux admins (`require_admin`) — les accès partiels arrivent à l'étape 2.
@@ -25,11 +28,12 @@
 
 ## Review Focus
 
-1. Valeur d'option de commande très longue ou binaire (pièce jointe) → tronquée à 500 caractères, pièce jointe enregistrée par son nom de fichier seulement (Task 2).
-2. Cellule CSV commençant par `=`, `+`, `-`, `@` (nom Discord piégé) → préfixée d'une apostrophe, pas de formule dans le tableur (Task 4).
-3. Bot sans la permission « Voir les logs du serveur » → aucun crash, un avertissement unique dans les logs (Task 3).
-4. Filtre de dates : jour « au » inclus jusqu'à 23:59:59 Europe/Paris ; dates invalides → 422, pas 500 (Task 4).
-5. Commande utilisée en message privé (pas de salon ni de serveur) → ligne enregistrée avec `channel_id` nul (Task 3).
+1. Message modifié/supprimé avec pièces jointes et embeds → noms des fichiers et nombre d'embeds enregistrés, pas les fichiers (Task 4).
+2. Valeur d'option de commande très longue ou binaire (pièce jointe) → tronquée à 500 caractères, pièce jointe enregistrée par son nom de fichier seulement (Task 2).
+3. Cellule CSV commençant par `=`, `+`, `-`, `@` (nom Discord piégé) → préfixée d'une apostrophe, pas de formule dans le tableur (Task 5).
+4. Bot sans la permission « Voir les logs du serveur » → aucun crash, un avertissement unique dans les logs (Task 3).
+5. Filtre de dates : jour « au » inclus jusqu'à 23:59:59 Europe/Paris ; dates invalides → 422, pas 500 (Task 5).
+6. Commande utilisée en message privé (pas de salon ni de serveur) → ligne enregistrée avec `channel_id` nul (Task 3).
 
 ---
 
@@ -194,7 +198,71 @@ def test_dm_command_has_no_channel(monkeypatch):
 
 ---
 
-### Task 4: Lecture du journal dans web-api (filtres + CSV)
+### Task 4: Journal des évènements du serveur
+
+**Files:**
+- Create: `bot/cogs/system/server_journal.py` (cog d'écoute : messages, vocal, membres) et `bot/utils/server_events.py` (fonctions pures de mise en forme)
+- Modify: `bot/cogs/system/audit_journal.py` (Task 3) — couvrir **toutes** les entrées utiles du journal d'audit Discord (rôles, salons, surcharges de permissions, fils, émojis/stickers, invitations, réglages du serveur, rôles et pseudos des membres), pas seulement les sanctions
+- Test: `bot/tests/test_server_events.py`
+
+**Interfaces:**
+- Consumes: `record` (Task 2).
+- Produces (`bot/utils/server_events.py`) :
+  - `MAX_CONTENT_LEN = 2000`
+  - `def message_snapshot(content: str | None, attachments: list[str], embeds: int) -> dict` → `{"content": tronqué | "[contenu indisponible]", "attachments": [noms], "embeds": n}`
+  - `def voice_actions(before, after) -> list[str]` — compare deux `VoiceState` (`channel`, `self_mute`, `self_deaf`, `mute`, `deaf`, `self_stream`) et renvoie les actions du Global Constraints ; un passage salon A → salon B donne `["move"]`, pas `leave` + `join`.
+  - `def audit_to_events(action: discord.AuditLogAction, before: dict, after: dict) -> list[tuple[str, str, dict]]` — liste de `(kind, action, details)` selon les listes du Global Constraints : `role_create` → `[("role","create",…)]` ; `member_role_update` → une entrée par rôle ajouté (`("member_role","add",{"role": …})`) ou retiré ; `member_update` avec pseudo → `("member","nickname",…)` ; `overwrite_*` → `("channel","update",{"permissions": …})` ; `guild_update` → `("server","update",…)` ; liste vide pour ce qui n'est pas suivi.
+  - `def diff_details(before: dict, after: dict) -> dict` → `{"changes": {champ: {"avant": …, "après": …}}}` pour les seuls champs modifiés, valeurs rendues lisibles (couleurs `#RRGGBB`, permissions par nom).
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+from types import SimpleNamespace as V
+
+def vs(**kw):
+    base = dict(channel=None, self_mute=False, self_deaf=False, mute=False, deaf=False, self_stream=False)
+    return V(**{**base, **kw})
+
+def test_voice_move_is_single_action():
+    from utils.server_events import voice_actions
+    assert voice_actions(vs(channel=1), vs(channel=2)) == ["move"]
+
+def test_voice_join_leave_and_mute():
+    from utils.server_events import voice_actions
+    assert voice_actions(vs(), vs(channel=1)) == ["join"]
+    assert voice_actions(vs(channel=1), vs()) == ["leave"]
+    assert voice_actions(vs(channel=1), vs(channel=1, self_mute=True)) == ["self_mute"]
+    assert voice_actions(vs(channel=1), vs(channel=1, mute=True)) == ["server_mute"]
+
+def test_message_snapshot_truncates_and_marks_unavailable():
+    from utils.server_events import message_snapshot, MAX_CONTENT_LEN
+    assert len(message_snapshot("x" * 5000, [], 0)["content"]) == MAX_CONTENT_LEN + 1
+    assert message_snapshot(None, ["a.png"], 2) == {"content": "[contenu indisponible]", "attachments": ["a.png"], "embeds": 2}
+
+def test_audit_member_role_update_splits_add_remove():
+    import discord
+    from utils.server_events import audit_to_events
+    ev = audit_to_events(discord.AuditLogAction.member_role_update, {"roles": [V(id=1, name="A")]}, {"roles": [V(id=2, name="B")]})
+    assert [(k, a) for k, a, _ in ev] == [("member_role", "add"), ("member_role", "remove")]
+
+def test_diff_details_only_changed_fields():
+    from utils.server_events import diff_details
+    assert diff_details({"name": "a", "hoist": False}, {"name": "b", "hoist": False}) == {"changes": {"name": {"avant": "a", "après": "b"}}}
+```
+
+- [ ] **Step 2: Run to verify they fail** — `cd bot && python -m pytest -q tests/test_server_events.py`.
+- [ ] **Step 3: Implement** `server_events.py` puis `server_journal.py` :
+  - `on_raw_message_edit` : contenu avant depuis le cache s'il existe, après depuis la charge utile ; ignorer si le texte n'a pas changé (les mises à jour automatiques d'embeds ne sont pas des éditions) ; `on_raw_message_delete`, `on_raw_bulk_message_delete` → `kind="message"`, acteur = auteur du message, salon renseigné ; messages de bots ignorés ;
+  - `on_voice_state_update` → une ligne par action de `voice_actions`, salon = salon d'arrivée (de départ pour `leave`), `details.from_channel` pour `move` ;
+  - `on_member_join` / `on_member_remove` → `kind="member"` (`details.invite_code` via l'évènement existant `on_member_join_tracked` quand il est disponible) ;
+  - `audit_journal.py` : toute entrée → `audit_to_events` ; les sanctions gardent la fusion de Task 3 ; `message_delete` par un modérateur → compléter la dernière ligne `message`/`delete` du même auteur et salon (moins de 10 s) avec `details.deleted_by`.
+  - Ne pas modifier le comportement des cogs existants (`message_logs`, `voice`, `invite_tracker`, `welcome`) : on ajoute des écouteurs.
+- [ ] **Step 4: Run tests** — `cd bot && python -m pytest -q` → PASS.
+- [ ] **Step 5: Commit** — `git commit -m "feat(journal): messages, vocal, membres et changements du serveur journalisés"`.
+
+---
+
+### Task 5: Lecture du journal dans web-api (filtres + CSV)
 
 **Files:**
 - Create: `web-api/routes/audit.py` (router `prefix="/admin"`), enregistré dans `web-api/main.py`
@@ -208,6 +276,7 @@ def test_dm_command_has_no_channel(monkeypatch):
   - `GET /admin/audit.csv` (mêmes filtres) → `text/csv; charset=utf-8`, BOM UTF-8, séparateur `;`, en-tête `Date;Type;Action;Source;Auteur;Cible;Salon;Succès;Détails`, au plus **10 000** lignes, `Content-Disposition: attachment; filename="journal-hermes-<AAAAMMJJ>.csv"`.
   - `def build_audit_filters(params) -> tuple[str, list]` (clause WHERE + arguments, testable seule).
   - `def csv_cell(value: str) -> str` — préfixe `'` si la valeur commence par `=`, `+`, `-`, `@`, tabulation ou retour chariot.
+  - `GET /admin/audit/facets` → `{"kinds": {kind: [actions présentes en base, triées]}, "channels": [{"id": str, "name": str}]}` (seulement ce qui a au moins une ligne ; cache 60 s) — rend les filtres **cohérents** : la liste des actions dépend du type choisi.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -256,7 +325,7 @@ def test_csv_headers_and_disposition(client, admin_session, fake_db):
 
 ---
 
-### Task 5: Journal dans `/admin/moderation`
+### Task 6: Journal dans `/admin/moderation`
 
 **Files:**
 - Create: `web/src/components/admin/audit-journal.tsx`, `web/src/lib/audit.ts` (libellés, formatage, construction de la query)
@@ -265,17 +334,18 @@ def test_csv_headers_and_disposition(client, admin_session, fake_db):
 - Test: `web/src/lib/__tests__/audit.test.ts`, `web/src/components/admin/__tests__/audit-journal.test.tsx`
 
 **Interfaces:**
-- Consumes: `GET /admin/audit`, `GET /admin/audit.csv` (Task 4) via le proxy `/api/proxy`.
+- Consumes: `GET /admin/audit`, `GET /admin/audit.csv`, `GET /admin/audit/facets` (Task 5) via le proxy `/api/proxy`.
 - Produces: `AuditJournal` (composant client) ; `auditQuery(filters: AuditFilters, page: number): string` ; `KIND_LABELS: Record<string, string>` (`command`: « Commande », `sanction`: « Sanction », `role`: « Rôle », `channel`: « Salon », `member_role`: « Rôle de membre », `permission`: « Permission », `setting`: « Réglage », `game`: « Jeu », `site_access`: « Accès au site », `content`: « Contenu ») ; `SOURCE_LABELS` (`site`: « Site », `hermes`: « Hermes », `discord`: « Discord »).
 
 Interface (texte et disposition) :
 ```
 Journal                                             [Exporter CSV]
-[Type ▾] [Source ▾] [Action / commande] [Auteur] [Cible] [Du] [Au] [☐ échecs seulement] [Rechercher…]
+Raccourcis : [Tout] [Sanctions] [Messages] [Vocal] [Membres] [Rôles] [Salons] [Commandes] [Site]
+[Type ▾] [Action ▾ (selon le type)] [Source ▾] [Salon ▾] [Auteur] [Cible] [Du] [Au] [☐ échecs seulement] [Rechercher…]
 Date (Europe/Paris) | Type | Action | Auteur | Cible | Salon | Détail (dépliable)
 … pagination « Page 2 / 14 » …
 ```
-Les filtres sont reflétés dans l'URL (`?type=…`) pour être partageables ; auteur et cible sont des liens vers la fiche membre (`MemberInspector` existant) ; une ligne en échec est marquée « échec » ; le détail affiche `details` en paires clé/valeur lisibles (raison, durée, options de commande).
+`KIND_LABELS` couvre tous les kinds du Global Constraints (dont `message`: « Message », `voice`: « Vocal », `member`: « Membre », `thread`: « Fil », `invite`: « Invitation », `emoji`: « Émoji », `server`: « Serveur ») et `ACTION_LABELS` toutes les actions (`edit`: « modifié », `delete`: « supprimé », `join`: « arrivée », `leave`: « départ », `move`: « déplacé », …). Le menu Action est rempli par `GET /admin/audit/facets` pour le type choisi ; changer de type réinitialise l'action. Le détail d'un message modifié affiche avant/après ; d'un changement de rôle ou de salon, les champs avant → après. Les filtres sont reflétés dans l'URL (`?type=…`) pour être partageables ; auteur et cible sont des liens vers la fiche membre (`MemberInspector` existant) ; une ligne en échec est marquée « échec » ; le détail affiche `details` en paires clé/valeur lisibles (raison, durée, options de commande).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -292,6 +362,10 @@ it("affiche les lignes, l'échec et le lien CSV filtré", async () => {
   // attendu : « Commande », « /fortnite », « échec », lien « Exporter CSV » vers /api/proxy/admin/audit.csv?kind=… 
 })
 it("changer un filtre recharge la page 1", async () => { /* … */ })
+it("le menu Action ne propose que les actions du type choisi", async () => {
+  // facets : { kinds: { voice: ["join", "leave"], message: ["edit"] } } ; choisir « Vocal » → options « arrivée », « départ » uniquement
+})
+it("le raccourci « Messages » pose type=message", async () => { /* … */ })
 it("API en erreur : message, pas de tableau", async () => { /* … */ })
 ```
 
@@ -306,4 +380,4 @@ it("API en erreur : message, pas de tableau", async () => { /* … */ })
 
 1. Ajouter au rôle du bot la permission Discord « Voir les logs du serveur » (propriétaire, ou contrôleur avec son accord).
 2. `git push`, puis sur le serveur : `git pull`, appliquer `db/migrations/020_audit_events.sql`, `docker compose up -d --build bot web-api web`.
-3. Vérifier : une commande `/blague` apparaît dans le journal ; une sanction depuis le site apparaît **une fois** (source Site) ; un timeout posé directement dans Discord apparaît (source Discord) ; filtres et CSV.
+3. Vérifier : une commande `/blague` apparaît dans le journal ; un message modifié puis supprimé, une connexion vocale, un rôle ajouté à un membre dans Discord apparaissent avec le bon auteur ; une sanction depuis le site apparaît **une fois** (source Site) ; un timeout posé directement dans Discord apparaît (source Discord) ; filtres et CSV.

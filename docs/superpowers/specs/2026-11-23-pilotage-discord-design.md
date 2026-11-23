@@ -112,6 +112,7 @@ Choix du propriétaire : **A**, livraison en 6 étapes dans l'ordre des objectif
   `target_id`, `target_name`, `channel_id`, `channel_name`, `success` (bool), `details` (JSONB :
   arguments, raison, durée, avant/après), index sur (`occurred_at`), (`kind`,`occurred_at`),
   (`actor_id`), (`target_id`).
+- Périmètre (précisé par le propriétaire) : **toute action sur le serveur** est journalisée — messages modifiés/supprimés (avec contenu), vocal (connexions, déplacements, micro/casque, partage d'écran), arrivées/départs, pseudos, rôles des membres, rôles, salons et permissions, fils, invitations, émojis, réglages du serveur — avec des filtres cohérents par type d'action. Les messages envoyés ne sont pas journalisés (volume).
 - Alimentation :
   - commandes : `on_app_command_completion` et `on_app_command_error` (bot) → une ligne par commande,
     avec arguments (valeurs des options ; masquer le texte libre des commandes anonymes comme
