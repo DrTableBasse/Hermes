@@ -60,6 +60,7 @@ vi.mock("pg", () => ({
     }
   },
 }))
+vi.mock("server-only", () => ({}))
 vi.mock("better-auth", () => ({ betterAuth: () => ({}) }))
 
 let memberRoles: Record<string, string[]> = {}

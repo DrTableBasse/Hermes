@@ -1,3 +1,4 @@
+import "server-only"
 import { pool } from "./db"
 
 /** Rôle par identifiant (réglage en base) ou par nom (repli sur l'environnement). */

@@ -1,3 +1,4 @@
+import "server-only"
 import { Pool } from "pg"
 
 /** Connexion à la base du site (BetterAuth, réglages du bot, droits d'accès), partagée par le serveur Next. */

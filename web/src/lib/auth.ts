@@ -165,20 +165,45 @@ export const auth = betterAuth({
   database: pool,
   secret:  process.env.BETTER_AUTH_SECRET!,
   baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  // Connexion Discord uniquement : le site n'appelle que sign-in/social, le callback, get-session
+  // et sign-out. Les routes qui écrivent dans "user" (update-user recopiait tout champ déclaré
+  // sans `input: false`, dont discordId) ou qui ouvrent un autre moyen de connexion sont fermées.
+  disabledPaths: [
+    "/update-user",
+    "/update-session",
+    "/sign-up/email",
+    "/sign-in/email",
+    "/change-email",
+    "/change-password",
+    "/delete-user",
+    "/delete-user/callback",
+    "/link-social",
+    "/unlink-account",
+    "/request-password-reset",
+    "/reset-password",
+    "/send-verification-email",
+    "/verify-email",
+    "/verify-password",
+  ],
   user: {
     additionalFields: {
+      // Pas `input: false` : mapProfileToUser doit l'écrire à l'inscription (BetterAuth ignore
+      // les champs `input: false` du profil). Seul update-user l'acceptait du client : fermé.
       discordId: {
         type:     "string",
         unique:   true,
         required: false,
       },
+      // Droits : écrits par storeRoles uniquement (création de session, réévaluation).
       isAdmin: {
         type:         "boolean",
         defaultValue: false,
+        input:        false,
       },
       isRedacteur: {
         type:         "boolean",
         defaultValue: false,
+        input:        false,
       },
       // Droits effectifs (colonne TEXT[] de la migration 021), écrits par storeRoles : lus par le
       // menu (« Admin », « Écrire un article »). Jamais saisis par le client ; sans valeur à la
@@ -223,7 +248,6 @@ export const auth = betterAuth({
           ? `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.png`
           : null
 
-        const { isAdmin, isRedacteur } = await resolveDiscordRoles(discordId)
 
         // Keep user_voice_data in sync for bot stats
         try {
@@ -241,7 +265,8 @@ export const auth = betterAuth({
           console.error("[auth] user_voice_data upsert failed:", e)
         }
 
-        return { name: username, image: avatar ?? undefined, discordId, isAdmin, isRedacteur }
+        // Droits écrits par le hook de session (storeRoles), pas par le profil (`input: false`).
+        return { name: username, image: avatar ?? undefined, discordId }
       },
     },
   },
