@@ -1,170 +1,152 @@
-import Image from 'next/image'
-import type { Metadata } from 'next'
-import { serverGetUserPublicStats, serverGetUserActivity } from '@/lib/server-api'
-import ActivityHeatmap from '@/components/ActivityHeatmap'
-import type { ActivityDay } from '@/lib/api'
+import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import { AchievementsPanel } from "@/components/members/achievements-panel"
+import { ActivityHeatmap } from "@/components/members/activity-heatmap"
+import { Avatar } from "@/components/ui/avatar"
+import { Chip } from "@/components/ui/chip"
+import { GradeBadge } from "@/components/ui/grade-badge"
+import { Panel } from "@/components/ui/panel"
+import { SectionHeading } from "@/components/ui/section-heading"
+import { getAchievementCatalog, getUserAchievementsAll, getUserActivity, getUserPublicStats } from "@/lib/api/server"
+import type { AchievementWithStatus, PublicUserStats } from "@/lib/api/types"
+import { formatNumber } from "@/lib/format"
+import { isSnowflake, isUnknownMember } from "@/lib/members"
+import { RARITIES, raritiesById } from "@/lib/rarity"
 
-interface Props {
-  params: Promise<{ locale: string; userId: string }>
+type Props = { params: Promise<{ userId: string }> }
+
+/** Profil public ; `null` : membre inconnu, `Error` : web-api injoignable. */
+async function loadUser(userId: string): Promise<PublicUserStats | null | Error> {
+  if (!isSnowflake(userId)) return null
+  try {
+    return await getUserPublicStats(userId)
+  } catch (error) {
+    return isUnknownMember(error) ? null : error instanceof Error ? error : new Error(String(error))
+  }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { userId } = await params
-  try {
-    const u = await serverGetUserPublicStats(userId)
-    const name = u.nickname ?? u.username
-    return {
-      title: `${name} — Profil Hermes`,
-      description: `Niveau ${u.stats.current_level} · ${u.stats.total_xp.toLocaleString()} XP · ${u.stats.achievement_count} achievements · ${u.stats.voice_formatted} en vocal`,
-      openGraph: {
-        title: `${name} sur Hermes`,
-        description: `Niveau ${u.stats.current_level} · ${u.stats.total_xp.toLocaleString()} XP`,
-        ...(u.discord_avatar ? { images: [{ url: u.discord_avatar, width: 128, height: 128 }] } : {}),
-      },
-    }
-  } catch {
-    return { title: 'Profil introuvable' }
+  const user = await loadUser(userId)
+  if (!user || user instanceof Error) return { title: "Profil introuvable · SaucisseLand" }
+  const name = user.nickname ?? user.username
+  const { stats } = user
+  return {
+    title: `${name} · SaucisseLand`,
+    description: `${stats.grade.name} · niveau ${stats.current_level} · ${formatNumber(stats.total_xp)} XP · ${stats.achievement_count} succès · ${stats.voice_formatted} en vocal`,
   }
-}
-
-function tierLabel(points: number): { label: string; icon: string; cls: string } {
-  if (points >= 100) return { label: 'Légendaire', icon: '⭐', cls: 'bg-yellow-500/20 text-yellow-300 ring-yellow-500/40' }
-  if (points >= 50)  return { label: 'Épique',     icon: '💎', cls: 'bg-indigo-500/20 text-indigo-300 ring-indigo-500/40' }
-  if (points >= 25)  return { label: 'Rare',       icon: '🔶', cls: 'bg-orange-500/20 text-orange-300 ring-orange-500/40' }
-  return               { label: 'Commun',     icon: '⚪', cls: 'bg-neutral-500/20 text-neutral-300 ring-neutral-500/40' }
 }
 
 export default async function PublicProfilePage({ params }: Props) {
   const { userId } = await params
+  const [user, activity, allAchievements, catalog] = await Promise.all([
+    loadUser(userId),
+    isSnowflake(userId) ? getUserActivity(userId).catch(() => []) : Promise.resolve([]),
+    isSnowflake(userId) ? getUserAchievementsAll(userId).catch(() => null) : Promise.resolve(null),
+    isSnowflake(userId) ? getAchievementCatalog() : Promise.resolve(null),
+  ])
 
-  let user: Awaited<ReturnType<typeof serverGetUserPublicStats>> | null = null
-  let activityData: ActivityDay[] = []
-
-  try {
-    ;[user, activityData] = await Promise.all([
-      serverGetUserPublicStats(userId),
-      serverGetUserActivity(userId).catch(() => []),
-    ])
-  } catch {
+  if (user === null) notFound()
+  if (user instanceof Error) {
     return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <p className="text-3xl mb-3">👤</p>
-        <p className="text-muted-foreground">Membre introuvable.</p>
-      </div>
+      <main className="relative pt-10 pb-24">
+        <div className="relative mx-auto max-w-[1100px] px-6 min-[1100px]:px-10">
+          <p className="rounded-2xl border border-line bg-[rgb(19_22_42/0.6)] px-6 py-5 text-muted" role="status">
+            Ce profil est injoignable pour l’instant. Hermes recompte, reviens dans un moment.
+          </p>
+        </div>
+      </main>
     )
   }
 
-  if (!user) return null
-
-  const statCards = [
-    { label: 'Niveau',       value: user.stats.current_level.toString(),              icon: '🏅' },
-    { label: 'XP total',     value: user.stats.total_xp.toLocaleString(),             icon: '✨' },
-    { label: 'Messages',     value: user.stats.total_messages.toLocaleString(),        icon: '💬' },
-    { label: 'Temps vocal',  value: user.stats.voice_formatted,                       icon: '🎤' },
-    { label: 'Achievements', value: user.stats.achievement_count.toString(),           icon: '🏆' },
-    { label: 'Streak',       value: user.stats.current_streak > 0 ? `${user.stats.current_streak}j` : '—', icon: '🔥' },
+  const { stats } = user
+  const name = user.nickname ?? user.username
+  const cards = [
+    { label: "Niveau", value: formatNumber(stats.current_level) },
+    { label: "XP total", value: formatNumber(stats.total_xp) },
+    { label: "Messages", value: formatNumber(stats.total_messages) },
+    { label: "Temps vocal", value: stats.voice_formatted },
+    { label: "Succès", value: formatNumber(stats.achievement_count) },
+    { label: "Série", value: stats.current_streak > 0 ? `${stats.current_streak} j` : "—" },
   ]
 
-  const tierCounts = { Légendaire: 0, Épique: 0, Rare: 0, Commun: 0 } as Record<string, number>
-  for (const a of user.achievements) {
-    const { label } = tierLabel(a.points)
-    tierCounts[label]++
-  }
-  const reputationBadges = [
-    { label: 'Légendaire', icon: '⭐', cls: 'bg-yellow-500/20 text-yellow-300 ring-yellow-500/40' },
-    { label: 'Épique',     icon: '💎', cls: 'bg-indigo-500/20 text-indigo-300 ring-indigo-500/40' },
-    { label: 'Rare',       icon: '🔶', cls: 'bg-orange-500/20 text-orange-300 ring-orange-500/40' },
-    { label: 'Commun',     icon: '⚪', cls: 'bg-neutral-500/20 text-neutral-300 ring-neutral-500/40' },
-  ].filter(b => (tierCounts[b.label] ?? 0) > 0)
+  // Sans le détail des succès (route muette), on retombe sur les succès débloqués du profil.
+  const achievements: AchievementWithStatus[] =
+    allAchievements ?? user.achievements.map(a => ({ ...a, condition_type: "", unlocked: true }))
+
+  // Rareté réelle (part des membres, comme `/progression`) ; catalogue muet → section masquée.
+  const rarities = raritiesById(catalog)
+  const rarityCounts = RARITIES.map(r => ({
+    rarity: r,
+    count: user.achievements.filter(a => rarities[a.id]?.slug === r.slug).length,
+  })).filter(r => r.count > 0)
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl">
-      {/* Header */}
-      <div className="flex items-center gap-5 mb-10 glass-card p-6">
-        {user.discord_avatar ? (
-          <Image
-            src={user.discord_avatar}
-            alt={user.username}
-            width={80}
-            height={80}
-            priority
-            className="w-20 h-20 rounded-full ring-4 ring-border/60"
-          />
-        ) : (
-          <div className="w-20 h-20 rounded-full bg-accent flex items-center justify-center text-3xl font-bold ring-4 ring-border/60">
-            {user.username[0]?.toUpperCase()}
+    <main className="relative pt-10 pb-24">
+      <div className="relative mx-auto max-w-[1100px] px-6 min-[1100px]:px-10">
+        <Panel className="flex flex-wrap items-center gap-5">
+          <Avatar name={name} src={user.discord_avatar} size={80} ring={stats.grade.color} labelled />
+          <div className="min-w-0">
+            <h1 className="m-0 font-display text-4xl leading-tight font-extrabold tracking-[-0.02em] break-words">{name}</h1>
+            {user.nickname && <p className="m-0 text-muted">@{user.username}</p>}
+            <p className="mt-2 mb-0 flex flex-wrap items-center gap-2">
+              <GradeBadge grade={stats.grade} />
+              <span className="text-sm text-muted tabular-nums">niveau {formatNumber(stats.current_level)}</span>
+            </p>
           </div>
-        )}
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{user.nickname ?? user.username}</h1>
-          {user.nickname && <p className="text-muted-foreground">@{user.username}</p>}
-        </div>
-      </div>
+        </Panel>
 
-      {/* Stats */}
-      <section className="mb-10">
-        <h2 className="text-xl font-bold mb-5">Statistiques</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {statCards.map(({ label, value, icon }) => (
-            <div key={label} className="stat-card">
-              <div className="text-3xl mb-2">{icon}</div>
-              <div className="text-2xl font-extrabold tabular-nums">{value}</div>
-              <div className="text-sm text-muted-foreground mt-1">{label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Activité */}
-      {activityData.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-xl font-bold mb-5">Activité (12 derniers mois)</h2>
-          <div className="glass-card p-6">
-            <ActivityHeatmap data={activityData} />
-          </div>
-        </section>
-      )}
-
-      {/* Réputation */}
-      {reputationBadges.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">Réputation</h2>
-          <div className="flex flex-wrap gap-2">
-            {reputationBadges.map(b => (
-              <span key={b.label} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold ring-1 ${b.cls}`}>
-                {b.icon} {tierCounts[b.label]} {b.label}
-              </span>
+        <section aria-labelledby="stats-title" className="mt-10">
+          <SectionHeading as="h2" id="stats-title" title="Statistiques" className="[&_h2]:text-3xl" />
+          <dl className="m-0 mt-5 grid grid-cols-3 gap-4 max-[700px]:grid-cols-2">
+            {cards.map(c => (
+              <Panel key={c.label} className="p-5">
+                <dd className="m-0 font-display text-2xl font-extrabold tabular-nums">{c.value}</dd>
+                <dt className="mt-1 text-sm text-muted">{c.label}</dt>
+              </Panel>
             ))}
-          </div>
+          </dl>
         </section>
-      )}
 
-      {/* Achievements */}
-      {user.achievements.length > 0 && (
-        <section>
-          <h2 className="text-xl font-bold mb-5">Achievements ({user.achievements.length})</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {user.achievements.map(a => {
-              const tier = tierLabel(a.points)
-              return (
-                <div key={a.id} className="glass-card-hover flex items-start gap-3 p-4">
-                  <span className="text-3xl">{a.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{a.name}</p>
-                    <p className="text-sm text-muted-foreground">{a.description}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ring-1 font-medium ${tier.cls}`}>
-                        {tier.icon} {tier.label}
-                      </span>
-                      <span className="text-xs text-primary font-medium">+{a.points} pts</span>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-    </div>
+        {activity.length > 0 && (
+          <section aria-labelledby="activity-title" className="mt-10">
+            <SectionHeading as="h2" id="activity-title" title="Activité" sub="Les 12 derniers mois." className="[&_h2]:text-3xl" />
+            <Panel className="mt-5">
+              <ActivityHeatmap data={activity} />
+            </Panel>
+          </section>
+        )}
+
+        {rarityCounts.length > 0 && (
+          <section aria-labelledby="rarity-title" className="mt-10">
+            <SectionHeading
+              as="h2"
+              id="rarity-title"
+              title="Raretés des succès"
+              sub="D’après la part des membres qui ont débloqué chaque succès."
+              className="[&_h2]:text-3xl"
+            />
+            <ul className="m-0 mt-5 flex list-none flex-wrap gap-2 p-0">
+              {rarityCounts.map(({ rarity, count }) => (
+                <li key={rarity.slug}>
+                  <Chip color={rarity.color}>
+                    {count} {rarity.label}
+                  </Chip>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {achievements.length > 0 && (
+          <section aria-labelledby="achievements-title" className="mt-10">
+            <SectionHeading as="h2" id="achievements-title" title="Succès" className="[&_h2]:text-3xl" />
+            <div className="mt-5">
+              <AchievementsPanel achievements={achievements} rarities={rarities} />
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
   )
 }

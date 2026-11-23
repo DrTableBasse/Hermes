@@ -1,208 +1,126 @@
-import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { auth } from '@/lib/auth'
+import Link from "next/link"
+import { AdminDenied, AdminNote } from "@/components/admin/admin-denied"
+import { RankPagination } from "@/components/members/rank-pagination"
+import { Chip } from "@/components/ui/chip"
+import { SectionHeading } from "@/components/ui/section-heading"
+import { adminGate } from "@/lib/admin-gate"
+import { seg } from "@/lib/api/query"
+import { getTickets } from "@/lib/api/server"
+import type { TicketStatus } from "@/lib/api/types"
+import { cn } from "@/lib/cn"
+import { formatDate, formatNumber } from "@/lib/format"
+import { firstParam, parsePage } from "@/lib/members"
 
-const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
+const LIMIT = 20
+const FILTERS = [
+  { key: "all", label: "Tous" },
+  { key: "open", label: "Ouverts" },
+  { key: "closed", label: "Fermés" },
+] as const
+type Filter = (typeof FILTERS)[number]["key"]
 
-async function fetchTickets(token: string, status: string, page: number) {
-  const r = await fetch(
-    `${WEB_API}/tickets?status=${status}&page=${page}&limit=20`,
-    {
-      headers: { Cookie: `better-auth.session_token=${token}` },
-      cache: 'no-store',
-    }
-  )
-  if (!r.ok) throw new Error(`${r.status}`)
-  return r.json() as Promise<{
-    tickets: {
-      id: number
-      ticket_number: number
-      user_id: string
-      username: string
-      subject: string
-      status: string
-      created_at: string | null
-      closed_at: string | null
-      has_transcript: boolean
-    }[]
-    total: number
-    page: number
-    limit: number
-  }>
+const STATUS: Record<TicketStatus, { label: string; color: string }> = {
+  open: { label: "Ouvert", color: "var(--color-green)" },
+  closed: { label: "Fermé", color: "var(--color-muted)" },
 }
 
-function fmt(iso: string | null) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
+const href = (status: Filter, page: number) => `/admin/tickets?status=${status}&page=${page}`
+const TH = "px-4 py-3 font-semibold"
 
-const STATUS_LABELS: Record<string, string> = {
-  all: 'Tous',
-  open: 'Ouverts',
-  closed: 'Fermés',
-}
-
-const STATUS_BADGE: Record<string, string> = {
-  open:   'bg-green-500/20 text-green-400 border border-green-500/30',
-  closed: 'bg-zinc-500/20 text-zinc-400 border border-zinc-500/30',
-}
-
+/** Historique global des tickets (`GET /tickets`, administrateurs) et transcriptions. */
 export default async function AdminTicketsPage({
-  params,
   searchParams,
 }: {
-  params: Promise<{ locale: string }>
-  searchParams: Promise<{ status?: string; page?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { locale } = await params
+  const gate = await adminGate()
+  if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const sp = await searchParams
-  const status = ['all', 'open', 'closed'].includes(sp.status ?? '') ? (sp.status ?? 'all') : 'all'
-  const page = Math.max(1, parseInt(sp.page ?? '1', 10))
-
-  const session = await auth.api.getSession({ headers: await headers() })
-  type UserWithExtras = NonNullable<typeof session>['user'] & { isAdmin?: boolean }
-  const u = session?.user as UserWithExtras | undefined
-  if (!u?.isAdmin) redirect(`/${locale}`)
-
-  const token = (session!.session as any).token as string
-
-  let data: Awaited<ReturnType<typeof fetchTickets>> | null = null
-  try {
-    data = await fetchTickets(token, status, page)
-  } catch {}
-
-  const totalPages = data ? Math.ceil(data.total / data.limit) : 1
-
-  const buildUrl = (s: string, p: number) =>
-    `/${locale}/admin/tickets?status=${s}&page=${p}`
+  const status: Filter = FILTERS.find(f => f.key === firstParam(sp.status))?.key ?? "all"
+  const page = parsePage(firstParam(sp.page))
+  const data = await getTickets(gate.token, status, page, LIMIT)
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-6xl">
-      <div className="flex items-center gap-3 mb-8">
-        <Link
-          href={`/${locale}/admin`}
-          className="text-muted-foreground hover:text-foreground transition-colors text-sm"
-        >
-          ← Admin
-        </Link>
-        <span className="text-muted-foreground">/</span>
-        <h1 className="text-2xl font-extrabold tracking-tight">
-          🎫 Historique des tickets
-        </h1>
-        {data && (
-          <span className="ml-auto text-sm text-muted-foreground">
-            {data.total} ticket{data.total !== 1 ? 's' : ''}
-          </span>
-        )}
-      </div>
-
-      {/* Filtres */}
-      <div className="flex gap-2 mb-6">
-        {(['all', 'open', 'closed'] as const).map((s) => (
+    <div className="grid gap-6">
+      <SectionHeading
+        as="h1"
+        title="Tickets"
+        sub={data ? `${formatNumber(data.total)} ticket${data.total > 1 ? "s" : ""}` : undefined}
+      />
+      <nav aria-label="Filtrer par statut" className="flex gap-2">
+        {FILTERS.map(f => (
           <Link
-            key={s}
-            href={buildUrl(s, 1)}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              status === s
-                ? 'bg-accent text-accent-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-accent/50'
-            }`}
+            key={f.key}
+            href={href(f.key, 1)}
+            prefetch={false}
+            aria-current={status === f.key ? "page" : undefined}
+            className={cn(
+              "rounded-full border px-4 py-1.5 text-sm font-semibold",
+              status === f.key ? "border-violet bg-violet/10 text-violet" : "border-line text-muted hover:border-violet/40 hover:text-fg",
+            )}
           >
-            {STATUS_LABELS[s]}
+            {f.label}
           </Link>
         ))}
-      </div>
-
-      {/* Tableau */}
-      <div className="rounded-xl border border-border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-16">#</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium">Utilisateur</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium">Sujet</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-24">Statut</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-40">Ouvert le</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-40">Fermé le</th>
-              <th className="text-left px-4 py-3 text-muted-foreground font-medium w-32">Transcript</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {!data || data.tickets.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                  Aucun ticket trouvé.
-                </td>
+      </nav>
+      {!data ? (
+        <AdminNote tone="error">L’historique des tickets est injoignable pour l’instant.</AdminNote>
+      ) : data.tickets.length === 0 ? (
+        <AdminNote>Aucun ticket trouvé.</AdminNote>
+      ) : (
+        <div className="overflow-x-auto rounded-[20px] border border-line bg-[rgb(19_22_42/0.92)]">
+          <table className="w-full text-left text-sm">
+            <caption className="sr-only">Tickets</caption>
+            <thead className="text-muted">
+              <tr className="border-b border-line">
+                <th scope="col" className={TH}>N°</th>
+                <th scope="col" className={TH}>Membre</th>
+                <th scope="col" className={TH}>Sujet</th>
+                <th scope="col" className={TH}>Statut</th>
+                <th scope="col" className={TH}>Ouvert le</th>
+                <th scope="col" className={TH}>Fermé le</th>
+                <th scope="col" className={TH}>Transcription</th>
               </tr>
-            ) : (
-              data.tickets.map((t) => (
-                <tr key={t.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 text-muted-foreground font-mono">
-                    #{t.ticket_number.toString().padStart(4, '0')}
-                  </td>
+            </thead>
+            <tbody>
+              {data.tickets.map(t => (
+                <tr key={t.id} className="border-b border-line/60 last:border-b-0">
+                  <td className="px-4 py-3 font-mono text-muted">#{String(t.ticket_number).padStart(4, "0")}</td>
                   <td className="px-4 py-3 font-medium">{t.username}</td>
-                  <td className="px-4 py-3 text-muted-foreground truncate max-w-[260px]">
-                    {t.subject || '—'}
-                  </td>
+                  <td className="max-w-[260px] truncate px-4 py-3 text-muted">{t.subject || "—"}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        STATUS_BADGE[t.status] ?? 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {t.status === 'open' ? 'Ouvert' : 'Fermé'}
-                    </span>
+                    <Chip color={STATUS[t.status]?.color}>{STATUS[t.status]?.label ?? t.status}</Chip>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{fmt(t.created_at)}</td>
-                  <td className="px-4 py-3 text-muted-foreground text-xs">{fmt(t.closed_at)}</td>
+                  <td className="px-4 py-3 text-muted">{t.created_at ? formatDate(t.created_at) : "—"}</td>
+                  <td className="px-4 py-3 text-muted">{t.closed_at ? formatDate(t.closed_at) : "—"}</td>
                   <td className="px-4 py-3">
                     {t.has_transcript ? (
                       <a
-                        href={`/api/proxy/tickets/${t.id}/transcript`}
+                        href={`/api/proxy/tickets/${seg(t.id)}/transcript`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium hover:bg-blue-500/20 transition-colors"
+                        aria-label={`Transcription du ticket ${t.ticket_number} (nouvel onglet)`}
+                        className="font-semibold text-cyan hover:underline"
                       >
-                        📄 Voir
+                        Voir
                       </a>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-muted">—</span>
                     )}
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-6">
-          {page > 1 && (
-            <Link
-              href={buildUrl(status, page - 1)}
-              className="px-3 py-1.5 rounded-lg bg-muted text-sm hover:bg-accent/50 transition-colors"
-            >
-              ← Précédent
-            </Link>
-          )}
-          <span className="text-sm text-muted-foreground">
-            Page {page} / {totalPages}
-          </span>
-          {page < totalPages && (
-            <Link
-              href={buildUrl(status, page + 1)}
-              className="px-3 py-1.5 rounded-lg bg-muted text-sm hover:bg-accent/50 transition-colors"
-            >
-              Suivant →
-            </Link>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
+      )}
+      {data && (
+        <RankPagination
+          page={data.page}
+          totalPages={Math.ceil(data.total / data.limit)}
+          hrefFor={p => href(status, p)}
+          label="Pagination des tickets"
+        />
       )}
     </div>
   )

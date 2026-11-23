@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth"
 import { Pool } from "pg"
+import type { RoleRefreshDeps, StaffRoles } from "./role-refresh"
 
 const pool = new Pool({
   host:     process.env.PG_HOST,
@@ -7,6 +8,8 @@ const pool = new Pool({
   database: process.env.PG_DB,
   user:     process.env.PG_USER,
   password: process.env.PG_PASSWORD,
+  // Base injoignable : échec en 5 s plutôt qu'une attente sans fin d'une connexion libre.
+  connectionTimeoutMillis: 5000,
 })
 
 const DISCORD_API        = "https://discord.com/api/v10"
@@ -61,6 +64,7 @@ function loadGuildRoles(): Promise<void> {
     try {
       const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/roles`, {
         headers: { Authorization: `Bot ${BOT_TOKEN}` },
+        signal: AbortSignal.timeout(5000),
       })
       if (res.ok) {
         const roles = (await res.json()) as Array<{ id: string; name: string }>
@@ -72,20 +76,53 @@ function loadGuildRoles(): Promise<void> {
   return _guildRolesPromise
 }
 
-async function resolveDiscordRoles(discordId: string): Promise<[boolean, boolean]> {
+/**
+ * Rôles du membre ; `null` si Discord ne répond pas de façon exploitable (réseau, 429, 5xx, jeton
+ * refusé). Un membre absent du serveur (404) n'a aucun droit.
+ */
+async function resolveDiscordRolesStrict(discordId: string): Promise<StaffRoles | null> {
   await loadGuildRoles()
   try {
     const res = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${discordId}`, {
       headers: { Authorization: `Bot ${BOT_TOKEN}` },
+      signal: AbortSignal.timeout(5000),
     })
-    if (!res.ok) return [false, false]
+    if (res.status === 404) return [false, false]
+    if (!res.ok) return null
     const member = (await res.json()) as { roles: string[] }
     const isAdmin     = hasRole(_staffRoles.admin, member.roles)
     const isRedacteur = hasRole(_staffRoles.redacteur, member.roles) || isAdmin
     return [isAdmin, isRedacteur]
   } catch {
-    return [false, false]
+    return null
   }
+}
+
+/** À la connexion : sans réponse de Discord, aucun droit. */
+async function resolveDiscordRoles(discordId: string): Promise<StaffRoles> {
+  return (await resolveDiscordRolesStrict(discordId)) ?? [false, false]
+}
+
+/** Accès en base de `role-refresh.ts` (droits réévalués toutes les 10 minutes). */
+export const roleRefreshDeps: RoleRefreshDeps = {
+  async lookup(token) {
+    const res = await pool.query<{ id: string; discordId: string | null; updatedAt: Date }>(
+      `SELECT u.id, u."discordId", u."updatedAt"
+         FROM session s JOIN "user" u ON u.id = s."userId"
+        WHERE s.token = $1 AND s."expiresAt" > NOW()`,
+      [token]
+    )
+    const row = res.rows[0]
+    return row ? { userId: row.id, discordId: row.discordId, checkedAt: new Date(row.updatedAt) } : null
+  },
+  resolve: resolveDiscordRolesStrict,
+  async store(userId, [isAdmin, isRedacteur]) {
+    await pool.query(
+      `UPDATE "user" SET "isAdmin" = $1, "isRedacteur" = $2, "updatedAt" = NOW() WHERE id = $3`,
+      [isAdmin, isRedacteur, userId]
+    )
+  },
+  now: () => Date.now(),
 }
 
 export const auth = betterAuth({

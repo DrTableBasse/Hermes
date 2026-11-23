@@ -96,33 +96,6 @@ services:
       retries: 5
       start_period: 30s
 
-  web-v2:
-    build: ./web-v2
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      web-api:
-        condition: service_healthy
-    env_file: .env
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/proxy}
-      NEXT_PUBLIC_APP_URL: ${WEB_V2_URL:-http://localhost:3002}
-      BETTER_AUTH_URL: ${WEB_V2_URL:-http://localhost:3002}
-      WEB_API_INTERNAL_URL: http://web-api:8000
-      PG_HOST: db
-      HOSTNAME: "0.0.0.0"
-    ports:
-      - "3002:3000"
-    networks:
-      - hermes
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ > /dev/null 2>&1 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
 volumes:
   postgres_data:
   media_data:

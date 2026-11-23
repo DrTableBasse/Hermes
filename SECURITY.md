@@ -6,8 +6,7 @@ Hermes est le bot Discord et la plateforme web de la communauté SaucisseLand. C
 
 | Version | Prise en charge |
 |---|---|
-| `main` (v2 : `bot/`, `web-api/`, `web-v2/`) | ✅ |
-| Front v1 (`web/`) | ⚠️ Correctifs critiques uniquement, en cours de remplacement |
+| `main` (v2 : `bot/`, `web-api/`, `web/`) | ✅ |
 | Code v1 à la racine (`main.py`, `cogs/`, `utils/`) | ❌ Legacy, non maintenu |
 
 ## Signaler une vulnérabilité
@@ -43,7 +42,7 @@ Hermes est maintenu bénévolement : ces délais sont des objectifs, pas des gar
 
 - le bot Discord (`bot/`) et son API interne ;
 - l'API web (`web-api/`) ;
-- le site web (`web-v2/`, `web/`), y compris l'authentification Discord ;
+- le site web (`web/`), y compris l'authentification Discord ;
 - la configuration de déploiement fournie (`compose.yml`, Dockerfiles, schéma `db/`).
 
 **Hors périmètre :**

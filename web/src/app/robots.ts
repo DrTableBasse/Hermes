@@ -1,15 +1,13 @@
-import type { MetadataRoute } from 'next'
+import type { MetadataRoute } from "next"
+import { isIndexable, PRIVATE_PATHS, siteUrl } from "@/lib/site"
+
+// Lu à chaque requête : SITE_INDEXABLE et l’URL du site viennent de l’environnement du conteneur.
+export const dynamic = "force-dynamic"
 
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+  if (!isIndexable()) return { rules: { userAgent: "*", disallow: "/" } }
   return {
-    rules: [
-      {
-        userAgent: '*',
-        allow: '/',
-        disallow: ['/fr/admin', '/en/admin', '/fr/editor', '/en/editor'],
-      },
-    ],
-    sitemap: `${base}/sitemap.xml`,
+    rules: { userAgent: "*", allow: "/", disallow: [...PRIVATE_PATHS] },
+    sitemap: `${siteUrl()}/sitemap.xml`,
   }
 }

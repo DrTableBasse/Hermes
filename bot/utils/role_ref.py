@@ -1,6 +1,6 @@
 """Règle de résolution d'un réglage de rôle (module pur, sans discord).
 
-Même règle que le site (``web-v2/src/lib/auth.ts``) : un réglage renseigné désigne
+Même règle que le site (``web/src/lib/auth.ts``) : un réglage renseigné désigne
 un rôle **par identifiant**, et lui seul ; le repli sur un nom ne vaut que tant que
 la ligne est absente de ``bot_settings``. Sans cela, quiconque crée un rôle nommé
 « Administration » après la suppression du rôle réglé en obtiendrait les droits.

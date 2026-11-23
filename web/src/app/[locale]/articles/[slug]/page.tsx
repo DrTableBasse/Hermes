@@ -1,121 +1,114 @@
-import type { Metadata } from 'next'
-import Image from 'next/image'
-import { headers } from 'next/headers'
-import { notFound } from 'next/navigation'
-import { auth } from '@/lib/auth'
-import { serverGetArticle } from '@/lib/server-api'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { format } from 'date-fns'
-import { fr, enUS } from 'date-fns/locale'
-import { ArticleActions } from './ArticleActions'
+import type { Metadata } from "next"
+import Image from "next/image"
+import Link from "next/link"
+import { notFound } from "next/navigation"
+import { ArticleActions } from "@/components/articles/article-actions"
+import { ArticleComments } from "@/components/articles/article-comments"
+import { TagChips } from "@/components/articles/article-card"
+import { Markdown } from "@/components/articles/markdown"
+import { Avatar } from "@/components/ui/avatar"
+import { Chip } from "@/components/ui/chip"
+import { getArticle, getSessionUser } from "@/lib/api/server"
+import type { Article } from "@/lib/api/types"
+import { canEdit, excerpt, safeImageSrc } from "@/lib/articles"
+import { formatDate } from "@/lib/format"
+import { isUnknownMember } from "@/lib/members"
+import { sessionToken } from "@/lib/session"
 
-type UserWithExtras = {
-  isAdmin?: boolean; isRedacteur?: boolean; discordId?: string
-} & Record<string, unknown>
+type Props = { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string; slug: string }>
-}): Promise<Metadata> {
-  const { locale, slug } = await params
+/** Article ; `null` : introuvable (ou brouillon d'un autre), `Error` : web-api injoignable. */
+async function load(slug: string, token: string | null): Promise<Article | null | Error> {
   try {
-    const article = await serverGetArticle(slug)
-    const desc = article.content
-      .slice(0, 160)
-      .replace(/[#*`_\n]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    return {
-      title:       article.title,
-      description: desc,
-      openGraph: {
-        title:       article.title,
-        description: desc,
-        type:        'article',
-        locale: locale === 'fr' ? 'fr_FR' : 'en_US',
-        ...(article.cover_image_url && {
-          images: [{ url: article.cover_image_url }],
-        }),
-      },
-    }
-  } catch {
-    return { title: 'Article' }
+    return await getArticle(slug, token ?? undefined)
+  } catch (error) {
+    return isUnknownMember(error) ? null : error instanceof Error ? error : new Error(String(error))
   }
 }
 
-export default async function ArticlePage({
-  params,
-}: {
-  params: Promise<{ locale: string; slug: string }>
-}) {
-  const { locale, slug } = await params
-  const dateLocale = locale === 'fr' ? fr : enUS
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const article = await load(slug, null)
+  if (!article || article instanceof Error) return { title: "Article · SaucisseLand" }
+  const description = excerpt(article.content)
+  const cover = safeImageSrc(article.cover_image_url)
+  return {
+    title: `${article.title} · SaucisseLand`,
+    description,
+    openGraph: {
+      title: article.title,
+      description,
+      type: "article",
+      locale: "fr_FR",
+      ...(cover && { images: [{ url: cover }] }),
+    },
+  }
+}
 
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null)
-  const u = session?.user as UserWithExtras | undefined
-  const token = session ? (session.session as any).token as string : undefined
+export default async function ArticlePage({ params }: Props) {
+  const { slug } = await params
+  const token = await sessionToken()
+  const [article, me] = await Promise.all([load(slug, token), token ? getSessionUser(token) : null])
 
-  let article: any = null
-  try { article = await serverGetArticle(slug, token) } catch {}
-  if (!article) notFound()
+  if (article === null) notFound()
+  if (article instanceof Error) {
+    return (
+      <main className="relative pt-10 pb-24">
+        <div className="relative mx-auto max-w-[760px] px-6">
+          <p className="rounded-2xl border border-line bg-[rgb(19_22_42/0.6)] px-6 py-5 text-muted" role="status">
+            Cet article est injoignable pour l’instant. Hermes recompte, reviens dans un moment.
+          </p>
+        </div>
+      </main>
+    )
+  }
 
-  const isAuthor  = u?.discordId === String(article.author_id)
-  const canEdit   = isAuthor || !!u?.isAdmin || !!u?.isRedacteur
+  const cover = safeImageSrc(article.cover_image_url)
+  const editable = canEdit(me, article)
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl">
-      {article.cover_image_url && (
-        <div className="relative mb-8 rounded-xl overflow-hidden h-80">
-          <Image
-            src={article.cover_image_url}
-            alt={article.title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 768px"
-            priority
-          />
-        </div>
-      )}
+    <main className="relative pt-10 pb-24">
+      <article className="relative mx-auto max-w-[760px] px-6">
+        <Link href="/articles" prefetch={false} className="text-sm text-muted hover:text-fg">
+          ← Tous les articles
+        </Link>
 
-      {/* Tags */}
-      {article.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {article.tags.map((tag: any) => (
-            <span key={tag.id} className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: tag.color + '33', color: tag.color }}>
-              {tag.name}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Title + actions */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <h1 className="text-4xl font-bold flex-1">{article.title}</h1>
-        {canEdit && (
-          <ArticleActions articleId={article.id} articleSlug={slug} locale={locale} />
+        {cover && (
+          <div className="relative mt-6 mb-8 h-80 overflow-hidden rounded-[20px]">
+            <Image src={cover} alt="" fill unoptimized priority sizes="(max-width: 768px) 100vw, 760px" className="object-cover" />
+          </div>
         )}
-      </div>
 
-      {!article.published && (
-        <div className="mb-4 px-3 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-600 dark:text-yellow-400 text-sm inline-block">
-          Brouillon — non publié
+        {article.tags.length > 0 && (
+          <div className="mt-6 mb-4 flex flex-wrap gap-2">
+            <TagChips tags={article.tags} />
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <h1 className="min-w-0 flex-1 font-display text-[clamp(32px,4.2vw,48px)] leading-[1.05] font-extrabold tracking-[-0.03em] text-balance">
+            {article.title}
+          </h1>
+          {editable && <ArticleActions articleId={article.id} />}
         </div>
-      )}
 
-      <p className="text-muted-foreground mb-10 text-sm">
-        Par <span className="text-foreground font-medium">{article.author?.username ?? '—'}</span>
-        {' · '}
-        {format(new Date(article.created_at), 'dd MMMM yyyy', { locale: dateLocale })}
-      </p>
+        {!article.published && (
+          <div className="mt-4">
+            <Chip color="var(--color-gold)">Brouillon — non publié</Chip>
+          </div>
+        )}
 
-      <div className="prose-hermes">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {article.content}
-        </ReactMarkdown>
-      </div>
-    </div>
+        <p className="mt-4 mb-10 flex items-center gap-2 text-sm text-muted">
+          {article.author && <Avatar name={article.author.username} src={article.author.discord_avatar} size={26} />}
+          <span>
+            Par <span className="font-medium text-fg">{article.author?.username ?? "—"}</span> · {formatDate(article.created_at)}
+          </span>
+        </p>
+
+        <Markdown>{article.content}</Markdown>
+
+        {article.published && <ArticleComments articleId={article.id} viewer={me} />}
+      </article>
+    </main>
   )
 }

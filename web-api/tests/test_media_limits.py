@@ -1,6 +1,6 @@
 """/media (fichiers statiques) hors limiteur (vérification demandée par le constat C1).
 
-L'optimiseur d'images de web-v2 lit /media/* depuis son conteneur : une seule IP pour
+L'optimiseur d'images du site lit /media/* depuis son conteneur : une seule IP pour
 tous les visiteurs. SlowAPIMiddleware n'applique pas la limite par défaut (120/min) à
 un montage Starlette ; ce test le fige.
 """

@@ -1,170 +1,181 @@
-import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import { Suspense } from 'react'
-import Link from 'next/link'
-import { auth } from '@/lib/auth'
-import { serverListArticles, serverListTags, serverMyArticles } from '@/lib/server-api'
-import { ArticleCard } from '@/components/ArticleCard'
-import { SearchBar } from './SearchBar'
-import { TagManager } from './TagManager'
+import type { Metadata } from "next"
+import Link from "next/link"
+import { Suspense } from "react"
+import { ArticleCard } from "@/components/articles/article-card"
+import { TagManager } from "@/components/articles/tag-manager"
+import { RankPagination } from "@/components/members/rank-pagination"
+import { RankSearch } from "@/components/members/rank-search"
+import { Button } from "@/components/ui/button"
+import { SectionHeading } from "@/components/ui/section-heading"
+import { getSessionUser, listArticles, listTags, myArticles } from "@/lib/api/server"
+import type { Article, ArticleList, Tag } from "@/lib/api/types"
+import { canWrite, tagColor } from "@/lib/articles"
+import { cn } from "@/lib/cn"
+import { formatNumber } from "@/lib/format"
+import { firstParam, parsePage } from "@/lib/members"
+import { sessionToken } from "@/lib/session"
 
-type UserWithExtras = {
-  isAdmin?: boolean; isRedacteur?: boolean
-} & Record<string, unknown>
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}): Promise<Metadata> {
-  const { locale } = await params
-  const isFr = locale === 'fr'
-  return {
-    title: isFr ? 'Articles' : 'Articles',
-    description: isFr
-      ? 'Découvrez les articles et actualités de la communauté SaucisseLand.'
-      : 'Discover articles and news from the SaucisseLand community.',
-  }
+export const metadata: Metadata = {
+  title: "Articles · SaucisseLand",
+  description: "Découvre les articles et actualités de la communauté SaucisseLand.",
 }
 
+const LIMIT = 12
+
+function Note({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-10 mb-0 rounded-2xl border border-line bg-[rgb(19_22_42/0.6)] px-6 py-5 text-muted" role="status">
+      {children}
+    </p>
+  )
+}
+
+const href = (tag: string | undefined, search: string | undefined, page = 1) => {
+  const qs = new URLSearchParams()
+  if (tag) qs.set("tag", tag)
+  if (search) qs.set("q", search)
+  if (page > 1) qs.set("page", String(page))
+  const text = qs.toString()
+  return text ? `/articles?${text}` : "/articles"
+}
+
+/**
+ * Liste des articles publiés (recherche, tag, pagination). Un rédacteur voit aussi ses brouillons
+ * (`/articles/mine`, lus avec sa session et jamais mis en cache) et la gestion des tags.
+ */
 export default async function ArticlesPage({
-  params,
   searchParams,
 }: {
-  params: Promise<{ locale: string }>
-  searchParams: Promise<{ page?: string; tag?: string; q?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const { locale }          = await params
-  const { page: ps, tag, q } = await searchParams
-  const page   = Math.max(1, parseInt(ps ?? '1', 10))
-  const search = q?.trim() || undefined
+  const sp = await searchParams
+  const page = parsePage(firstParam(sp.page))
+  const tag = firstParam(sp.tag)?.trim() || undefined
+  const search = firstParam(sp.q)?.trim() || undefined
 
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null)
-  const u = session?.user as UserWithExtras | undefined
-  const isRedacteur = !!u?.isRedacteur
-  const token = session ? (session.session as any).token as string : undefined
+  const token = await sessionToken()
+  const me = token ? await getSessionUser(token) : null
+  const writer = canWrite(me)
 
-  const [listResult, tags, myDrafts] = await Promise.all([
-    serverListArticles({ page, limit: 12, tag, search }).catch(() => ({ articles: [], total: 0, page: 1, limit: 12 })),
-    serverListTags().catch(() => []),
-    isRedacteur && token ? serverMyArticles(token).catch(() => []) : Promise.resolve([]),
+  const [list, tags, mine] = await Promise.all([
+    listArticles({ page, limit: LIMIT, tag, search }).catch((): ArticleList | null => null),
+    listTags().catch((): Tag[] => []),
+    writer && token ? myArticles(token).catch((): Article[] => []) : Promise.resolve<Article[]>([]),
   ])
-
-  const { articles, total } = listResult
-  const totalPages = Math.ceil(total / 12)
-  const drafts     = (myDrafts as any[]).filter(a => !a.published)
+  const drafts = mine.filter(a => !a.published)
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <h1 className="text-3xl font-extrabold tracking-tight">Articles</h1>
-        <div className="flex items-center gap-3">
-          <Suspense><SearchBar defaultValue={q ?? ''} /></Suspense>
-          {isRedacteur && (
+    <main className="relative pt-10 pb-24">
+      <div className="relative mx-auto max-w-[1100px] px-6 min-[1100px]:px-10">
+        <SectionHeading
+          as="h1"
+          title="Articles"
+          sub="Actualités et textes de la communauté."
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              <Suspense>
+                <RankSearch defaultValue={search ?? ""} placeholder="Rechercher un article…" />
+              </Suspense>
+              {writer && (
+                <Button href="/editeur/nouveau" prefetch={false} size="sm">
+                  Nouvel article
+                </Button>
+              )}
+            </div>
+          }
+        />
+
+        {tags.length > 0 && (
+          <nav aria-label="Filtrer par tag" className="mt-8 flex flex-wrap gap-2">
             <Link
-              href={`/${locale}/editor/new`}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90"
+              href={href(undefined, search)}
+              prefetch={false}
+              aria-current={!tag ? "page" : undefined}
+              className={cn(
+                "rounded-full border px-4 py-1.5 text-sm font-semibold",
+                !tag ? "border-violet bg-violet/10 text-violet" : "border-line text-muted hover:border-violet/40 hover:text-fg",
+              )}
             >
-              + Nouvel article
+              Tous
             </Link>
-          )}
-        </div>
-      </div>
+            {tags.map(t => {
+              const active = tag === t.slug
+              const color = tagColor(t.color)
+              return (
+                <Link
+                  key={t.id}
+                  href={href(t.slug, search)}
+                  prefetch={false}
+                  aria-current={active ? "page" : undefined}
+                  className={cn("rounded-full border px-4 py-1.5 text-sm font-semibold", !active && "border-line text-muted hover:text-fg")}
+                  style={active ? { borderColor: color, color, backgroundColor: `${color}22` } : undefined}
+                >
+                  {t.name}
+                </Link>
+              )
+            })}
+          </nav>
+        )}
 
-      {/* Tag filter */}
-      {tags.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-6">
-          <Link
-            href={`/${locale}/articles${search ? `?q=${search}` : ''}`}
-            className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
-              !tag ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Tous
-          </Link>
-          {tags.map(tg => {
-            const active = tag === tg.slug
-            const href   = `/${locale}/articles?tag=${tg.slug}${search ? `&q=${search}` : ''}`
-            return (
-              <Link
-                key={tg.id}
-                href={href}
-                className="px-3 py-1 rounded-full text-sm font-medium border transition-colors"
-                style={active
-                  ? { borderColor: tg.color, color: tg.color, backgroundColor: tg.color + '22' }
-                  : {}}
-              >
-                {tg.name}
-              </Link>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Tag manager (rédacteurs only) */}
-      {isRedacteur && (
-        <div className="mb-8">
-          <TagManager initialTags={tags} />
-        </div>
-      )}
-
-      {/* My drafts section */}
-      {drafts.length > 0 && (
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <span className="text-muted-foreground">✏️</span> Mes brouillons
-            <span className="text-xs font-normal text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-              {drafts.length}
-            </span>
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {drafts.map((a: any) => (
-              <ArticleCard key={a.id} article={a} locale={locale} isDraft />
-            ))}
+        {writer && (
+          <div className="mt-6">
+            <TagManager initialTags={tags} />
           </div>
-        </section>
-      )}
+        )}
 
-      {/* Search results info */}
-      {(search || tag) && (
-        <p className="text-sm text-muted-foreground mb-4">
-          {total} article{total > 1 ? 's' : ''}
-          {search && <span> pour « <strong className="text-foreground">{search}</strong> »</span>}
-          {tag    && <span> dans le tag <strong className="text-foreground">{tag}</strong></span>}
-        </p>
-      )}
+        {drafts.length > 0 && (
+          <section aria-labelledby="drafts-title" className="mt-10">
+            <h2 id="drafts-title" className="mb-4 flex items-center gap-2 font-display text-lg font-bold">
+              Mes brouillons
+              <span className="rounded-full bg-white/8 px-2 py-0.5 text-xs font-normal text-muted">{drafts.length}</span>
+            </h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {drafts.map(a => (
+                <ArticleCard key={a.id} article={a} draft />
+              ))}
+            </div>
+          </section>
+        )}
 
-      {/* Articles grid */}
-      {articles.length === 0 ? (
-        <p className="text-muted-foreground text-center py-20">
-          {search ? `Aucun résultat pour « ${search} »` : 'Aucun article publié pour le moment.'}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-          {articles.map(a => <ArticleCard key={a.id} article={a} locale={locale} />)}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => {
-            const href = `/${locale}/articles?page=${p}${tag ? `&tag=${tag}` : ''}${search ? `&q=${search}` : ''}`
-            return (
-              <Link
-                key={p}
-                href={href}
-                className={`w-9 h-9 flex items-center justify-center rounded border text-sm ${
-                  p === page ? 'border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {p}
-              </Link>
-            )
-          })}
-        </div>
-      )}
-    </div>
+        {!list ? (
+          <Note>Les articles sont injoignables pour l’instant. Hermes recompte, reviens dans un moment.</Note>
+        ) : (
+          <>
+            {(search || tag) && (
+              <p className="mt-8 mb-0 text-sm text-muted">
+                {formatNumber(list.total)} article{list.total > 1 ? "s" : ""}
+                {search && (
+                  <>
+                    {" "}
+                    pour « <strong className="text-fg">{search}</strong> »
+                  </>
+                )}
+                {tag && (
+                  <>
+                    {" "}
+                    avec le tag <strong className="text-fg">{tags.find(t => t.slug === tag)?.name ?? tag}</strong>
+                  </>
+                )}
+              </p>
+            )}
+            {list.articles.length === 0 ? (
+              <Note>{search ? `Aucun résultat pour « ${search} ».` : "Aucun article publié pour le moment."}</Note>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {list.articles.map(a => (
+                  <ArticleCard key={a.id} article={a} />
+                ))}
+              </div>
+            )}
+            <RankPagination
+              page={list.page}
+              totalPages={Math.ceil(list.total / list.limit)}
+              label="Pagination des articles"
+              hrefFor={p => href(tag, search, p)}
+            />
+          </>
+        )}
+      </div>
+    </main>
   )
 }

@@ -41,7 +41,13 @@ cd web-api && pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-There are no automated tests in this project (no pytest/jest configs).
+## Tests
+
+```bash
+cd web && npm test && npm run lint     # vitest + ESLint (site)
+cd bot && pytest                       # requirements-dev.txt
+cd web-api && pytest                   # requirements-dev.txt
+```
 
 ---
 
@@ -52,7 +58,7 @@ compose.yml
 ├── db          PostgreSQL 15 (internal only)
 ├── bot         Discord bot + internal FastAPI on :8001
 ├── web-api     FastAPI on :8000 (Docker-internal; proxied by Next.js)
-└── web         Next.js frontend on :3000
+└── web         Next.js 16 frontend on :3000
 ```
 
 ### Service responsibilities
@@ -70,9 +76,10 @@ compose.yml
 - Calls `http://bot:8001` for Discord moderation actions
 - Shares `/app/media` volume with the bot container
 
-**`web/`** — Next.js 14 frontend
-- TypeScript, Tailwind CSS, Radix UI, next-intl (fr/en i18n)
-- All routes are under `src/app/[locale]/` — dynamic locale prefix drives i18n
+**`web/`** — Next.js 16 frontend (App Router, React 19, Tailwind 4, next-intl)
+- All routes are under `src/app/[locale]/` — single locale `fr`, served without prefix (`localePrefix: 'as-needed'`)
+- Old v1 URLs (`/fr/leaderboard`, `/profile`…) are permanently redirected: `src/lib/legacy-redirects.ts`
+- Next 16: middleware lives in `src/proxy.ts`; read `node_modules/next/dist/docs/` before relying on older Next APIs
 - Auth via BetterAuth (Discord OAuth2); session cookie used across all requests
 - API calls go through Next.js proxy routes at `/api/proxy/[...path]` → `web-api`
 - Built with `output: 'standalone'` — runs as a Node.js server, not static
