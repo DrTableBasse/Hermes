@@ -137,3 +137,23 @@ async def purge_older_than(days: int = 365) -> int:
         days,
     )
     return int(count or 0)
+
+
+async def record_command(interaction, command, success: bool) -> None:
+    """Journalise une commande slash (sous-commandes incluses). Ne lève jamais."""
+    if command is None:
+        return
+    name = command.qualified_name
+    # Hors serveur (message privé), pas de salon à journaliser.
+    channel = interaction.channel if interaction.guild is not None else None
+    try:
+        options = command_options(name, dict(iter(interaction.namespace)))
+    except Exception as e:
+        logger.warning("Options de /%s illisibles : %s", name, e)
+        options = {}
+    await record(
+        kind="command", action=f"/{name}", source="hermes",
+        actor_id=interaction.user.id, actor_name=interaction.user.display_name,
+        channel_id=getattr(channel, "id", None), channel_name=getattr(channel, "name", None),
+        success=success, details={"options": options},
+    )

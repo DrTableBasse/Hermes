@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.audit_events import record
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
 from utils.logging import log_command
@@ -24,6 +25,12 @@ class ClearCog(commands.Cog):
             return
         await interaction.response.defer(ephemeral=True)
         deleted = await interaction.channel.purge(limit=amount)
+        await record(
+            kind="sanction", action="clear", source="hermes",
+            actor_id=interaction.user.id, actor_name=interaction.user.display_name,
+            channel_id=interaction.channel.id, channel_name=getattr(interaction.channel, "name", None),
+            details={"count": len(deleted)},
+        )
         await interaction.followup.send(
             embed=hermes_embed(
                 description=f"🗑️ **{len(deleted)}** message{'s' if len(deleted) > 1 else ''} supprimé{'s' if len(deleted) > 1 else ''}.",

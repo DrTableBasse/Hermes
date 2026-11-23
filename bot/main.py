@@ -20,6 +20,7 @@ from utils.constants import cogs_names
 from utils import runtime  # noqa: F401 — fixe STARTED_AT au démarrage du processus
 from utils.database import init_database, voice_manager, message_stats_manager, db_manager, achievement_manager, command_stats_manager
 from utils.command_manager import init_command_status_table
+from utils.audit_events import record_command
 from utils.embed_style import hermes_embed, Colors
 
 console = Console()
@@ -228,6 +229,7 @@ async def on_message(message: discord.Message):
 async def on_app_command_completion(interaction: discord.Interaction, command: discord.app_commands.Command):
     if interaction.user.bot:
         return
+    await record_command(interaction, command, success=True)
     try:
         await command_stats_manager.increment(interaction.user.id, command.name)
         notifier = bot.get_cog('AchievementsNotifier')
@@ -250,6 +252,18 @@ async def on_app_command_completion(interaction: discord.Interaction, command: d
                     await notifier.notify(interaction.user.id, a['id'])
     except Exception as e:
         logger.warning(f"Command stats tracking: {e}")
+
+
+# discord.py ne diffuse pas d'évènement d'erreur de commande slash : on enveloppe
+# le gestionnaire de l'arbre, en journalisant d'abord puis en lui laissant la main.
+_default_app_command_error = bot.tree.on_error
+
+
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+    if not interaction.user.bot:
+        await record_command(interaction, interaction.command, success=False)
+    await _default_app_command_error(interaction, error)
 
 
 @bot.event

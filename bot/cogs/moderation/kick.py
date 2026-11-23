@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.audit_events import record
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
 from utils.logging import log_command, log_admin_action
@@ -37,6 +38,12 @@ class KickCog(commands.Cog):
                 ephemeral=True,
             )
             return
+        await record(
+            kind="sanction", action="kick", source="hermes",
+            actor_id=interaction.user.id, actor_name=interaction.user.display_name,
+            target_id=user.id, target_name=user.display_name,
+            details={"reason": reason},
+        )
 
         embed = moderation_embed('kick', interaction.user, user, reason)
         await interaction.response.send_message(embed=embed)

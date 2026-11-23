@@ -2,6 +2,7 @@ import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.audit_events import record
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
 from utils.logging import log_command, log_admin_action
@@ -41,6 +42,12 @@ class TempBanCog(commands.Cog):
                 embed=hermes_embed(description="❌ Permissions insuffisantes.", color=Colors.RED),
             )
             return
+        await record(
+            kind="sanction", action="ban", source="hermes",
+            actor_id=interaction.user.id, actor_name=interaction.user.display_name,
+            target_id=user.id, target_name=user.display_name,
+            details={"reason": reason, "duration_minutes": duration},
+        )
 
         embed = moderation_embed('tempban', interaction.user, user, reason, f"{duration} min")
         await interaction.followup.send(embed=embed)
@@ -50,7 +57,14 @@ class TempBanCog(commands.Cog):
         try:
             await interaction.guild.unban(user)
         except Exception:
-            pass
+            return
+        me = interaction.guild.me
+        await record(
+            kind="sanction", action="unban", source="hermes",
+            actor_id=me.id, actor_name=me.display_name,
+            target_id=user.id, target_name=user.display_name,
+            details={"reason": "Fin du bannissement temporaire", "duration_minutes": duration},
+        )
 
 
 async def setup(bot):

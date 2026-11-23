@@ -23,6 +23,9 @@ ACTION_ICONS = {
     'tempmute': '🔇',
     'mute':     '🔇',
     'unmute':   '🔊',
+    'timeout':  '🔇',
+    'untimeout': '🔊',
+    'unban':    '🔓',
 }
 
 
@@ -50,7 +53,7 @@ class AuditCog(commands.Cog):
                 user.id,
             ),
             db_manager.fetch(
-                "SELECT action_type, actor_name, details, created_at FROM admin_logs WHERE target_id = $1 ORDER BY created_at DESC LIMIT 5",
+                "SELECT action, actor_name, details, occurred_at FROM audit_events WHERE target_id = $1 ORDER BY occurred_at DESC LIMIT 5",
                 user.id,
             ),
             db_manager.fetchrow(
@@ -127,10 +130,10 @@ class AuditCog(commands.Cog):
         if recent_actions:
             action_lines = []
             for a in recent_actions:
-                icon = ACTION_ICONS.get(a['action_type'], '🛡️')
-                ts   = int(a['created_at'].timestamp())
+                icon = ACTION_ICONS.get(a['action'], '🛡️')
+                ts   = int(a['occurred_at'].timestamp())
                 actor = a['actor_name'] or '?'
-                action_lines.append(f"{icon} <t:{ts}:R> — `{a['action_type']}` par **{actor}**")
+                action_lines.append(f"{icon} <t:{ts}:R> — `{a['action']}` par **{actor}**")
             embed.add_field(name="🛡️ Historique admin", value="\n".join(action_lines), inline=False)
 
         embed.set_footer(text=f"Audit confidentiel  ·  Hermes · SaucisseLand")
