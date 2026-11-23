@@ -171,6 +171,18 @@ def test_deleted_role_named_from_before_values(journal):
     assert (record.calls[0]["target_id"], record.calls[0]["target_name"]) == (50, "Ancien")
 
 
+def test_invite_create_keeps_code_in_name_not_in_target_id(journal):
+    cog, record, _ = journal
+    entry = _entry(
+        discord.AuditLogAction.invite_create, MOD_ID, target=N(id="abc", code="abc"),
+        before=Diff(), after=Diff(code="abc"),
+    )
+    asyncio.run(cog.on_audit_log_entry_create(entry))
+    row, = record.calls
+    assert (row["kind"], row["action"]) == ("invite", "create")
+    assert row["target_id"] is None and row["target_name"] == "abc"
+
+
 def test_member_role_update_one_row_per_role(journal):
     cog, record, _ = journal
     entry = _entry(

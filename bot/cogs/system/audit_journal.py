@@ -50,6 +50,12 @@ def _name(obj) -> Optional[str]:
     return getattr(obj, "display_name", None) or getattr(obj, "name", None)
 
 
+def _int_id(obj) -> Optional[int]:
+    """Identifiant entier de l'objet, sinon None (une invitation a un `id` texte : son code)."""
+    value = getattr(obj, "id", None)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _as_dict(diff) -> dict:
     """AuditLogDiff (itérable en paires) → dict ; tolère None et les objets simples."""
     if diff is None:
@@ -130,7 +136,7 @@ class AuditJournal(commands.Cog):
         await record(
             kind=kind, action=action, source="discord",
             actor_id=entry.user_id, actor_name=_name(entry.user),
-            target_id=getattr(entry.target, "id", None), target_name=target_name,
+            target_id=_int_id(entry.target), target_name=target_name,
             details={**details, "reason": entry.reason, "discord_audit_id": entry.id},
         )
 
@@ -141,14 +147,14 @@ class AuditJournal(commands.Cog):
             if attempt:
                 await asyncio.sleep(DELETED_BY_RETRY_S)
             if await attach_deleted_by(
-                author_id=getattr(entry.target, "id", None), author_name=_name(entry.target),
-                channel_id=getattr(channel, "id", None),
+                author_id=_int_id(entry.target), author_name=_name(entry.target),
+                channel_id=_int_id(channel),
                 moderator_id=entry.user_id, moderator_name=_name(entry.user),
             ):
                 return
 
     async def _journal(self, entry, kind: str, action: str):
-        target_id = getattr(entry.target, "id", None)
+        target_id = _int_id(entry.target)
         if should_merge(entry.user_id, self.bot.user.id) and await self._attach(entry, action, target_id):
             return
         await record(
