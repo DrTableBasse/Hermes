@@ -124,19 +124,25 @@ class AuditJournal(commands.Cog):
 
     async def _record_change(self, entry, kind: str, action: str, details: dict, before: dict, after: dict):
         """Changement du serveur lu dans le journal d'audit (aucune ligne Hermes à rapprocher)."""
-        target_name = _name(entry.target)
+        target, target_id, target_name = entry.target, _int_id(entry.target), _name(entry.target)
         if target_name is None:  # cible supprimée ou invitation : nom dans les valeurs
             for values in (after, before):
                 target_name = values.get("name") or values.get("code")
                 if target_name:
                     break
-        extra = getattr(entry, "extra", None)
-        if action == "update" and "permissions" in details and extra is not None:
-            details = {**details, "overwrite_for": _name(extra) or str(getattr(extra, "id", ""))}
+        channel_id = channel_name = None
+        if kind in ("channel", "thread", "permission"):
+            # Le salon (ou fil) est la cible Discord : il est aussi reporté en salon pour le filtre.
+            channel_id, channel_name = target_id, target_name
+        if kind == "permission":
+            # Surcharge de salon : la cible est le rôle ou le membre visé.
+            target = getattr(entry, "extra", None)
+            target_id, target_name = _int_id(target), _name(target)
         await record(
             kind=kind, action=action, source="discord",
             actor_id=entry.user_id, actor_name=_name(entry.user),
-            target_id=_int_id(entry.target), target_name=target_name,
+            target_id=target_id, target_name=target_name,
+            channel_id=channel_id, channel_name=channel_name,
             details={**details, "reason": entry.reason, "discord_audit_id": entry.id},
         )
 
@@ -167,10 +173,16 @@ class AuditJournal(commands.Cog):
         if action in ("message_delete", "message_bulk_delete") and isinstance(count, int):
             # Discord regroupe les suppressions successives : nombre de messages de l'entrée.
             details["count"] = count
+        channel = None
+        if action == "message_delete":
+            channel = getattr(getattr(entry, "extra", None), "channel", None)
+        elif action == "message_bulk_delete":  # la cible Discord est le salon
+            channel = getattr(getattr(entry, "extra", None), "channel", None) or entry.target
         await record(
             kind=kind, action=action, source="discord",
             actor_id=entry.user_id, actor_name=_name(entry.user),
             target_id=target_id, target_name=_name(entry.target),
+            channel_id=_int_id(channel), channel_name=_name(channel),
             details=details,
         )
 

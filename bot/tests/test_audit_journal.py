@@ -196,7 +196,7 @@ def test_member_role_update_one_row_per_role(journal):
     assert all(r["source"] == "discord" and r["target_id"] == 5 for r in record.calls)
 
 
-def test_overwrite_names_the_role_or_member(journal):
+def test_overwrite_recorded_as_permission_on_channel_targeting_role(journal):
     cog, record, _ = journal
     entry = _entry(
         discord.AuditLogAction.overwrite_update, MOD_ID, target=N(id=300, name="general"),
@@ -205,9 +205,50 @@ def test_overwrite_names_the_role_or_member(journal):
     entry.extra = N(id=60, name="Muet")
     asyncio.run(cog.on_audit_log_entry_create(entry))
     row, = record.calls
-    assert (row["kind"], row["action"], row["target_name"]) == ("channel", "update", "general")
+    assert (row["kind"], row["action"]) == ("permission", "update")
+    assert (row["channel_id"], row["channel_name"]) == (300, "general")
+    assert (row["target_id"], row["target_name"]) == (60, "Muet")
     assert row["details"]["permissions"] == {"deny": {"avant": [], "après": ["send_messages"]}}
-    assert row["details"]["overwrite_for"] == "Muet"
+
+
+def test_channel_and_thread_rows_carry_their_channel(journal):
+    cog, record, _ = journal
+    for action in (discord.AuditLogAction.channel_update, discord.AuditLogAction.thread_create):
+        entry = _entry(action, MOD_ID, target=N(id=300, name="general"),
+                       before=Diff(name="a"), after=Diff(name="general"))
+        asyncio.run(cog.on_audit_log_entry_create(entry))
+    for row in record.calls:
+        assert (row["channel_id"], row["channel_name"]) == (300, "general")
+        assert (row["target_id"], row["target_name"]) == (300, "general")
+
+
+def test_role_change_has_no_channel(journal):
+    cog, record, _ = journal
+    entry = _entry(discord.AuditLogAction.role_update, MOD_ID, target=N(id=50, name="Modo"),
+                   before=Diff(name="a"), after=Diff(name="Modo"))
+    asyncio.run(cog.on_audit_log_entry_create(entry))
+    assert record.calls[0]["channel_id"] is None
+
+
+def test_message_delete_sanction_carries_channel(journal, monkeypatch):
+    cog, record, _ = journal
+    monkeypatch.setattr(audit_journal, "attach_deleted_by", Spy(result=True))
+    entry = _entry(discord.AuditLogAction.message_delete, MOD_ID)
+    entry.extra = N(channel=N(id=300, name="general"), count=2)
+    asyncio.run(cog.on_audit_log_entry_create(entry))
+    row, = record.calls
+    assert (row["channel_id"], row["channel_name"]) == (300, "general")
+
+
+def test_human_bulk_delete_carries_channel_and_count(journal):
+    cog, record, _ = journal
+    entry = _entry(discord.AuditLogAction.message_bulk_delete, MOD_ID, target=N(id=300, name="general"))
+    entry.extra = N(count=12)
+    asyncio.run(cog.on_audit_log_entry_create(entry))
+    row, = record.calls
+    assert (row["kind"], row["action"]) == ("sanction", "message_bulk_delete")
+    assert (row["channel_id"], row["channel_name"]) == (300, "general")
+    assert row["details"]["count"] == 12
 
 
 def test_message_delete_by_moderator_completes_message_row(journal, monkeypatch):

@@ -22,7 +22,8 @@ _STRUCTURAL = {
     A.invite_create: ("invite", "create"), A.invite_delete: ("invite", "delete"),
     A.guild_update: ("server", "update"),
 }
-_OVERWRITES = {A.overwrite_create, A.overwrite_update, A.overwrite_delete}
+# Surcharges de permissions d'un salon → kind `permission` (les permissions d'un rôle restent role/update).
+_OVERWRITES = {A.overwrite_create: "create", A.overwrite_update: "update", A.overwrite_delete: "delete"}
 
 # (attribut du VoiceState, action) dans l'ordre de restitution.
 _VOICE_FLAGS = (
@@ -108,7 +109,7 @@ def audit_to_events(action: discord.AuditLogAction, before: dict, after: dict) -
         kind, verb = _STRUCTURAL[action]
         return [(kind, verb, diff_details(before, after))]
     if action in _OVERWRITES:
-        return [("channel", "update", {"permissions": diff_details(before, after)["changes"]})]
+        return [("permission", _OVERWRITES[action], {"permissions": diff_details(before, after)["changes"]})]
     if action == A.member_role_update:
         # discord.py : rôles ajoutés dans `after`, retirés dans `before`.
         return _role_events("add", after.get("roles")) + _role_events("remove", before.get("roles"))

@@ -109,13 +109,22 @@ def test_audit_role_channel_thread_emoji_invite_server():
         assert ev[0][2] == {"changes": {"name": {"avant": "a", "après": "b"}}}
 
 
-def test_audit_overwrites_are_channel_permission_updates():
+def test_audit_overwrites_are_permission_events():
     from utils.server_events import audit_to_events
-    for action in (discord.AuditLogAction.overwrite_create, discord.AuditLogAction.overwrite_update,
-                   discord.AuditLogAction.overwrite_delete):
+    for action, verb in ((discord.AuditLogAction.overwrite_create, "create"),
+                         (discord.AuditLogAction.overwrite_update, "update"),
+                         (discord.AuditLogAction.overwrite_delete, "delete")):
         ev = audit_to_events(action, {"deny": discord.Permissions.none()},
                              {"deny": discord.Permissions(send_messages=True)})
-        assert ev == [("channel", "update", {"permissions": {"deny": {"avant": [], "après": ["send_messages"]}}})]
+        assert ev == [("permission", verb, {"permissions": {"deny": {"avant": [], "après": ["send_messages"]}}})]
+
+
+def test_role_permissions_change_stays_role_update():
+    from utils.server_events import audit_to_events
+    ev = audit_to_events(discord.AuditLogAction.role_update,
+                         {"permissions": discord.Permissions.none()},
+                         {"permissions": discord.Permissions(kick_members=True)})
+    assert [(k, a) for k, a, _ in ev] == [("role", "update")]
 
 
 def test_audit_member_update_nickname_only():
