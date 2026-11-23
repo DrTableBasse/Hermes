@@ -22,6 +22,10 @@ ADMIN_ONLY_SETTINGS = frozenset(
 )
 ADMIN_ONLY_DETAIL = "Réservé aux administrateurs : ce réglage désigne un rôle qui donne des droits"
 
+# Réglages gardés au registre (copie identique côté bot, amorçage de la migration 021) mais sans
+# effet : ni listés ni modifiables. redacteur_role → droits articles.* de la page Accès.
+SUPERSEDED_SETTINGS = {"redacteur_role": "Réglage remplacé par la page Accès (/admin/acces)"}
+
 router = APIRouter(tags=["settings"])
 
 
@@ -63,6 +67,8 @@ async def list_settings(user: dict = Depends(get_current_user)):
 
     groups: dict[str, list] = {}
     for d in SETTINGS.values():
+        if d.key in SUPERSEDED_SETTINGS:
+            continue
         value = _effective(d.key, stored)
         groups.setdefault(d.group, []).append({
             "key": d.key,
@@ -83,6 +89,8 @@ async def put_setting(key: str, body: SettingValue, user: dict = Depends(get_cur
         raise HTTPException(status_code=404, detail="Réglage inconnu")
     if key in ADMIN_ONLY_SETTINGS and not user.get("is_admin"):
         raise HTTPException(status_code=403, detail=ADMIN_ONLY_DETAIL)
+    if key in SUPERSEDED_SETTINGS:
+        raise HTTPException(status_code=409, detail=SUPERSEDED_SETTINGS[key])
     try:
         value = validate(key, body.value)
     except ValueError as e:

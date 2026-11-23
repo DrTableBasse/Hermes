@@ -63,3 +63,24 @@ def test_liste_signale_les_reglages_reserves(client, fake_db, session_with, monk
     assert items["admin_role"]["admin_only"] is True
     assert items["role_level_5"]["admin_only"] is True
     assert items["welcome_channel"]["admin_only"] is False
+
+
+# ── I3 : redacteur_role remplacé par la page Accès ───────────────────────────
+
+def test_redacteur_role_absent_de_la_liste(client, fake_db, session_with, monkeypatch):
+    async def fake_get(path, timeout=1.5):
+        return None
+
+    monkeypatch.setattr(bot_client, "bot_get", fake_get)
+    session_with((), is_admin=True)
+    keys = {i["key"] for g in client.get("/admin/settings").json()["groups"] for i in g["items"]}
+    assert "redacteur_role" not in keys
+    assert "admin_role" in keys
+
+
+def test_redacteur_role_non_modifiable_meme_admin(client, fake_db, session_with):
+    session_with((), is_admin=True)
+    r = client.put("/admin/settings/redacteur_role", json={"value": "123"})
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Réglage remplacé par la page Accès (/admin/acces)"
+    assert _writes(fake_db) == []

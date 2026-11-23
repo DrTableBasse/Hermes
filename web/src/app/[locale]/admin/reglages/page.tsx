@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { AdminDenied, AdminNote } from "@/components/admin/admin-denied"
 import { SettingsPanel } from "@/components/admin/settings-panel"
 import { SectionHeading } from "@/components/ui/section-heading"
@@ -40,6 +41,14 @@ export default async function AdminSettingsPage() {
             </AdminNote>
             )
           )}
+          <p className="m-0 text-sm text-muted">
+            Le rôle rédacteur n’est plus un réglage : les droits d’écrire et de publier des articles se donnent par
+            rôle dans la{" "}
+            <Link href="/admin/acces" className="text-msg underline">
+              page Accès
+            </Link>
+            .
+          </p>
           <SettingsPanel groups={settings.groups} channels={channels} roles={roles} isAdmin={gate.isAdmin} />
         </>
       )}

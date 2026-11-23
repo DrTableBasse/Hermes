@@ -119,6 +119,14 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
     expect(within(invite).getByRole("button", { name: "Enregistrer" })).toBeTruthy()
   })
 
+  it("réglages : le rôle rédacteur renvoie à la page Accès", async () => {
+    api.getAdminSettings.mockResolvedValue(SETTINGS)
+    render(await SettingsPage())
+    const link = screen.getByRole("link", { name: "page Accès" })
+    expect(link.getAttribute("href")).toBe("/admin/acces")
+    expect(link.closest("p")?.textContent).toMatch(/rédacteur/)
+  })
+
   it("réglages en admin : les rôles restent modifiables", async () => {
     api.getAdminSettings.mockResolvedValue(SETTINGS)
     const { container } = render(await SettingsPage())
