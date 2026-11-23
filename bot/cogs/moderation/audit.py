@@ -53,7 +53,8 @@ class AuditCog(commands.Cog):
                 user.id,
             ),
             db_manager.fetch(
-                "SELECT action, actor_name, details, occurred_at FROM audit_events WHERE target_id = $1 ORDER BY occurred_at DESC LIMIT 5",
+                "SELECT action, actor_name, occurred_at FROM audit_events"
+                " WHERE target_id = $1 AND kind = 'sanction' ORDER BY occurred_at DESC LIMIT 5",
                 user.id,
             ),
             db_manager.fetchrow(

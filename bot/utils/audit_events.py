@@ -123,6 +123,43 @@ async def attach_discord_entry(
         return False
 
 
+async def attach_deleted_by(
+    *, author_id: Optional[int], author_name: Optional[str], channel_id: Optional[int],
+    moderator_id: Optional[int], moderator_name: Optional[str], window_s: int = 10,
+) -> bool:
+    """Complète la ligne message/delete récente (même auteur, même salon) avec `deleted_by`.
+
+    Une ligne hors cache (auteur inconnu) du même salon convient aussi, en dernier
+    choix ; l'auteur lu dans l'entrée d'audit y est alors reporté.
+    """
+    try:
+        updated = await db_manager.fetchval(
+            """
+            UPDATE audit_events
+            SET details = details || jsonb_build_object(
+                    'deleted_by', jsonb_build_object('id', $1::bigint, 'name', $2::text)),
+                actor_id = COALESCE(actor_id, $3),
+                actor_name = COALESCE(actor_name, $4)
+            WHERE id = (
+                SELECT id FROM audit_events
+                WHERE kind = 'message' AND action = 'delete'
+                  AND channel_id IS NOT DISTINCT FROM $5
+                  AND (actor_id = $3 OR actor_id IS NULL)
+                  AND occurred_at > NOW() - make_interval(secs => $6)
+                  AND NOT details ? 'deleted_by'
+                ORDER BY (actor_id IS NULL), occurred_at DESC
+                LIMIT 1
+            )
+            RETURNING id
+            """,
+            moderator_id, moderator_name, author_id, author_name, channel_id, window_s,
+        )
+        return updated is not None
+    except Exception as e:
+        logger.warning("Complément de suppression impossible : %s", e)
+        return False
+
+
 async def purge_older_than(days: int = 365) -> int:
     """Supprime les lignes plus vieilles que `days` jours ; retourne leur nombre."""
     count = await db_manager.fetchval(

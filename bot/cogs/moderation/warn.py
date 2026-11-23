@@ -30,16 +30,17 @@ class WarnCog(commands.Cog):
                 ephemeral=True,
             )
             return
+
+        embed = moderation_embed('warn', interaction.user, user, reason)
+        embed.add_field(name="📅 Date", value=f"<t:{int(time.time())}:F>", inline=False)
+        await interaction.response.send_message(embed=embed)
+        # Après la réponse : une base lente ne doit pas faire expirer l'interaction.
         await record(
             kind="sanction", action="warn", source="hermes",
             actor_id=interaction.user.id, actor_name=interaction.user.display_name,
             target_id=user.id, target_name=user.display_name,
             details={"reason": reason},
         )
-
-        embed = moderation_embed('warn', interaction.user, user, reason)
-        embed.add_field(name="📅 Date", value=f"<t:{int(time.time())}:F>", inline=False)
-        await interaction.response.send_message(embed=embed)
 
         try:
             dm = hermes_embed(

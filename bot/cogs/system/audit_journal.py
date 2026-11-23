@@ -1,15 +1,22 @@
-"""Journal unique : entrées du journal d'audit Discord et purge quotidienne."""
+"""Journal unique : entrées du journal d'audit Discord et purge quotidienne.
+
+Chaque entrée est lue une fois : d'abord comme sanction (fusion avec la ligne
+site/hermes), puis pour les changements du serveur (audit_to_events). Les deux
+lectures ne se recouvrent pas : une même entrée peut donner une sanction ET un
+changement de pseudo, jamais deux fois le même évènement.
+"""
 import asyncio
 import logging
-from typing import Callable, Optional
+from typing import Optional
 
 import discord
 from discord.ext import commands, tasks
 
 from config import GUILD_ID
 from utils.audit_events import (
-    attach_discord_entry, map_audit_action, purge_older_than, record, timeout_change,
+    attach_deleted_by, attach_discord_entry, map_audit_action, purge_older_than, record, timeout_change,
 )
+from utils.server_events import audit_to_events
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +26,9 @@ RETENTION_DAYS = 365
 MERGE_RETRY_S = 10
 # Action Discord → action Hermes correspondante, pour le rapprochement.
 _MERGE_ACTIONS = {"message_bulk_delete": "clear"}
+# La ligne message/delete (évènement direct) arrive en général avant l'entrée d'audit ;
+# sinon on réessaie une fois après ce délai (fenêtre de rapprochement : 10 s).
+DELETED_BY_RETRY_S = 3
 
 _permission_warned = False
 
@@ -36,13 +46,18 @@ def classify_sanction(entry) -> Optional[tuple]:
     return map_audit_action(entry.action)
 
 
-# Classifieurs essayés dans l'ordre ; le premier qui reconnaît l'entrée l'emporte,
-# une entrée n'est donc journalisée qu'une fois. La tâche 4 ajoute les siens ici.
-CLASSIFIERS: list[Callable] = [classify_sanction]
-
-
 def _name(obj) -> Optional[str]:
     return getattr(obj, "display_name", None) or getattr(obj, "name", None)
+
+
+def _as_dict(diff) -> dict:
+    """AuditLogDiff (itérable en paires) → dict ; tolère None et les objets simples."""
+    if diff is None:
+        return {}
+    try:
+        return dict(iter(diff))
+    except TypeError:
+        return dict(vars(diff))
 
 
 def warn_if_audit_log_hidden(guild) -> bool:
@@ -92,10 +107,44 @@ class AuditJournal(commands.Cog):
 
     @commands.Cog.listener()
     async def on_audit_log_entry_create(self, entry):
-        for classify in CLASSIFIERS:
-            mapped = classify(entry)
-            if mapped:
-                await self._journal(entry, *mapped)
+        sanction = classify_sanction(entry)
+        if sanction:
+            await self._journal(entry, *sanction)
+        if entry.action == discord.AuditLogAction.message_delete:
+            await self._complete_message_delete(entry)
+        before, after = _as_dict(entry.before), _as_dict(entry.after)
+        for kind, action, details in audit_to_events(entry.action, before, after):
+            await self._record_change(entry, kind, action, details, before, after)
+
+    async def _record_change(self, entry, kind: str, action: str, details: dict, before: dict, after: dict):
+        """Changement du serveur lu dans le journal d'audit (aucune ligne Hermes à rapprocher)."""
+        target_name = _name(entry.target)
+        if target_name is None:  # cible supprimée ou invitation : nom dans les valeurs
+            for values in (after, before):
+                target_name = values.get("name") or values.get("code")
+                if target_name:
+                    break
+        extra = getattr(entry, "extra", None)
+        if action == "update" and "permissions" in details and extra is not None:
+            details = {**details, "overwrite_for": _name(extra) or str(getattr(extra, "id", ""))}
+        await record(
+            kind=kind, action=action, source="discord",
+            actor_id=entry.user_id, actor_name=_name(entry.user),
+            target_id=getattr(entry.target, "id", None), target_name=target_name,
+            details={**details, "reason": entry.reason, "discord_audit_id": entry.id},
+        )
+
+    async def _complete_message_delete(self, entry):
+        """Suppression par un modérateur : `deleted_by` sur la ligne message/delete."""
+        channel = getattr(getattr(entry, "extra", None), "channel", None)
+        for attempt in range(2):
+            if attempt:
+                await asyncio.sleep(DELETED_BY_RETRY_S)
+            if await attach_deleted_by(
+                author_id=getattr(entry.target, "id", None), author_name=_name(entry.target),
+                channel_id=getattr(channel, "id", None),
+                moderator_id=entry.user_id, moderator_name=_name(entry.user),
+            ):
                 return
 
     async def _journal(self, entry, kind: str, action: str):

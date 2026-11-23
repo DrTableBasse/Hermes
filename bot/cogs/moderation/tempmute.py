@@ -36,15 +36,16 @@ class TempMuteCog(commands.Cog):
                 ephemeral=True,
             )
             return
+
+        embed = moderation_embed('tempmute', interaction.user, user, reason, f"{duration} min")
+        await interaction.response.send_message(embed=embed)
+        # Après la réponse : une base lente ne doit pas faire expirer l'interaction.
         await record(
             kind="sanction", action="timeout", source="hermes",
             actor_id=interaction.user.id, actor_name=interaction.user.display_name,
             target_id=user.id, target_name=user.display_name,
             details={"reason": reason, "duration_minutes": duration},
         )
-
-        embed = moderation_embed('tempmute', interaction.user, user, reason, f"{duration} min")
-        await interaction.response.send_message(embed=embed)
         await log_admin_action(self.bot, 'tempmute', interaction.user, user, reason, f"{duration} min")
 
 
