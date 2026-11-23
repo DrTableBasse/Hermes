@@ -24,7 +24,16 @@ async def lifespan(app: FastAPI):
     await db.close_pool()
 
 
-app = FastAPI(title="Hermes Web API", lifespan=lifespan, default_response_class=SnowflakeJSONResponse)
+# Documentation OpenAPI désactivée (constat M5) : la carte de l'API interne n'est jamais servie,
+# ni sur le réseau Docker ni via le proxy Next (/api/proxy/docs, /api/proxy/openapi.json).
+app = FastAPI(
+    title="Hermes Web API",
+    lifespan=lifespan,
+    default_response_class=SnowflakeJSONResponse,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
