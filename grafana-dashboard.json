@@ -678,8 +678,7 @@
           "id": "organize",
           "options": {
             "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
-            "indexByName": { "host": 0, "code": 1, "Value": 2, "expires_at": 3 },
-            "renameByName": { "host": "Hôte", "code": "Code d'invitation", "Value": "Utilisations", "expires_at": "Expiration" }
+            "renameByName": { "Value": "Invitations permanentes" }
           }
         }
       ],
