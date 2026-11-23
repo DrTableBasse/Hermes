@@ -142,7 +142,14 @@ async def _check_achievements(user_id: int, total_messages: int, voice_hours: fl
 
 
 @router.get("/{user_id}/stats")
-async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
+async def get_user_stats(user_id: int, caller: dict = Depends(get_current_user)):
+    """Fiche complète (avertissements, dernière présence) : le membre lui-même ou un admin.
+
+    Les autres membres passent par `/users/{id}/public` (constat I3).
+    """
+    is_self = str(caller.get("sub")) == str(user_id)
+    if not (is_self or caller.get("is_admin")):
+        raise HTTPException(status_code=403, detail="Fiche réservée au membre et aux admins")
 
     user = await db.fetchrow("SELECT * FROM user_voice_data WHERE user_id = $1", user_id)
     if not user:
@@ -186,7 +193,9 @@ async def get_user_stats(user_id: int, _user: dict = Depends(get_current_user)):
         WHERE bump_count > COALESCE((SELECT bump_count FROM user_bump_stats WHERE user_id = $1), 0)
     """, user_id) or 1
 
-    await _check_achievements(user_id, total_messages, voice_hours, warn_count)
+    # Un GET n'écrit de succès que pour l'appelant lui-même, jamais pour la fiche d'un autre.
+    if is_self:
+        await _check_achievements(user_id, total_messages, voice_hours, warn_count)
 
     achievements = await db.fetch("""
         SELECT a.*, ua.unlocked_at
