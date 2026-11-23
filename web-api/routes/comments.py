@@ -1,7 +1,7 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import get_current_user, get_optional_user
 import database as db
 
 router = APIRouter(prefix="/comments", tags=["comments"])
@@ -14,7 +14,20 @@ class CommentCreate(BaseModel):
 
 
 @router.get("/article/{article_id}")
-async def get_comments(article_id: int):
+async def get_comments(article_id: int, user: Optional[dict] = Depends(get_optional_user)):
+    # Brouillon : commentaires lisibles par l'auteur, les rédacteurs et les admins seulement
+    # (constat M8) ; sinon 404, comme l'article lui-même.
+    article = await db.fetchrow(
+        "SELECT author_id, published FROM articles WHERE id = $1", article_id)
+    if not article:
+        raise HTTPException(404, "Article introuvable")
+    if not article['published']:
+        allowed = user and (
+            str(article['author_id']) == str(user['sub'])
+            or user.get('is_redacteur') or user.get('is_admin')
+        )
+        if not allowed:
+            raise HTTPException(404, "Article introuvable")
     rows = await db.fetch("""
         SELECT c.*, v.username, v.discord_avatar
         FROM article_comments c

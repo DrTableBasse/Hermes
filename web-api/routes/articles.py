@@ -172,6 +172,8 @@ async def create_article(body: ArticleCreate,
 @router.put("/{article_id}")
 async def update_article(article_id: int, body: ArticleUpdate,
                           user: dict = Depends(get_current_user)):
+    # Être l'auteur ne suffit plus : un ex-rédacteur perd la main sur ses articles (constat M3).
+    require_redacteur(user)
     article = await db.fetchrow("SELECT * FROM articles WHERE id = $1", article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article introuvable")
@@ -208,6 +210,8 @@ async def update_article(article_id: int, body: ArticleUpdate,
 
 @router.delete("/{article_id}", status_code=204)
 async def delete_article(article_id: int, user: dict = Depends(get_current_user)):
+    # Être l'auteur ne suffit plus : un ex-rédacteur perd la main sur ses articles (constat M3).
+    require_redacteur(user)
     article = await db.fetchrow("SELECT * FROM articles WHERE id = $1", article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article introuvable")
