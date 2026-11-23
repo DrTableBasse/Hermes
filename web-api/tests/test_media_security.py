@@ -102,6 +102,101 @@ def test_envoi_trop_gros_refuse_en_flux(client, fake_db, media_dir, monkeypatch)
     assert [p for p in media_dir.iterdir() if p.is_file() and p.name not in ("doc.pdf", "img.png")] == []
 
 
+CRLF = bytes([13, 10])
+
+
+def _chunked_multipart(payload: bytes, *, chunk=1024):
+    """Corps multipart produit par un générateur : httpx l'envoie en « chunked », sans
+    Content-Length (seul `_capped_receive` peut alors borner la lecture)."""
+    head = CRLF.join([
+        b"--b",
+        b'Content-Disposition: form-data; name="file"; filename="a.png"',
+        b"Content-Type: image/png",
+        b"",
+        b"",
+    ])
+    body = head + payload + CRLF + b"--b--" + CRLF
+
+    def gen():
+        for i in range(0, len(body), chunk):
+            yield body[i:i + chunk]
+    return gen()
+
+
+def _post_chunked(client, gen):
+    return client.post("/media/upload", content=gen,
+                       headers={"content-type": "multipart/form-data; boundary=b"})
+
+
+def test_envoi_chunked_sous_le_plafond_accepte(client, fake_db, media_dir, monkeypatch):
+    _session(monkeypatch, client, redacteur=True)
+    r = _post_chunked(client, _chunked_multipart(PNG))
+    assert r.status_code == 200, r.text
+    assert (media_dir / r.json()["filename"]).read_bytes() == PNG
+
+
+def test_envoi_chunked_borne_en_flux_sans_content_length(client, fake_db, media_dir, monkeypatch):
+    """m2 : le fichier (8 Ko) reste sous MAX_SIZE ; seul le plafond de flux du corps (4 Ko)
+    peut refuser. Sans `_capped_receive`, cet envoi serait accepté (200)."""
+    _session(monkeypatch, client, redacteur=True)
+    monkeypatch.setattr(media, "MAX_BODY", 4096)
+    r = _post_chunked(client, _chunked_multipart(PNG + b"\x00" * 8192))
+    assert r.status_code == 413, r.text
+    assert [p for p in media_dir.iterdir() if p.is_file() and p.name not in ("doc.pdf", "img.png")] == []
+
+
+def _asgi_chunks(body: bytes, chunk: int, consumed: list):
+    """`receive` ASGI qui livre le corps message par message, comme uvicorn en « chunked »."""
+    parts = [body[i:i + chunk] for i in range(0, len(body), chunk)]
+
+    async def receive():
+        i = len(consumed)
+        consumed.append(i)
+        if i < len(parts):
+            return {"type": "http.request", "body": parts[i], "more_body": i + 1 < len(parts)}
+        return {"type": "http.disconnect"}
+    return receive, len(parts)
+
+
+def test_flux_coupe_au_plafond_et_temporaires_fermes(monkeypatch):
+    """m2/m3 : corps reçu en plusieurs messages, sans Content-Length. La lecture s'arrête au
+    plafond (413) sans consommer la suite, et les fichiers temporaires déjà ouverts par le
+    parseur multipart sont fermés."""
+    import asyncio
+
+    import starlette.formparsers as formparsers
+    from fastapi import HTTPException
+    from starlette.requests import Request
+
+    opened = []
+
+    class Spy(formparsers.SpooledTemporaryFile):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            opened.append(self)
+
+    monkeypatch.setattr(formparsers, "SpooledTemporaryFile", Spy)
+    monkeypatch.setattr(media, "MAX_BODY", 4096)
+    body = b"".join(_chunked_multipart(PNG + bytes(16384)))
+    consumed = []
+    receive, total = _asgi_chunks(body, 1024, consumed)
+    scope = {"type": "http", "method": "POST", "path": "/media/upload", "query_string": b"",
+             "headers": [(b"content-type", b"multipart/form-data; boundary=b")]}
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(media._capped_form(Request(scope, receive)))
+    assert exc.value.status_code == 413
+    assert len(consumed) <= 5 < total
+    assert opened, "le parseur aurait dû ouvrir un fichier temporaire avant le plafond"
+    assert all(f.closed for f in opened)
+
+
+def test_corps_multipart_mal_forme_400(client, fake_db, media_dir, monkeypatch):
+    _session(monkeypatch, client, redacteur=True)
+    r = client.post("/media/upload", content=b"x", headers={"content-type": "multipart/form-data"})
+    assert r.status_code == 400
+
+
 def test_fichier_au_dela_de_max_size_refuse(client, fake_db, media_dir, monkeypatch):
     _session(monkeypatch, client, redacteur=True)
     monkeypatch.setattr(media, "MAX_SIZE", 1024)

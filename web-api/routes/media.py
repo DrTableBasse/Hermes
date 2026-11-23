@@ -5,6 +5,7 @@ from pathlib import Path
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.datastructures import UploadFile
+from starlette.formparsers import MultiPartException, MultiPartParser, parse_options_header
 from middleware.auth_middleware import get_current_user, require_redacteur
 import database as db
 
@@ -22,8 +23,16 @@ def _too_large() -> HTTPException:
     return HTTPException(status_code=413, detail="Fichier trop volumineux (max 10 Mo)")
 
 
+class _BodyTooLarge(MultiPartException):
+    """Corps au-delà du plafond. Hérite de `MultiPartException` pour que Starlette ferme les
+    fichiers temporaires déjà ouverts par le parseur (constat m3)."""
+
+    def __init__(self) -> None:
+        super().__init__("Corps trop volumineux")
+
+
 def _capped_receive(receive, limit: int):
-    """`receive` ASGI qui refuse (413) dès que le corps reçu dépasse `limit` octets."""
+    """`receive` ASGI qui refuse dès que le corps reçu dépasse `limit` octets."""
     seen = 0
 
     async def wrapped():
@@ -32,9 +41,28 @@ def _capped_receive(receive, limit: int):
         if message["type"] == "http.request":
             seen += len(message.get("body", b""))
             if seen > limit:
-                raise _too_large()
+                raise _BodyTooLarge()
         return message
     return wrapped
+
+
+async def _capped_form(request: Request):
+    """Formulaire multipart lu en flux sous `MAX_BODY` : 413 au-delà, 400 si mal formé.
+
+    Le parseur est appelé directement (et non `Request.form`, qui convertit toute
+    `MultiPartException` en 400) ; il ferme lui-même ses fichiers temporaires en cas d'erreur.
+    """
+    content_type, _ = parse_options_header(request.headers.get("content-type"))
+    if content_type != b"multipart/form-data":
+        raise HTTPException(status_code=422, detail="Fichier manquant")
+    capped = Request(request.scope, _capped_receive(request.receive, MAX_BODY))
+    parser = MultiPartParser(capped.headers, capped.stream(), max_files=1, max_fields=5)
+    try:
+        return await parser.parse()
+    except _BodyTooLarge:
+        raise _too_large()
+    except MultiPartException as exc:
+        raise HTTPException(status_code=400, detail=exc.message)
 
 
 def _detect_mime(data: bytes) -> str:
@@ -66,8 +94,7 @@ async def upload(request: Request, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Content-Length invalide")
     if declared > MAX_BODY:
         raise _too_large()
-    capped = Request(request.scope, _capped_receive(request.receive, MAX_BODY))
-    form = await capped.form(max_files=1, max_fields=5)
+    form = await _capped_form(request)
     try:
         file = form.get("file")
         if not isinstance(file, UploadFile) or not file.filename:
