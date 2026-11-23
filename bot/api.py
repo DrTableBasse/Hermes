@@ -314,9 +314,22 @@ async def discord_channels():
 async def discord_roles():
     guild = _get_guild()
     return {"roles": [
-        {"id": str(r.id), "name": r.name, "color": r.color.value}
+        {"id": str(r.id), "name": r.name, "color": r.color.value,
+         "position": r.position, "managed": r.managed}
         for r in sorted(guild.roles, key=lambda r: -r.position) if not r.is_default()
     ]}
+
+
+@app.get("/discord/members/{user_id}/rank", dependencies=[Depends(_require_token)])
+async def discord_member_rank(user_id: int):
+    """Rang Discord d'un membre (anti-escalade des accès au site) ; 404 si absent du serveur."""
+    guild = _get_guild()
+    member = await _get_member(guild, user_id)
+    return {
+        "top_position": member.top_role.position,
+        "is_owner": guild.owner_id == member.id,
+        "role_ids": [str(r.id) for r in member.roles if not r.is_default()],
+    }
 
 
 @app.post("/settings/reload", dependencies=[Depends(_require_token)])

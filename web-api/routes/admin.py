@@ -50,13 +50,15 @@ KIND_OF_ACTION: dict[str, str] = {
     "quest_template_update": "content",
     "quest_template_delete": "content",
     "quest_deploy": "content",
+    "update": "site_access",  # droits d'un rôle sur le site (routes/access.py)
 }
 
 
 async def _log(action_type: str, actor_id: int,
                target_id: int | None = None,
                details: dict | None = None,
-               success: bool = True):
+               success: bool = True,
+               target_name: str | None = None):
     """Insert into audit_events (source 'site'). Never raises."""
     try:
         actor = await db.fetchrow(
@@ -65,8 +67,7 @@ async def _log(action_type: str, actor_id: int,
         )
         actor_name = actor["name"] if actor else str(actor_id)
 
-        target_name = None
-        if target_id:
+        if target_id and target_name is None:
             target = await db.fetchrow(
                 "SELECT COALESCE(nickname, username) AS name FROM user_voice_data WHERE user_id = $1",
                 target_id,
