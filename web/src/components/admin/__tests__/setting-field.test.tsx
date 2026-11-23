@@ -34,6 +34,7 @@ const setting = (over: Partial<SettingItem>): SettingItem => ({
   kind: "channel",
   value: "",
   can_create: true,
+  admin_only: false,
   resolved: null,
   ...over,
 })
@@ -147,6 +148,7 @@ describe("SettingsPanel", () => {
         groups={[{ name: "Site", items: [setting({ key: "invite_url", label: "Lien", kind: "url", can_create: false })] }]}
         channels={CHANNELS}
         roles={ROLES}
+        isAdmin
       />,
     )
     expect(screen.getByText("Important")).toBeTruthy()

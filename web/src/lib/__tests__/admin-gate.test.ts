@@ -30,6 +30,7 @@ describe("adminGate(permission)", () => {
       kind: "ok",
       token: "tok",
       permissions: ["moderation.view", "tickets.manage"],
+      isAdmin: false,
     })
     expect(getSessionUser).toHaveBeenCalledWith("tok")
   })

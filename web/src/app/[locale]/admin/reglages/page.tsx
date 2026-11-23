@@ -40,7 +40,7 @@ export default async function AdminSettingsPage() {
             </AdminNote>
             )
           )}
-          <SettingsPanel groups={settings.groups} channels={channels} roles={roles} />
+          <SettingsPanel groups={settings.groups} channels={channels} roles={roles} isAdmin={gate.isAdmin} />
         </>
       )}
     </div>

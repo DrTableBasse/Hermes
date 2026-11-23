@@ -716,6 +716,8 @@ export interface SettingItem {
   kind: string
   value: string
   can_create: boolean
+  /** Rôle qui donne des droits : modifiable par le propriétaire et les admins seulement. */
+  admin_only: boolean
   resolved: { id: string; name: string | null; exists: boolean | null } | null
 }
 

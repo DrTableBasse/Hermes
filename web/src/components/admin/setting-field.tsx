@@ -15,6 +15,8 @@ type Props = {
   channels: DiscordChannel[] | null
   roles: DiscordRole[] | null
   onChannelCreated: (channel: DiscordChannel) => void
+  /** Réglage réservé aux admins (web-api répondrait 403) : valeur affichée, aucune saisie. */
+  readOnly?: boolean
 }
 
 type Choice = { id: string; name: string; group: string | null }
@@ -60,7 +62,7 @@ function groupBy(choices: Choice[]): Array<[string | null, Choice[]]> {
 }
 
 /** Un réglage : sélecteur Discord ou saisie validée, enregistrement et retour près du champ. */
-export function SettingField({ item, channels, roles, onChannelCreated }: Props) {
+export function SettingField({ item, channels, roles, onChannelCreated, readOnly = false }: Props) {
   const ids = useId()
   const [saved, setSaved] = useState(item.value)
   const [draft, setDraft] = useState(item.value)
@@ -129,15 +131,25 @@ export function SettingField({ item, channels, roles, onChannelCreated }: Props)
   return (
     <form id={`setting-${item.key}`} onSubmit={onSubmit} noValidate className="grid scroll-mt-24 gap-2 border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor={fieldId} className="font-semibold">
-          {item.label}
-        </label>
+        {readOnly ? (
+          <span className="font-semibold">{item.label}</span>
+        ) : (
+          <label htmlFor={fieldId} className="font-semibold">
+            {item.label}
+          </label>
+        )}
         {isKeySetting(item.key) && <Chip color="var(--color-gold)">Important</Chip>}
         {missing && <Chip color="var(--color-orange)">Introuvable</Chip>}
       </div>
       <p className="m-0 text-sm text-muted">
         Actuel : <span className={missing ? "text-orange" : "text-msg"}>{currentText}</span>
       </p>
+      {readOnly ? (
+        <p className="m-0 text-sm text-muted">
+          Réservé aux administrateurs : ce rôle donne des droits (site ou commandes du bot).
+        </p>
+      ) : (
+      <>
       <div className="flex flex-wrap items-start gap-2">
         {choices ? (
           <select
@@ -223,6 +235,8 @@ export function SettingField({ item, channels, roles, onChannelCreated }: Props)
           <p className="m-0 text-muted">Liste Discord indisponible (bot muet) : saisis l’identifiant.</p>
         ) : null}
       </div>
+      </>
+      )}
     </form>
   )
 }

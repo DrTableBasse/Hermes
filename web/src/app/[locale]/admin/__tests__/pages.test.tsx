@@ -36,7 +36,7 @@ import SettingsPage from "@/app/[locale]/admin/reglages/page"
 import TicketsPage from "@/app/[locale]/admin/tickets/page"
 
 const item = (key: string, kind: string, value: string, resolved: unknown = null, can_create = false) => ({
-  key, label: `Libellé ${key}`, kind, value, can_create, resolved,
+  key, label: `Libellé ${key}`, kind, value, can_create, resolved, admin_only: kind === "role",
 })
 
 const SETTINGS = {
@@ -104,6 +104,27 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
     render(await SettingsPage())
     expect(screen.queryByText(/Hermes ne répond pas/)).toBeNull()
     expect(screen.getByText(/Votre accès ne couvre pas les listes de salons et de rôles/)).toBeTruthy()
+  })
+
+  it("réglages sans être admin : les rôles qui donnent des droits sont en lecture seule", async () => {
+    api.getSessionUser.mockResolvedValue({ user_id: "2", is_admin: false, is_redacteur: false, permissions: ["settings.manage"] })
+    api.getAdminSettings.mockResolvedValue(SETTINGS)
+    const { container } = render(await SettingsPage())
+    const role = container.querySelector<HTMLElement>("#setting-mod_role")!
+    expect(within(role).queryByRole("button")).toBeNull()
+    expect(within(role).queryByRole("combobox")).toBeNull()
+    expect(within(role).queryByRole("textbox")).toBeNull()
+    expect(within(role).getByText(/Réservé aux administrateurs/)).toBeTruthy()
+    const invite = container.querySelector<HTMLElement>("#setting-invite_url")!
+    expect(within(invite).getByRole("button", { name: "Enregistrer" })).toBeTruthy()
+  })
+
+  it("réglages en admin : les rôles restent modifiables", async () => {
+    api.getAdminSettings.mockResolvedValue(SETTINGS)
+    const { container } = render(await SettingsPage())
+    const role = container.querySelector<HTMLElement>("#setting-mod_role")!
+    expect(within(role).getByRole("button", { name: "Enregistrer" })).toBeTruthy()
+    expect(within(role).queryByText(/Réservé aux administrateurs/)).toBeNull()
   })
 
   it("jeux : listes Discord refusées (403) → accès signalé, pas « Hermes ne répond pas »", async () => {

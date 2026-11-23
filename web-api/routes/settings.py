@@ -8,10 +8,19 @@ from pydantic import BaseModel
 import bot_client
 import database as db
 from middleware.auth_middleware import get_current_user, require_any_permission, require_permission
-from settings_registry import ID_KINDS, SETTINGS, validate
+from settings_registry import G_ROLES, ID_KINDS, SETTINGS, validate
 
 # Listes Discord en lecture seule : lues par la vue d'ensemble, Jeux, Réglages et Accès.
 DISCORD_LIST_RIGHTS = ("admin.view", "games.manage", "settings.manage", "permissions.manage")
+
+# Réglages qui désignent un rôle donnant des droits : admin_role (tous les droits du site),
+# mod_role/authorized_roles (commandes du bot), rôles que le bot attribue seul (niveaux, bump).
+# `settings.manage` seul permettrait d'y nommer son propre rôle, ou un rôle d'admin, et de
+# contourner l'anti-escalade : réservés au propriétaire et aux admins (`is_admin`).
+ADMIN_ONLY_SETTINGS = frozenset(
+    k for k, d in SETTINGS.items() if d.group == G_ROLES or d.kind == "role"
+)
+ADMIN_ONLY_DETAIL = "Réservé aux administrateurs : ce réglage désigne un rôle qui donne des droits"
 
 router = APIRouter(tags=["settings"])
 
@@ -61,6 +70,7 @@ async def list_settings(user: dict = Depends(get_current_user)):
             "kind": d.kind,
             "value": value,
             "can_create": d.channel_name is not None,
+            "admin_only": d.key in ADMIN_ONLY_SETTINGS,
             "resolved": _resolve(d.kind, value, channels, roles),
         })
     return {"groups": [{"name": name, "items": items} for name, items in groups.items()]}
@@ -71,6 +81,8 @@ async def put_setting(key: str, body: SettingValue, user: dict = Depends(get_cur
     require_permission(user, "settings.manage")
     if key not in SETTINGS:
         raise HTTPException(status_code=404, detail="Réglage inconnu")
+    if key in ADMIN_ONLY_SETTINGS and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail=ADMIN_ONLY_DETAIL)
     try:
         value = validate(key, body.value)
     except ValueError as e:

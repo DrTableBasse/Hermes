@@ -14,7 +14,7 @@ import { sessionToken } from "@/lib/session"
  * - `unavailable` : session illisible (API muette).
  */
 export type AdminGate =
-  | { kind: "ok"; token: string; permissions: SitePermission[] }
+  | { kind: "ok"; token: string; permissions: SitePermission[]; isAdmin: boolean }
   | { kind: "forbidden"; permission?: SitePermission }
   | { kind: "signin" }
   | { kind: "unavailable" }
@@ -38,5 +38,5 @@ export const adminGate = cache(async (permission?: SitePermission): Promise<Admi
   const permissions = me.permissions ?? []
   const allowed = permission ? permissions.includes(permission) : hasAdminAccess(permissions)
   if (!allowed) return permission ? { kind: "forbidden", permission } : { kind: "forbidden" }
-  return { kind: "ok", token, permissions }
+  return { kind: "ok", token, permissions, isAdmin: me.is_admin === true }
 })

@@ -9,10 +9,12 @@ type Props = {
   groups: SettingGroup[]
   channels: DiscordChannel[] | null
   roles: DiscordRole[] | null
+  /** Propriétaire ou admin : seuls à pouvoir modifier les réglages `admin_only`. */
+  isAdmin: boolean
 }
 
 /** Réglages du serveur : une carte par groupe du registre. */
-export function SettingsPanel({ groups, channels: initialChannels, roles }: Props) {
+export function SettingsPanel({ groups, channels: initialChannels, roles, isAdmin }: Props) {
   // Un salon créé depuis un champ devient choisissable dans les autres.
   const [channels, setChannels] = useState(initialChannels)
   const added = (channel: DiscordChannel) =>
@@ -26,7 +28,14 @@ export function SettingsPanel({ groups, channels: initialChannels, roles }: Prop
             {group.name}
           </h2>
           {group.items.map(item => (
-            <SettingField key={item.key} item={item} channels={channels} roles={roles} onChannelCreated={added} />
+            <SettingField
+              key={item.key}
+              item={item}
+              channels={channels}
+              roles={roles}
+              onChannelCreated={added}
+              readOnly={item.admin_only && !isAdmin}
+            />
           ))}
         </Panel>
       ))}
