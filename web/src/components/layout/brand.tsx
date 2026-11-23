@@ -1,16 +1,20 @@
+import Image from "next/image"
 import Link from "next/link"
+import logo from "@/assets/logo.png"
 import { cn } from "@/lib/cn"
 
-/** Logo réservé (fourni plus tard par le propriétaire) + nom du serveur. */
+/** Logo du serveur Discord (teckel) + nom du serveur. */
 export function Brand({ hideNameOnMobile = false }: { hideNameOnMobile?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-3 font-display text-xl font-bold">
-      <span
-        className="grid size-10 flex-none place-items-center rounded-[10px] border-[1.5px] border-dashed border-muted/60 font-sans text-[10px] font-medium text-muted"
-        aria-hidden="true"
-      >
-        logo
-      </span>
+      <Image
+        src={logo}
+        alt=""
+        width={40}
+        height={40}
+        priority
+        className="size-10 flex-none rounded-full bg-white ring-[1.5px] ring-violet/70"
+      />
       <span className={cn(hideNameOnMobile && "max-[820px]:sr-only")}>SaucisseLand</span>
     </Link>
   )
