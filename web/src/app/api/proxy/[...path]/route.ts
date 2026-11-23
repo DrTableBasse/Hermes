@@ -5,6 +5,7 @@ import {
   sessionCookie,
   sessionFromCookieHeader,
 } from '@/lib/api/forward'
+import { isSameOriginRequest } from '@/lib/api/same-origin'
 import { refreshRolesInBackground } from '@/lib/role-refresh'
 
 const WEB_API = process.env.WEB_API_INTERNAL_URL ?? 'http://web-api:8000'
@@ -27,6 +28,10 @@ async function proxy(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
+  // CSRF (constat M4) : une mutation venue d'une autre origine est refusée avant tout relais.
+  if (!isSameOriginRequest(req.method, req.headers)) {
+    return failure(403, 'Requête refusée : origine non autorisée.')
+  }
   const { path } = await params
   const url = `${WEB_API}/${path.join('/')}${req.nextUrl.search}`
 

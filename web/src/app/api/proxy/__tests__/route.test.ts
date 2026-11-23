@@ -5,7 +5,7 @@ import { NextRequest } from "next/server"
 const h = vi.hoisted(() => ({ refresh: vi.fn<(token: string) => Promise<void>>(async () => {}) }))
 vi.mock("@/lib/role-refresh", () => ({ refreshRolesInBackground: (t: string) => void h.refresh(t) }))
 
-import { GET } from "../[...path]/route"
+import { GET, POST } from "../[...path]/route"
 import { TRANSCRIPT_CSP } from "@/lib/security-headers"
 
 const fetchMock = vi.fn()
@@ -96,5 +96,27 @@ describe("route proxy vers web-api", () => {
   it("répond aussi 504 sur une erreur réseau", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"))
     expect((await call("live")).status).toBe(504)
+  })
+
+  it("refuse (403) une mutation d'une autre origine sans la relayer (M4)", async () => {
+    const req = new NextRequest("http://localhost:3000/api/proxy/notifications/read-all", {
+      method: "POST",
+      headers: { origin: "https://evil.example", cookie: "better-auth.session_token=abc.sig" },
+    })
+    const res = await POST(req, { params: Promise.resolve({ path: ["notifications", "read-all"] }) })
+    expect(res.status).toBe(403)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(h.refresh).not.toHaveBeenCalled()
+  })
+
+  it("relaie une mutation de même origine (M4)", async () => {
+    fetchMock.mockResolvedValue(new Response("{}"))
+    const req = new NextRequest("http://localhost:3000/api/proxy/notifications/read-all", {
+      method: "POST",
+      headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+    })
+    const res = await POST(req, { params: Promise.resolve({ path: ["notifications", "read-all"] }) })
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
