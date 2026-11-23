@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from media_files import MediaFiles
 import os
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
@@ -70,7 +70,7 @@ app.include_router(gallery.router)
 app.include_router(staff.router)
 app.include_router(content.router)
 app.include_router(achievements.router)
-app.mount("/media", StaticFiles(directory="/app/media"), name="media")
+app.mount("/media", MediaFiles(directory="/app/media"), name="media")
 
 
 @app.get("/health")

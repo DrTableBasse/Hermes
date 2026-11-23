@@ -3,8 +3,8 @@ import uuid
 from pathlib import Path
 
 import aiofiles
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
+from starlette.datastructures import UploadFile
 from middleware.auth_middleware import get_current_user, require_redacteur
 import database as db
 
@@ -13,6 +13,28 @@ MEDIA_DIR = Path(os.getenv('MEDIA_DIR', '/app/media'))
 ALLOWED_EXTENSIONS  = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.mp4', '.pdf'}
 ALLOWED_MIME_PREFIXES = ('image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'application/pdf')
 MAX_SIZE  = 10 * 1024 * 1024  # 10 MB
+# Corps multipart complet : le fichier plus les en-têtes de parties (constat M6).
+MAX_BODY  = MAX_SIZE + 64 * 1024
+CHUNK     = 64 * 1024
+
+
+def _too_large() -> HTTPException:
+    return HTTPException(status_code=413, detail="Fichier trop volumineux (max 10 Mo)")
+
+
+def _capped_receive(receive, limit: int):
+    """`receive` ASGI qui refuse (413) dès que le corps reçu dépasse `limit` octets."""
+    seen = 0
+
+    async def wrapped():
+        nonlocal seen
+        message = await receive()
+        if message["type"] == "http.request":
+            seen += len(message.get("body", b""))
+            if seen > limit:
+                raise _too_large()
+        return message
+    return wrapped
 
 
 def _detect_mime(data: bytes) -> str:
@@ -24,7 +46,8 @@ def _detect_mime(data: bytes) -> str:
         return 'image/gif'
     if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
         return 'image/webp'
-    if data[:4] in (b'\x00\x00\x00\x18', b'\x00\x00\x00\x1c', b'ftyp'):
+    # Boîte ISO BMFF « ftyp » en tête : 4 octets de taille, puis « ftyp » (constat M6).
+    if data[4:8] == b'ftyp':
         return 'video/mp4'
     if data[:4] == b'%PDF':
         return 'application/pdf'
@@ -32,16 +55,38 @@ def _detect_mime(data: bytes) -> str:
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+async def upload(request: Request, user: dict = Depends(get_current_user)):
     require_redacteur(user)
 
-    ext = Path(file.filename).suffix.lower()
-    if ext not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail=f"Format non supporté: {ext}")
+    # Taille contrôlée avant toute lecture (Content-Length), puis en flux : le corps n'est jamais
+    # lu au-delà de la limite, même sans Content-Length (envoi « chunked »).
+    try:
+        declared = int(request.headers.get("content-length", "0"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Content-Length invalide")
+    if declared > MAX_BODY:
+        raise _too_large()
+    capped = Request(request.scope, _capped_receive(request.receive, MAX_BODY))
+    form = await capped.form(max_files=1, max_fields=5)
+    try:
+        file = form.get("file")
+        if not isinstance(file, UploadFile) or not file.filename:
+            raise HTTPException(status_code=422, detail="Fichier manquant")
 
-    content = await file.read()
-    if len(content) > MAX_SIZE:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 10 Mo)")
+        ext = Path(file.filename).suffix.lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail=f"Format non supporté: {ext}")
+
+        chunks, size = [], 0
+        while chunk := await file.read(CHUNK):
+            size += len(chunk)
+            if size > MAX_SIZE:
+                raise _too_large()
+            chunks.append(chunk)
+        content = b"".join(chunks)
+        original_name = file.filename
+    finally:
+        await form.close()
 
     # Validate magic bytes — extension alone is not sufficient
     detected_mime = _detect_mime(content)
@@ -59,14 +104,10 @@ async def upload(file: UploadFile = File(...), user: dict = Depends(get_current_
     await db.execute("""
         INSERT INTO media (uploaded_by, filename, original_name, url, size)
         VALUES ($1, $2, $3, $4, $5)
-    """, int(user['sub']), filename, file.filename, url, len(content))
+    """, int(user['sub']), filename, original_name, url, len(content))
 
     return {"url": url, "filename": filename}
 
 
-@router.get("/{filename}")
-async def serve_media(filename: str):
-    path = MEDIA_DIR / filename
-    if not path.exists():
-        raise HTTPException(status_code=404, detail="Fichier introuvable")
-    return FileResponse(path)
+# Lecture : servie par le montage `MediaFiles` de main.py (PDF en pièce jointe, dossier → 404,
+# galerie masquée réservée aux admins). L'ancienne route GET /media/{filename} est supprimée.

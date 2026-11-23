@@ -6,7 +6,7 @@ un montage Starlette ; ce test le fige.
 """
 
 
-def test_media_is_not_rate_limited(client, tmp_path, monkeypatch):
+def test_media_is_not_rate_limited(client, fake_db, tmp_path, monkeypatch):
     import main
 
     (tmp_path / "gallery").mkdir()
