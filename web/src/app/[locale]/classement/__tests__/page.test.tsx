@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 const api = vi.hoisted(() => ({
   getSessionUser: vi.fn(),
   myRanks: vi.fn(),
+  leaderboardGlobal: vi.fn(),
   leaderboardVoice: vi.fn(),
   leaderboardMessages: vi.fn(),
   leaderboardAchievements: vi.fn(),
@@ -48,8 +49,15 @@ beforeEach(() => {
     page: 1,
     limit: 10,
   })
+  api.leaderboardGlobal.mockResolvedValue({
+    leaderboard: [{ user_id: "8", username: "Global", discord_avatar: null, voice_formatted: "1h 0m", total_messages: 3, achievement_count: 1, global_score: 263, global_rank: 1 }],
+    total: 1,
+    page: 1,
+    limit: 10,
+  })
   api.getSessionUser.mockResolvedValue({ user_id: "5", is_admin: false, is_redacteur: false })
   api.myRanks.mockResolvedValue({
+    global_rank: 1,
     voice_rank: 1,
     messages_rank: 1,
     achievements_rank: 1,
@@ -67,12 +75,17 @@ afterEach(() => {
 })
 
 describe("page /classement", () => {
-  it("onglet vocal par défaut ; sept catégories ; pas de session lue pour un visiteur", async () => {
+  it("onglet global par défaut ; huit onglets, Global en premier ; pas de session lue pour un visiteur", async () => {
     await run()
     expect(screen.getByRole("heading", { level: 1, name: "Classement" })).toBeTruthy()
-    expect(within(screen.getByRole("navigation", { name: "Catégories du classement" })).getAllByRole("link")).toHaveLength(7)
-    expect(api.leaderboardVoice).toHaveBeenCalledWith(1, 10, undefined)
-    expect(screen.getByText("1h 0m")).toBeTruthy()
+    const tabs = within(screen.getByRole("navigation", { name: "Catégories du classement" })).getAllByRole("link")
+    expect(tabs).toHaveLength(8)
+    expect(tabs[0].textContent).toBe("Global")
+    expect(tabs[0].getAttribute("aria-current")).toBe("page")
+    expect(api.leaderboardGlobal).toHaveBeenCalledWith(1, 10, undefined)
+    expect(api.leaderboardVoice).not.toHaveBeenCalled()
+    expect(screen.getByText(/263 pts/)).toBeTruthy()
+    expect(screen.getByText(/200\spts par succès/)).toBeTruthy()
     expect(api.getSessionUser).not.toHaveBeenCalled()
     expect(screen.queryByRole("link", { name: "Mon classement" })).toBeNull()
   })
@@ -109,15 +122,28 @@ describe("page /classement", () => {
     expect(screen.getByRole("link", { name: "Cinq" }).closest("tr")!.getAttribute("data-me")).toBe("true")
   })
 
+  it("onglet vocal toujours accessible par ?tab=voice", async () => {
+    await run({ tab: "voice" })
+    expect(api.leaderboardVoice).toHaveBeenCalledWith(1, 10, undefined)
+    expect(screen.getByText("1h 0m")).toBeTruthy()
+  })
+
+  it("membre connecté sur l'onglet global : « Mon classement » utilise global_rank", async () => {
+    cookieJar.set("better-auth.session_token", "tok")
+    api.myRanks.mockResolvedValue({ global_rank: 42, voice_rank: 1, messages_rank: 1, achievements_rank: 1, bumps_rank: 1, invites_rank: 1, level_rank: 1, streak_rank: 1 })
+    await run()
+    expect(screen.getByRole("link", { name: "Mon classement" }).getAttribute("href")).toBe("/classement?tab=global&page=5&hl=5")
+  })
+
   it("API indisponible : message, ni tableau ni pagination", async () => {
-    api.leaderboardVoice.mockRejectedValue(new Error("fetch failed"))
+    api.leaderboardGlobal.mockRejectedValue(new Error("fetch failed"))
     await run()
     expect(screen.getByRole("status").textContent).toMatch(/indisponible/)
     expect(screen.queryByRole("table")).toBeNull()
   })
 
   it("classement vide : « Aucune donnée »", async () => {
-    api.leaderboardVoice.mockResolvedValue({ leaderboard: [], total: 0, page: 1, limit: 10 })
+    api.leaderboardGlobal.mockResolvedValue({ leaderboard: [], total: 0, page: 1, limit: 10 })
     await run()
     expect(screen.getByText(/Aucune donnée/)).toBeTruthy()
   })

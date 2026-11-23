@@ -351,6 +351,7 @@ export interface GlobalEntry extends RankedUser {
   total_messages: number
   achievement_count: number
   global_score: number
+  global_rank: number
 }
 
 /** `/leaderboard/xp` et `/xp/leaderboard` : lignes brutes de `user_xp`. */
@@ -363,6 +364,7 @@ export interface XpEntry extends RankedUser {
 export type XpPeriod = "all" | "weekly"
 
 export interface MyRanks {
+  global_rank: number
   voice_rank: number
   messages_rank: number
   achievements_rank: number

@@ -13,6 +13,7 @@ import {
   getSessionUser,
   leaderboardAchievements,
   leaderboardBumps,
+  leaderboardGlobal,
   leaderboardInvites,
   leaderboardLevels,
   leaderboardMessages,
@@ -37,12 +38,13 @@ import { sessionToken } from "@/lib/session"
 
 export const metadata: Metadata = {
   title: "Classement · SaucisseLand",
-  description: "Les classements de la caserne : vocal, messages, succès, bumps, invitations, niveaux et séries.",
+  description: "Les classements de la caserne : global, vocal, messages, succès, bumps, invitations, niveaux et séries.",
 }
 
 const LIMIT = 10
 
 const FETCHERS: Record<RankTab, (page: number, limit: number, search?: string) => Promise<LbPage<object>>> = {
+  global: leaderboardGlobal,
   voice: leaderboardVoice,
   messages: leaderboardMessages,
   achievements: leaderboardAchievements,
@@ -53,6 +55,7 @@ const FETCHERS: Record<RankTab, (page: number, limit: number, search?: string) =
 }
 
 const MY_RANK: Record<RankTab, keyof MyRanks> = {
+  global: "global_rank",
   voice: "voice_rank",
   messages: "messages_rank",
   achievements: "achievements_rank",
@@ -165,6 +168,12 @@ export default async function ClassementPage({ searchParams }: { searchParams: P
             </Link>
           ))}
         </nav>
+
+        {tab === "global" && (
+          <p className="mt-0 mb-4 text-sm text-muted">
+            Score global : 1&nbsp;pt par minute de vocal, 1&nbsp;pt par message, 200&nbsp;pts par succès.
+          </p>
+        )}
 
         {search && lb && (
           <p className="mt-0 mb-4 text-sm text-muted" role="status">

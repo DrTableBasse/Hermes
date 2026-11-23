@@ -254,9 +254,9 @@ export function myRanks(token: string): Promise<MyRanks> {
   return apiGet<MyRanks>("/leaderboard/me", { token })
 }
 
-export async function leaderboardGlobal(limit = 5): Promise<GlobalEntry[]> {
-  return (await apiGet<LbPage<GlobalEntry>>(`/leaderboard/global${query({ limit })}`)).leaderboard
-}
+/** Classement global : 1 pt par minute de vocal + 1 pt par message + 200 pts par succès. */
+export const leaderboardGlobal = (page = 1, limit = 5, search?: string) =>
+  leaderboardPage<GlobalEntry>("global", page, limit, search)
 
 export async function listVoiceLeaderboard(limit = 5): Promise<VoiceEntry[]> {
   return (await apiGet<LbPage<VoiceEntry>>(`/leaderboard/voice${query({ limit })}`)).leaderboard

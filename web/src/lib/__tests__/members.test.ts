@@ -28,10 +28,11 @@ describe("firstParam", () => {
 })
 
 describe("parseTab / parsePage", () => {
-  it("onglet inconnu ou absent → vocal", () => {
+  it("onglet inconnu ou absent → global", () => {
     expect(parseTab("levels")).toBe("levels")
-    expect(parseTab("nimporte")).toBe("voice")
-    expect(parseTab(undefined)).toBe("voice")
+    expect(parseTab("voice")).toBe("voice")
+    expect(parseTab("nimporte")).toBe("global")
+    expect(parseTab(undefined)).toBe("global")
   })
   it("page invalide → 1", () => {
     expect(parsePage("4")).toBe(4)
@@ -92,6 +93,13 @@ describe("toRankRows", () => {
     expect(row.grade).toBeNull()
     expect(row.level).toBeNull()
     expect(row.score).toMatch(/1.500 msgs/)
+  })
+  it("global : score en points, sans grade ni détail", () => {
+    const [row] = toRankRows("global", [{ ...base, global_score: 251235, voice_formatted: "1h 0m", total_messages: 3, achievement_count: 1 }])
+    expect(row.score).toMatch(/251.235 pts/)
+    expect(row.rank).toBe(4)
+    expect(row.grade).toBeNull()
+    expect(row.detail).toBeUndefined()
   })
   it("séries : multiplicateur en détail", () => {
     const [row] = toRankRows("streaks", [{ ...base, current_streak: 5, max_streak: 9, xp_multiplier: 1.25 }])

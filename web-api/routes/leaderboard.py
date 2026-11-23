@@ -181,36 +181,58 @@ async def leaderboard_xp(request: Request, page: int = 1, limit: int = 10, perio
     return {"leaderboard": [dict(r) for r in rows], "total": int(total or 0), "page": page, "limit": limit}
 
 
+# Score combiné : 1 pt par minute de vocal + 1 pt par message + 200 pts par succès.
+_GLOBAL_SCORES = """
+    SELECT
+        v.user_id, v.username, v.discord_avatar,
+        COALESCE(v.total_time / 60, 0)          AS voice_minutes,
+        COALESCE(msg.total_messages, 0)          AS total_messages,
+        COALESCE(ach.achievement_count, 0)       AS achievement_count,
+        COALESCE(v.total_time / 60, 0)
+          + COALESCE(msg.total_messages, 0)
+          + COALESCE(ach.achievement_count * 200, 0) AS global_score
+    FROM user_voice_data v
+    LEFT JOIN (
+        SELECT user_id, SUM(message_count) AS total_messages
+        FROM user_message_stats GROUP BY user_id
+    ) msg ON v.user_id = msg.user_id
+    LEFT JOIN (
+        SELECT user_id, COUNT(*) AS achievement_count
+        FROM user_achievements GROUP BY user_id
+    ) ach ON v.user_id = ach.user_id
+"""
+
+
 @router.get("/global")
 @limiter.limit("60/minute")
-async def leaderboard_global(request: Request, page: int = 1, limit: int = 10):
-    """Combined score: 1pt/min voice + 1pt/message + 200pt/achievement."""
+async def leaderboard_global(request: Request, page: int = 1, limit: int = 10, search: Optional[str] = None):
+    """Classement global sur le score combiné (voir _GLOBAL_SCORES)."""
     limit  = max(1, min(limit, 100))
     page   = max(1, page)
     offset = (page - 1) * limit
 
-    total = await db.fetchval("SELECT COUNT(*) FROM user_voice_data")
-    rows  = await db.fetch("""
-        SELECT
-            v.user_id, v.username, v.discord_avatar,
-            COALESCE(v.total_time / 60, 0)          AS voice_minutes,
-            COALESCE(msg.total_messages, 0)          AS total_messages,
-            COALESCE(ach.achievement_count, 0)       AS achievement_count,
-            COALESCE(v.total_time / 60, 0)
-              + COALESCE(msg.total_messages, 0)
-              + COALESCE(ach.achievement_count * 200, 0) AS global_score
-        FROM user_voice_data v
-        LEFT JOIN (
-            SELECT user_id, SUM(message_count) AS total_messages
-            FROM user_message_stats GROUP BY user_id
-        ) msg ON v.user_id = msg.user_id
-        LEFT JOIN (
-            SELECT user_id, COUNT(*) AS achievement_count
-            FROM user_achievements GROUP BY user_id
-        ) ach ON v.user_id = ach.user_id
-        ORDER BY global_score DESC
-        LIMIT $1 OFFSET $2
-    """, limit, offset)
+    ranked = f"""
+        SELECT *, RANK() OVER (ORDER BY global_score DESC) AS global_rank
+        FROM ({_GLOBAL_SCORES}) scores
+    """
+    if search:
+        pattern = f"%{search}%"
+        total = await db.fetchval(
+            "SELECT COUNT(*) FROM user_voice_data WHERE username ILIKE $1", pattern
+        )
+        rows = await db.fetch(f"""
+            SELECT * FROM ({ranked}) r
+            WHERE username ILIKE $1
+            ORDER BY global_rank, user_id
+            LIMIT $2 OFFSET $3
+        """, pattern, limit, offset)
+    else:
+        total = await db.fetchval("SELECT COUNT(*) FROM user_voice_data")
+        rows = await db.fetch(f"""
+            SELECT * FROM ({ranked}) r
+            ORDER BY global_rank, user_id
+            LIMIT $1 OFFSET $2
+        """, limit, offset)
 
     result = []
     for r in rows:
@@ -223,6 +245,7 @@ async def leaderboard_global(request: Request, page: int = 1, limit: int = 10):
             "total_messages":    int(r['total_messages']),
             "achievement_count": int(r['achievement_count']),
             "global_score":      int(r['global_score']),
+            "global_rank":       int(r['global_rank']),
         })
     return {"leaderboard": result, "total": int(total or 0), "page": page, "limit": limit}
 
@@ -485,7 +508,14 @@ async def my_ranks(request: Request, user: dict = Depends(get_current_user)):
         WHERE current_streak > COALESCE((SELECT current_streak FROM user_streaks WHERE user_id = $1), 0)
     """, uid)
 
+    global_rank = await db.fetchval(f"""
+        WITH scores AS ({_GLOBAL_SCORES})
+        SELECT COUNT(*) + 1 FROM scores
+        WHERE global_score > COALESCE((SELECT global_score FROM scores WHERE user_id = $1), 0)
+    """, uid)
+
     return {
+        "global_rank":       int(global_rank or 1),
         "voice_rank":        int(voice_rank or 1),
         "messages_rank":     int(msg_rank or 1),
         "achievements_rank": int(ach_rank or 1),

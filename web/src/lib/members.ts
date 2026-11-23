@@ -3,10 +3,11 @@ import { formatNumber } from "@/lib/format"
 
 // ── Classement : onglets et lignes ───────────────────────────────────────────
 
-export const RANK_TABS = ["voice", "messages", "achievements", "bumps", "invites", "levels", "streaks"] as const
+export const RANK_TABS = ["global", "voice", "messages", "achievements", "bumps", "invites", "levels", "streaks"] as const
 export type RankTab = (typeof RANK_TABS)[number]
 
 export const RANK_TAB_LABELS: Record<RankTab, string> = {
+  global: "Global",
   voice: "Vocal",
   messages: "Messages",
   achievements: "Succès",
@@ -21,9 +22,9 @@ export function firstParam(value: string | string[] | undefined): string | undef
   return Array.isArray(value) ? value[0] : value
 }
 
-/** Onglet demandé dans l'URL ; toute valeur inconnue retombe sur le vocal, comme l'ancien site. */
+/** Onglet demandé dans l'URL ; toute valeur inconnue retombe sur le classement global. */
 export function parseTab(raw: string | undefined): RankTab {
-  return RANK_TABS.find(t => t === raw) ?? "voice"
+  return RANK_TABS.find(t => t === raw) ?? "global"
 }
 
 /** Numéro de page demandé : entier ≥ 1, sinon 1. */
@@ -52,6 +53,7 @@ type AnyEntry = LbPage<unknown>["leaderboard"][number] & {
   discord_avatar: string | null
   global_rank: number
   formatted?: string
+  global_score?: number
   total_messages?: number
   bump_count?: number
   invite_count?: number
@@ -66,6 +68,8 @@ type AnyEntry = LbPage<unknown>["leaderboard"][number] & {
 
 function score(tab: RankTab, e: AnyEntry): { score: string; detail?: string } {
   switch (tab) {
+    case "global":
+      return { score: `${formatNumber(e.global_score ?? 0)} pts` }
     case "voice":
       return { score: e.formatted ?? "—" }
     case "messages":
