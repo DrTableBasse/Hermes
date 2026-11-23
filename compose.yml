@@ -77,8 +77,22 @@ services:
         condition: service_healthy
       web-api:
         condition: service_healthy
-    env_file: .env
+    # Pas d'env_file (constat M10) : le seul conteneur exposé ne reçoit que ce qu'il lit
+    # (BetterAuth, OAuth Discord, lecture des rôles, PostgreSQL). Jamais BOT_API_TOKEN.
+    # Les valeurs viennent du .env racine, interpolé par Docker Compose.
     environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      GUILD_ID: ${GUILD_ID}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      ADMIN_ROLE_NAME: ${ADMIN_ROLE_NAME:-Administration}
+      REDACTEUR_ROLE_NAME: ${REDACTEUR_ROLE_NAME:-rédacteur}
+      PG_PORT: ${PG_PORT:-5432}
+      PG_DB: ${PG_DB}
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+      SITE_INDEXABLE: ${SITE_INDEXABLE:-}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/proxy}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
