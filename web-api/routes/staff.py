@@ -10,7 +10,7 @@ import database as db
 from bot_client import bot_get, cached
 from grades import get_grades, public_grade
 from limiter import limiter
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["staff"])
@@ -188,7 +188,7 @@ async def put_my_profile(request: Request, body: dict, user: dict = Depends(get_
 @router.put("/admin/staff/{user_id}")
 async def put_staff_profile(body: dict, user_id: int = Path(gt=0, lt=2**63),
                             user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "content.edit")
     motto, games = _clean_profile(body)
     games = await _check_games(user_id, games)
     raw, _ = await _bot_staff()

@@ -6,7 +6,7 @@ import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.datastructures import UploadFile
 from starlette.formparsers import MultiPartException, MultiPartParser, parse_options_header
-from middleware.auth_middleware import get_current_user, require_redacteur
+from middleware.auth_middleware import get_current_user, require_permission
 import database as db
 
 router    = APIRouter(prefix="/media", tags=["media"])
@@ -84,7 +84,7 @@ def _detect_mime(data: bytes) -> str:
 
 @router.post("/upload")
 async def upload(request: Request, user: dict = Depends(get_current_user)):
-    require_redacteur(user)
+    require_permission(user, "articles.write")
 
     # Taille contrôlée avant toute lecture (Content-Length), puis en flux : le corps n'est jamais
     # lu au-delà de la limite, même sans Content-Length (envoi « chunked »).

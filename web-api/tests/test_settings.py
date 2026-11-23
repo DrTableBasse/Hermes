@@ -1,7 +1,7 @@
 import bot_client
 
-ADMIN = {"discordId": "42", "isAdmin": True, "isRedacteur": False}
-USER = {"discordId": "43", "isAdmin": False, "isRedacteur": False}
+ADMIN = {"discordId": "42", "isAdmin": True, "isRedacteur": False, "sitePermissions": []}
+USER = {"discordId": "43", "isAdmin": False, "isRedacteur": False, "sitePermissions": []}
 
 
 def _login(client, fake_db, row):

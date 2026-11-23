@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Request
 import database as db
 from grades import clear_grades_cache, get_grades
 from limiter import limiter
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 
 router = APIRouter(tags=["grades"])
 
@@ -28,7 +28,7 @@ _COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 @router.put("/admin/grades/{slug}")
 async def update_grade(body: dict, slug: str = Path(pattern=r"^[a-z0-9-]{1,32}$"),
                        user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "content.edit")
     name, color, level_min = body.get("name"), body.get("color"), body.get("level_min")
     if not isinstance(name, str) or not name.strip() or len(name.strip()) > NAME_MAX             or any(unicodedata.category(c) in ("Cc", "Zl", "Zp") for c in name):
         raise HTTPException(422, f"Nom requis ({NAME_MAX} caractères maximum, sur une ligne)")

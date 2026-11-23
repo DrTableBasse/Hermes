@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 import bot_client
 import database as db
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 from settings_registry import ID_KINDS, SETTINGS, validate
 
 router = APIRouter(tags=["settings"])
@@ -42,7 +42,7 @@ def _resolve(kind: str, value: str, channels: Optional[dict], roles: Optional[di
 
 @router.get("/admin/settings")
 async def list_settings(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "settings.manage")
     stored = await _stored_values()
     chan_data = await bot_client.bot_get("/discord/channels")
     role_data = await bot_client.bot_get("/discord/roles")
@@ -65,7 +65,7 @@ async def list_settings(user: dict = Depends(get_current_user)):
 
 @router.put("/admin/settings/{key}")
 async def put_setting(key: str, body: SettingValue, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "settings.manage")
     if key not in SETTINGS:
         raise HTTPException(status_code=404, detail="Réglage inconnu")
     try:
@@ -90,7 +90,7 @@ async def put_setting(key: str, body: SettingValue, user: dict = Depends(get_cur
 
 @router.post("/admin/settings/{key}/create-channel")
 async def create_channel(key: str, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "settings.manage")
     definition = SETTINGS.get(key)
     if definition is None:
         raise HTTPException(status_code=404, detail="Réglage inconnu")
@@ -104,7 +104,7 @@ async def create_channel(key: str, user: dict = Depends(get_current_user)):
 
 @router.get("/admin/discord/channels")
 async def discord_channels(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "admin.view")
     data = await bot_client.bot_get("/discord/channels")
     if data is None:
         raise HTTPException(status_code=502, detail="Bot injoignable")
@@ -113,7 +113,7 @@ async def discord_channels(user: dict = Depends(get_current_user)):
 
 @router.get("/admin/discord/roles")
 async def discord_roles(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "admin.view")
     data = await bot_client.bot_get("/discord/roles")
     if data is None:
         raise HTTPException(status_code=502, detail="Bot injoignable")

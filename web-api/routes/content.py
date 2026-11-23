@@ -11,7 +11,7 @@ import bot_client
 import database as db
 from bot_client import bot_get, cached
 from limiter import limiter
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["content"])
@@ -164,7 +164,7 @@ def _clean_game(body: Any, *, partial: bool) -> dict:
 @router.get("/admin/games")
 async def admin_list_games(user: dict = Depends(get_current_user)):
     """Tous les jeux, désactivés compris, avec les champs éditables (rôle, forum, position)."""
-    require_admin(user)
+    require_permission(user, "games.manage")
     rows = await db.fetch(
         "SELECT key, name, color, image, tagline, discord_role_id, forum_channel_id, position, active "
         "FROM site_games ORDER BY position, key")
@@ -182,7 +182,7 @@ async def admin_list_games(user: dict = Depends(get_current_user)):
 
 @router.post("/admin/games", status_code=201)
 async def create_game(body: dict, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "games.manage")
     key = body.get("key")
     if not isinstance(key, str) or not re.fullmatch(KEY_PATTERN, key):
         _bad("Clé invalide ([a-z0-9-], 1 à 32 caractères)")
@@ -204,7 +204,7 @@ async def create_game(body: dict, user: dict = Depends(get_current_user)):
 @router.put("/admin/games/{key}")
 async def update_game(body: dict, key: str = Path(pattern=KEY_PATTERN),
                       user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "games.manage")
     fields = _clean_game(body, partial=True)
     if not await db.fetchval("SELECT 1 FROM site_games WHERE key = $1", key):
         raise HTTPException(404, "Jeu inconnu")
@@ -217,7 +217,7 @@ async def update_game(body: dict, key: str = Path(pattern=KEY_PATTERN),
 
 @router.delete("/admin/games/{key}")
 async def deactivate_game(key: str = Path(pattern=KEY_PATTERN), user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "games.manage")
     if not await db.fetchval("UPDATE site_games SET active = FALSE WHERE key = $1 RETURNING 1", key):
         raise HTTPException(404, "Jeu inconnu")
     bot_client._cache.pop("staff", None)
@@ -244,7 +244,7 @@ async def get_page(request: Request, slug: str = Path(pattern=SLUG_PATTERN)):
 @router.put("/admin/pages/{slug}")
 async def update_page(body: dict, slug: str = Path(pattern=SLUG_PATTERN),
                       user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "content.edit")
     title, body_md = body.get("title"), body.get("body_md")
     if not isinstance(title, str) or not title.strip() or len(title.strip()) > TITLE_MAX or _has_control(title):
         _bad(f"Titre requis ({TITLE_MAX} caractères maximum, sur une ligne)")

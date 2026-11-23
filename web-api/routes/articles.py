@@ -3,7 +3,7 @@ import database as db
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from pydantic import BaseModel
 from slugify import slugify
-from middleware.auth_middleware import get_current_user, get_optional_user, require_admin, require_redacteur
+from middleware.auth_middleware import get_current_user, get_optional_user, require_permission
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
@@ -148,7 +148,9 @@ async def get_article(slug: str, user: Optional[dict] = Depends(get_optional_use
 @router.post("", status_code=201)
 async def create_article(body: ArticleCreate,
                           user: dict = Depends(get_current_user)):
-    require_redacteur(user)
+    require_permission(user, "articles.write")
+    if body.published:
+        require_permission(user, "articles.publish")
     slug = slugify(body.title)
     existing = await db.fetchval("SELECT id FROM articles WHERE slug = $1", slug)
     if existing:
@@ -173,7 +175,9 @@ async def create_article(body: ArticleCreate,
 async def update_article(article_id: int, body: ArticleUpdate,
                           user: dict = Depends(get_current_user)):
     # Être l'auteur ne suffit plus : un ex-rédacteur perd la main sur ses articles (constat M3).
-    require_redacteur(user)
+    require_permission(user, "articles.write")
+    if body.published:
+        require_permission(user, "articles.publish")
     article = await db.fetchrow("SELECT * FROM articles WHERE id = $1", article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article introuvable")
@@ -211,7 +215,7 @@ async def update_article(article_id: int, body: ArticleUpdate,
 @router.delete("/{article_id}", status_code=204)
 async def delete_article(article_id: int, user: dict = Depends(get_current_user)):
     # Être l'auteur ne suffit plus : un ex-rédacteur perd la main sur ses articles (constat M3).
-    require_redacteur(user)
+    require_permission(user, "articles.write")
     article = await db.fetchrow("SELECT * FROM articles WHERE id = $1", article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article introuvable")

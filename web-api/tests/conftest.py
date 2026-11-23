@@ -81,11 +81,15 @@ def client(monkeypatch):
         yield test_client
 
 
-def _fake_session(monkeypatch, client, *, is_admin):
+def _fake_session(monkeypatch, client, *, is_admin, permissions=()):
     import middleware.auth_middleware as auth_mw
 
     async def fake_fetch_session(token):
-        return {"sub": "1", "is_admin": is_admin, "is_redacteur": False}
+        return {
+            "sub": "1", "is_admin": is_admin,
+            "is_redacteur": "articles.write" in permissions,
+            "permissions": frozenset(permissions),
+        }
 
     monkeypatch.setattr(auth_mw, "_fetch_session", fake_fetch_session)
     client.cookies.set("better-auth.session_token", "tok")
@@ -102,3 +106,11 @@ def admin_session(monkeypatch, client):
 def member_session(monkeypatch, client):
     """Session membre simple (non admin) simulée."""
     return _fake_session(monkeypatch, client, is_admin=False)
+
+
+@pytest.fixture
+def session_with(monkeypatch, client):
+    """Fabrique de session non admin munie d'un ensemble de droits : ``session_with({"admin.view"})``."""
+    def _with(permissions=(), *, is_admin=False):
+        return _fake_session(monkeypatch, client, is_admin=is_admin, permissions=tuple(permissions))
+    return _with

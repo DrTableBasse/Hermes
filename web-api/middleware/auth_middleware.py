@@ -1,9 +1,10 @@
 from typing import Optional
 from fastapi import Cookie, HTTPException
 import database as db
+from permissions import PERMISSIONS
 
 _SESSION_QUERY = """
-    SELECT u."discordId", u."isAdmin", u."isRedacteur"
+    SELECT u."discordId", u."isAdmin", u."isRedacteur", u."sitePermissions"
     FROM session s
     JOIN "user" u ON u.id = s."userId"
     WHERE s.token = $1 AND s."expiresAt" > NOW()
@@ -20,6 +21,8 @@ async def _fetch_session(session_token: str) -> Optional[dict]:
         "sub":          row["discordId"],
         "is_admin":     row["isAdmin"],
         "is_redacteur": row["isRedacteur"],
+        # Clés hors catalogue ignorées : un droit retiré du catalogue ne survit pas en base.
+        "permissions":  frozenset(p for p in (row["sitePermissions"] or []) if p in PERMISSIONS),
     }
 
 
@@ -42,13 +45,35 @@ async def get_optional_user(
     return await _fetch_session(session_token)
 
 
-def require_admin(user: dict) -> dict:
-    if not user or not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Rôle Administration requis")
+def has_permission(user: Optional[dict], perm: str) -> bool:
+    """Vrai si ``user`` est admin (propriétaire ou ``admin_role``) ou détient ``perm``.
+
+    ``perm`` hors catalogue lève ``ValueError`` : une faute de frappe échoue dès le premier appel.
+    """
+    if perm not in PERMISSIONS:
+        raise ValueError(f"Droit inconnu : {perm}")
+    if not user:
+        return False
+    return bool(user.get("is_admin")) or perm in user.get("permissions", frozenset())
+
+
+def require_permission(user: Optional[dict], perm: str) -> dict:
+    if not has_permission(user, perm):
+        raise HTTPException(status_code=403, detail=f"Droit requis : {PERMISSIONS[perm]}")
     return user
+
+
+def effective_permissions(user: dict) -> list[str]:
+    """Droits effectifs triés : tout le catalogue pour un admin."""
+    if user.get("is_admin"):
+        return sorted(PERMISSIONS)
+    return sorted(user.get("permissions", frozenset()))
+
+
+# Alias de migration (non utilisés dans routes/).
+def require_admin(user: dict) -> dict:
+    return require_permission(user, "admin.view")
 
 
 def require_redacteur(user: dict) -> dict:
-    if not user or not (user.get("is_redacteur") or user.get("is_admin")):
-        raise HTTPException(status_code=403, detail="Rôle rédacteur requis")
-    return user
+    return require_permission(user, "articles.write")

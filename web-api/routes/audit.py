@@ -1,6 +1,7 @@
 """Lecture du journal unique (``audit_events``) : liste filtrée, facettes et export CSV.
 
-Réservé aux admins. Toutes les valeurs fournies par l'utilisateur passent en
+Réservé au droit ``moderation.view`` ; sans ``moderation.content``, le texte des messages
+est retiré des lignes et la recherche ``q`` ne porte pas sur ``details``. Toutes les valeurs fournies par l'utilisateur passent en
 paramètres de requête (jamais dans le SQL) ; ``kind`` et ``source`` sont validés
 contre des listes fermées, les dates invalides renvoient 422.
 """
@@ -15,7 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 import database as db
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, has_permission, require_permission
 
 router = APIRouter(prefix="/admin", tags=["audit"])
 
@@ -35,6 +36,10 @@ CSV_HEADER = ["Date", "Type", "Action", "Source", "Auteur", "Cible", "Salon", "S
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
 
 _facets_cache: dict = {"at": 0.0, "value": None}
+
+# Clés de ``details`` qui portent le texte des messages (bot/cogs/system/server_journal.py) :
+# ``content`` (suppression), ``avant``/``après`` (édition), ``messages`` (suppression groupée).
+MESSAGE_TEXT_KEYS = frozenset({"content", "before", "after", "avant", "après", "messages"})
 
 
 def _unprocessable(message: str) -> HTTPException:
@@ -75,8 +80,11 @@ def _is_id(value: str) -> bool:
     return value.isascii() and value.isdigit() and int(value) <= MAX_BIGINT
 
 
-def build_audit_filters(params: Mapping[str, str]) -> tuple[str, list]:
-    """Construit la clause ``WHERE`` (vide si aucun filtre) et ses arguments positionnels."""
+def build_audit_filters(params: Mapping[str, str], *, search_details: bool = True) -> tuple[str, list]:
+    """Construit la clause ``WHERE`` (vide si aucun filtre) et ses arguments positionnels.
+
+    ``search_details=False`` : la recherche ``q`` ignore ``details`` (texte des messages).
+    """
     clauses: list[str] = []
     args: list[Any] = []
 
@@ -120,9 +128,10 @@ def build_audit_filters(params: Mapping[str, str]) -> tuple[str, list]:
     if get("q"):
         args.append(_like(get("q")))
         n = len(args)
+        in_details = f" OR details::text ILIKE ${n}" if search_details else ""
         clauses.append(
             f"(action ILIKE ${n} OR actor_name ILIKE ${n} OR target_name ILIKE ${n} "
-            f"OR channel_name ILIKE ${n} OR details::text ILIKE ${n})"
+            f"OR channel_name ILIKE ${n}{in_details})"
         )
 
     return ("WHERE " + " AND ".join(clauses) if clauses else ""), args
@@ -148,7 +157,10 @@ def _opt_str(value: Any) -> Optional[str]:
     return None if value is None else str(value)
 
 
-def _event(r: Mapping[str, Any]) -> dict:
+def _event(r: Mapping[str, Any], *, with_content: bool = True) -> dict:
+    details = _details(r["details"])
+    if not with_content and r["kind"] == "message":
+        details = {k: v for k, v in details.items() if k not in MESSAGE_TEXT_KEYS}
     return {
         "id": r["id"],
         "occurred_at": r["occurred_at"].isoformat(),
@@ -162,7 +174,7 @@ def _event(r: Mapping[str, Any]) -> dict:
         "channel_id": _opt_str(r["channel_id"]),
         "channel_name": r["channel_name"],
         "success": bool(r["success"]),
-        "details": _details(r["details"]),
+        "details": details,
     }
 
 
@@ -175,8 +187,9 @@ ORDER BY occurred_at DESC, id DESC
 
 @router.get("/audit")
 async def list_audit(request: Request, page: int = Query(1, ge=1), user: dict = Depends(get_current_user)):
-    require_admin(user)
-    where, args = build_audit_filters(request.query_params)
+    require_permission(user, "moderation.view")
+    with_content = has_permission(user, "moderation.content")
+    where, args = build_audit_filters(request.query_params, search_details=with_content)
     total = int(await db.fetchval(f"SELECT COUNT(*) FROM audit_events {where}", *args) or 0)
     n = len(args)
     rows = await db.fetch(
@@ -184,7 +197,7 @@ async def list_audit(request: Request, page: int = Query(1, ge=1), user: dict = 
         *args, PAGE_SIZE, (page - 1) * PAGE_SIZE,
     )
     return {
-        "events": [_event(r) for r in rows],
+        "events": [_event(r, with_content=with_content) for r in rows],
         "total": total,
         "page": page,
         "pages": max(1, -(-total // PAGE_SIZE)),
@@ -193,8 +206,9 @@ async def list_audit(request: Request, page: int = Query(1, ge=1), user: dict = 
 
 @router.get("/audit.csv")
 async def export_audit_csv(request: Request, user: dict = Depends(get_current_user)):
-    require_admin(user)
-    where, args = build_audit_filters(request.query_params)
+    require_permission(user, "moderation.view")
+    with_content = has_permission(user, "moderation.content")
+    where, args = build_audit_filters(request.query_params, search_details=with_content)
     rows = await db.fetch(
         _SELECT.format(where=where) + f"LIMIT ${len(args) + 1}",
         *args, CSV_MAX_ROWS,
@@ -204,7 +218,7 @@ async def export_audit_csv(request: Request, user: dict = Depends(get_current_us
     writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
     writer.writerow(CSV_HEADER)
     for r in rows:
-        e = _event(r)
+        e = _event(r, with_content=with_content)
         writer.writerow([
             r["occurred_at"].astimezone(PARIS).strftime("%Y-%m-%d %H:%M:%S"),
             csv_cell(e["kind"]),
@@ -227,7 +241,7 @@ async def export_audit_csv(request: Request, user: dict = Depends(get_current_us
 
 @router.get("/audit/facets")
 async def audit_facets(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.view")
     now = time.monotonic()
     cached = _facets_cache["value"]
     if cached is not None and now - _facets_cache["at"] < FACETS_TTL_S:

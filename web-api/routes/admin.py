@@ -10,7 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 import database as db
 from media_files import invalidate_hidden_gallery
 from routes import gallery
@@ -122,13 +122,13 @@ class CommandToggle(BaseModel):
 
 @router.get("/commands")
 async def list_commands(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "settings.manage")
     return await _bot('get', '/commands')
 
 
 @router.post("/commands/toggle")
 async def toggle_command(body: CommandToggle, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "settings.manage")
     try:
         moderator_id = int(user['sub'])
     except (KeyError, ValueError, TypeError) as e:
@@ -150,7 +150,7 @@ async def toggle_command(body: CommandToggle, user: dict = Depends(get_current_u
 
 @router.post("/kick")
 async def kick(body: ModerationAction, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.act")
     return await _sanction('kick', '/moderation/kick', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
     }, int(user['sub']), body.user_id_int, {"reason": body.reason})
@@ -158,7 +158,7 @@ async def kick(body: ModerationAction, user: dict = Depends(get_current_user)):
 
 @router.post("/ban")
 async def ban(body: ModerationAction, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.act")
     return await _sanction('ban', '/moderation/ban', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
     }, int(user['sub']), body.user_id_int, {"reason": body.reason})
@@ -166,7 +166,7 @@ async def ban(body: ModerationAction, user: dict = Depends(get_current_user)):
 
 @router.post("/timeout")
 async def timeout(body: ModerationAction, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.act")
     duration = body.duration or 60
     return await _sanction('timeout', '/moderation/timeout', {
         "user_id": body.user_id_int, "reason": body.reason,
@@ -181,7 +181,7 @@ async def timeout(body: ModerationAction, user: dict = Depends(get_current_user)
 
 @router.get("/warns")
 async def get_all_warns(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.view")
     warns = await db.fetch("""
         SELECT w.id, w.user_id, w.reason, w.create_time, w.moderator_id,
                u.username, u.nickname, u.discord_avatar,
@@ -209,7 +209,7 @@ async def get_all_warns(user: dict = Depends(get_current_user)):
 
 @router.get("/warns/{user_id}")
 async def get_warns(user_id: str, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.view")
     warns = await db.fetch("""
         SELECT w.*, v.username AS moderator_username
         FROM warn w
@@ -229,7 +229,7 @@ async def get_warns(user_id: str, user: dict = Depends(get_current_user)):
 
 @router.post("/warns")
 async def add_warn(body: ModerationAction, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.act")
     return await _sanction('warn', '/warns', {
         "user_id": body.user_id_int, "reason": body.reason, "moderator_id": int(user['sub'])
     }, int(user['sub']), body.user_id_int, {"reason": body.reason})
@@ -237,7 +237,7 @@ async def add_warn(body: ModerationAction, user: dict = Depends(get_current_user
 
 @router.delete("/warns/{warn_id}")
 async def delete_warn(warn_id: int, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.act")
     warn = await db.fetchrow("SELECT user_id, reason FROM warn WHERE id = $1", warn_id)
     await db.execute("DELETE FROM warn WHERE id = $1", warn_id)
     if warn:
@@ -251,7 +251,7 @@ async def delete_warn(warn_id: int, user: dict = Depends(get_current_user)):
 
 @router.get("/users/search")
 async def search_users(q: str, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "moderation.view")
     if len(q) < 2:
         return {"users": []}
     rows = await db.fetch(
@@ -271,7 +271,7 @@ async def search_users(q: str, user: dict = Depends(get_current_user)):
 
 @router.get("/stats")
 async def server_stats(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "admin.view")
     members        = await db.fetchval("SELECT COUNT(*) FROM user_voice_data WHERE is_member = TRUE")
     total_msgs     = await db.fetchval("SELECT COALESCE(SUM(message_count), 0) FROM user_message_stats")
     total_warns    = await db.fetchval("SELECT COUNT(*) FROM warn")
@@ -309,14 +309,14 @@ class DeployQuestsBody(BaseModel):
 
 @router.get("/quest-templates")
 async def list_quest_templates(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     rows = await db.fetch("SELECT * FROM quest_templates ORDER BY quest_type, target_value")
     return {"templates": [dict(r) for r in rows]}
 
 
 @router.post("/quest-templates", status_code=201)
 async def create_quest_template(body: QuestTemplateBody, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     body.validate_quest_type()
     row = await db.fetchrow("""
         INSERT INTO quest_templates (title, description, quest_type, target_value, xp_reward, icon, is_enabled)
@@ -331,7 +331,7 @@ async def create_quest_template(body: QuestTemplateBody, user: dict = Depends(ge
 async def update_quest_template(
     template_id: int, body: QuestTemplateBody, user: dict = Depends(get_current_user)
 ):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     body.validate_quest_type()
     row = await db.fetchrow("""
         UPDATE quest_templates
@@ -347,14 +347,14 @@ async def update_quest_template(
 
 @router.delete("/quest-templates/{template_id}", status_code=204)
 async def delete_quest_template(template_id: int, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     await db.execute("DELETE FROM quest_templates WHERE id = $1", template_id)
     await _log('quest_template_delete', int(user['sub']), details={"id": template_id})
 
 
 @router.get("/quests/active")
 async def get_active_quests(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     from datetime import date
     today = date.today()
     rows = await db.fetch("""
@@ -372,7 +372,7 @@ async def get_active_quests(user: dict = Depends(get_current_user)):
 
 @router.post("/quests/deploy")
 async def deploy_weekly_quests(body: DeployQuestsBody, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "quests.manage")
     from datetime import date, timedelta
     today      = date.today()
     week_start = today - timedelta(days=today.weekday())
@@ -410,7 +410,7 @@ async def deploy_weekly_quests(body: DeployQuestsBody, user: dict = Depends(get_
 
 @router.get("/analytics")
 async def get_analytics(user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "analytics.view")
     from datetime import datetime, timedelta, timezone
     from collections import defaultdict
 
@@ -528,7 +528,7 @@ class GalleryVisibility(BaseModel):
 async def list_gallery_admin(user: dict = Depends(get_current_user),
                              limit: int = Query(100, ge=1, le=200)):
     """Galerie complète pour la modération : éléments masqués compris, avec leur état."""
-    require_admin(user)
+    require_permission(user, "gallery.manage")
     rows = await db.fetch(
         """SELECT g.id, g.kind, g.file_name, g.clip_url, g.clip_provider, g.caption, g.hidden,
                   g.author_id, g.created_at, v.username, v.discord_avatar
@@ -542,7 +542,7 @@ async def list_gallery_admin(user: dict = Depends(get_current_user),
 @router.patch("/gallery/{item_id}")
 async def set_gallery_hidden(item_id: int, body: GalleryVisibility,
                              user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "gallery.manage")
     row = await db.fetchrow(
         "UPDATE gallery_items SET hidden = $1 WHERE id = $2 RETURNING id", body.hidden, item_id)
     if not row:
@@ -553,7 +553,7 @@ async def set_gallery_hidden(item_id: int, body: GalleryVisibility,
 
 @router.delete("/gallery/{item_id}", status_code=204)
 async def delete_gallery_item(item_id: int, user: dict = Depends(get_current_user)):
-    require_admin(user)
+    require_permission(user, "gallery.manage")
     row = await db.fetchrow(
         "DELETE FROM gallery_items WHERE id = $1 RETURNING file_name", item_id)
     if not row:

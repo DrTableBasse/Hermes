@@ -1,7 +1,7 @@
 """Historique des tickets : global pour les admins, personnel pour chaque membre."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
-from middleware.auth_middleware import get_current_user, require_admin
+from middleware.auth_middleware import get_current_user, require_permission
 import database as db
 
 # Origine opaque, aucun script, aucune ressource externe : seul le style en ligne du bot passe.
@@ -83,7 +83,7 @@ async def list_tickets(
     limit: int = Query(20, ge=1, le=100),
     user: dict = Depends(get_current_user),
 ):
-    require_admin(user)
+    require_permission(user, "tickets.manage")
     return await _list(status, page, limit)
 
 
@@ -106,11 +106,12 @@ async def get_transcript(
     row = await db.fetchrow(
         "SELECT user_id, transcript_html FROM tickets WHERE id = $1", ticket_id
     )
-    # Admin : tout ticket. Membre : le sien seulement. Un ticket d'autrui répond 403 (jamais 404
-    # pour un autre membre qui le demande), pour ne pas révéler quels identifiants existent.
+    # Droit « tickets.manage » : tout ticket. Membre : le sien seulement. Un ticket d'autrui
+    # répond 403 (jamais 404 pour un autre membre qui le demande), pour ne pas révéler quels
+    # identifiants existent.
     is_owner = row is not None and str(row["user_id"]) == str(user.get("sub"))
-    if not user.get("is_admin") and not is_owner:
-        raise HTTPException(status_code=403, detail="Accès refusé")
+    if not is_owner:
+        require_permission(user, "tickets.manage")
     if not row:
         raise HTTPException(status_code=404, detail="Ticket introuvable")
     if not row["transcript_html"]:

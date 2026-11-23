@@ -3,7 +3,7 @@ Auth routes — OAuth2 and session management is handled by BetterAuth (Next.js 
 This router is kept as a placeholder; all /auth/* endpoints are now served by Next.js at /api/auth/*.
 """
 from fastapi import APIRouter, Cookie, HTTPException
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import effective_permissions, get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,4 +19,5 @@ async def me(session_token: str | None = Cookie(None, alias="better-auth.session
         "user_id":      user["sub"],
         "is_admin":     user["is_admin"],
         "is_redacteur": user["is_redacteur"],
+        "permissions":  effective_permissions(user),
     }

@@ -33,7 +33,8 @@ def media_dir(client, tmp_path, monkeypatch):
 
 def _session(monkeypatch, client, *, is_admin=False, redacteur=False):
     async def fake_session(token):
-        return {"sub": "5", "is_admin": is_admin, "is_redacteur": redacteur}
+        return {"sub": "5", "is_admin": is_admin, "is_redacteur": redacteur,
+                "permissions": frozenset({"articles.write", "articles.publish"} if redacteur else ())}
 
     monkeypatch.setattr(auth_middleware, "_fetch_session", fake_session)
     client.cookies.set("better-auth.session_token", "tok")

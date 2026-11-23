@@ -17,7 +17,8 @@ def _fresh():
 def as_user(client, monkeypatch):
     def _as(sub="5", *, is_admin=False, redacteur=False):
         async def fake_session(token):
-            return {"sub": sub, "is_admin": is_admin, "is_redacteur": redacteur}
+            return {"sub": sub, "is_admin": is_admin, "is_redacteur": redacteur,
+                "permissions": frozenset({"articles.write", "articles.publish"} if redacteur else ())}
 
         monkeypatch.setattr(auth_middleware, "_fetch_session", fake_session)
         client.cookies.set("better-auth.session_token", "tok")
