@@ -42,7 +42,6 @@ export const ACTION_LABELS: Record<string, string> = {
   stream_start: "partage d’écran lancé",
   stream_stop: "partage d’écran arrêté",
   nickname: "pseudo modifié",
-  avatar: "avatar modifié",
   add: "ajouté",
   remove: "retiré",
   create: "créé",

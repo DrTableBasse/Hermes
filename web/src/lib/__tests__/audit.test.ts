@@ -82,12 +82,14 @@ describe("libellés", () => {
     expect(SOURCE_LABELS).toEqual({ site: "Site", hermes: "Hermes", discord: "Discord" })
     const actions = [
       "edit", "delete", "bulk_delete", "join", "leave", "move", "server_mute", "server_deafen", "self_mute",
-      "self_deafen", "stream_start", "stream_stop", "nickname", "avatar", "add", "remove", "create", "update",
+      "self_deafen", "stream_start", "stream_stop", "nickname", "add", "remove", "create", "update",
       "kick", "ban", "unban", "timeout", "untimeout", "warn", "clear", "message_delete", "message_bulk_delete",
     ]
     for (const a of actions) expect(ACTION_LABELS[a], a).toBeTruthy()
     expect(ACTION_LABELS.edit).toBe("modifié")
     expect(ACTION_LABELS.join).toBe("arrivée")
+    // Jamais écrite par le bot : absente de la liste fermée (M6).
+    expect(ACTION_LABELS.avatar).toBeUndefined()
   })
 
   it("action inconnue ou commande : affichée telle quelle", () => {
