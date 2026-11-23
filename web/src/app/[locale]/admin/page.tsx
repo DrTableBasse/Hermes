@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { AdminDenied, AdminNote } from "@/components/admin/admin-denied"
-import { ADMIN_SECTIONS } from "@/components/admin/admin-nav"
+import { ADMIN_SECTIONS } from "@/lib/admin-sections"
 import { KEY_SETTINGS, settingState } from "@/components/admin/key-settings"
 import { Chip } from "@/components/ui/chip"
 import { Panel } from "@/components/ui/panel"
