@@ -4,11 +4,18 @@ import { clientIp, sessionCookie, sessionFromCookieHeader } from "@/lib/api/forw
 const hdrs = (o: Record<string, string>) => new Headers(o)
 
 describe("clientIp", () => {
-  it("préfère X-Real-IP, sinon la dernière entrée de X-Forwarded-For", () => {
-    expect(clientIp(hdrs({ "x-real-ip": "1.2.3.4", "x-forwarded-for": "5.5.5.5" }))).toBe("1.2.3.4")
-    expect(clientIp(hdrs({ "x-forwarded-for": "6.6.6.6, 7.7.7.7 " }))).toBe("7.7.7.7")
-    expect(clientIp(hdrs({}))).toBeNull()
-    expect(clientIp(hdrs({ "x-forwarded-for": " " }))).toBeNull()
+  const preload = { HERMES_CLIENT_IP_PRELOAD: "socket" }
+
+  it("lit x-client-ip seulement quand runtime/client-ip.cjs l'a posé", () => {
+    expect(clientIp(hdrs({ "x-client-ip": " 203.0.113.9 " }), preload)).toBe("203.0.113.9")
+    expect(clientIp(hdrs({ "x-client-ip": "203.0.113.9" }), {})).toBeNull()
+    expect(clientIp(hdrs({}), preload)).toBeNull()
+  })
+
+  it("n'utilise jamais X-Real-IP ni X-Forwarded-For (choisis par le client)", () => {
+    const spoofed = hdrs({ "x-real-ip": "1.2.3.4", "x-forwarded-for": "5.5.5.5, 6.6.6.6" })
+    expect(clientIp(spoofed, preload)).toBeNull()
+    expect(clientIp(spoofed, {})).toBeNull()
   })
 })
 

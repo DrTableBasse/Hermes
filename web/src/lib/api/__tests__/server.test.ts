@@ -268,29 +268,42 @@ describe("fonctions nommées", () => {
 // ── Relecture finale : C1 (IP du visiteur), I2 (droits réévalués), I4 (budget de temps) ──
 
 describe("request : en-têtes et budget de temps vers web-api", () => {
-  it("relaie l'IP du visiteur (X-Real-IP) sur une lecture propre à la requête", async () => {
-    h.incoming.set("x-real-ip", "203.0.113.9")
+  it("relaie l'IP posée par le module de démarrage sur une lecture propre à la requête", async () => {
+    vi.stubEnv("HERMES_CLIENT_IP_PRELOAD", "socket")
+    h.incoming.set("x-client-ip", "203.0.113.9")
+    h.incoming.set("x-real-ip", "1.1.1.1")
     h.incoming.set("x-forwarded-for", "1.1.1.1, 198.51.100.2")
     fetchMock.mockResolvedValue(reply(200, { leaderboard: [] }))
     await leaderboardLevels(2)
     expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBe("203.0.113.9")
   })
 
-  it("à défaut de X-Real-IP, prend la dernière entrée de X-Forwarded-For", async () => {
+  it("ne lit jamais X-Real-IP ni X-Forwarded-For (choisis par le client)", async () => {
+    vi.stubEnv("HERMES_CLIENT_IP_PRELOAD", "socket")
+    h.incoming.set("x-real-ip", "1.1.1.1")
     h.incoming.set("x-forwarded-for", "6.6.6.6, 198.51.100.2")
     fetchMock.mockResolvedValue(reply(200, {}))
     await getSessionUser("tok")
-    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBe("198.51.100.2")
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()
+  })
+
+  it("sans module de démarrage, ne relaie pas un x-client-ip venu du client", async () => {
+    h.incoming.set("x-client-ip", "6.6.6.6")
+    fetchMock.mockResolvedValue(reply(200, {}))
+    await getSessionUser("tok")
+    expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()
   })
 
   it("n'ajoute pas l'IP à une lecture mise en cache (clé partagée entre visiteurs)", async () => {
-    h.incoming.set("x-real-ip", "203.0.113.9")
+    vi.stubEnv("HERMES_CLIENT_IP_PRELOAD", "socket")
+    h.incoming.set("x-client-ip", "203.0.113.9")
     fetchMock.mockResolvedValue(reply(200, {}))
     await getLive()
     expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()
   })
 
   it("sans en-tête d'IP, n'invente rien", async () => {
+    vi.stubEnv("HERMES_CLIENT_IP_PRELOAD", "socket")
     fetchMock.mockResolvedValue(reply(200, {}))
     await apiGet("/ping")
     expect(fetchMock.mock.calls[0][1].headers["X-Client-IP"]).toBeUndefined()

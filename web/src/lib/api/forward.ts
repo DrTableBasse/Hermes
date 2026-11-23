@@ -8,16 +8,21 @@ export interface HeaderSource {
   get(name: string): string | null
 }
 
+/** Posé par `runtime/client-ip.cjs` quand il intercepte les requêtes avant Next. */
+export const CLIENT_IP_MARKER = "HERMES_CLIENT_IP_PRELOAD"
+
 /**
- * IP du visiteur, pour le limiteur de web-api (`X-Client-IP`). On ne relaie jamais un
- * `X-Client-IP` venu du navigateur : on le reconstruit. `X-Real-IP` est posé par le reverse proxy
- * (Nginx Proxy Manager) ; à défaut, la dernière entrée de `X-Forwarded-For`, la seule ajoutée par lui.
+ * IP du visiteur, pour le limiteur de web-api (`X-Client-IP`).
+ *
+ * Elle n'est jamais lue dans un en-tête choisi par le client (`X-Real-IP`, `X-Forwarded-For` :
+ * constat I1). `runtime/client-ip.cjs`, chargé avant Next, écrase `x-client-ip` sur chaque requête
+ * entrante avec l'IP de la socket, ou l'en-tête `TRUSTED_IP_HEADER` posé par le proxy de confiance.
+ * Sans ce module (marqueur absent : `next dev`, tests), rien n'est relayé et web-api compte la
+ * requête sous l'IP du conteneur `web`.
  */
-export function clientIp(headers: HeaderSource): string | null {
-  const real = headers.get("x-real-ip")?.trim()
-  if (real) return real
-  const last = headers.get("x-forwarded-for")?.split(",").pop()?.trim()
-  return last || null
+export function clientIp(headers: HeaderSource, env: Record<string, string | undefined> = process.env): string | null {
+  if (!env[CLIENT_IP_MARKER]) return null
+  return headers.get("x-client-ip")?.trim() || null
 }
 
 // En HTTPS, BetterAuth préfixe son cookie par `__Secure-` (même liste que `src/proxy.ts`).

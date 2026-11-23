@@ -15,10 +15,12 @@ ENV NODE_ENV=production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# IP du visiteur posée d'autorité avant Next (rate limiting, voir runtime/client-ip.cjs)
+COPY --from=builder /app/runtime ./runtime
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
     && chown -R appuser:appgroup /app
 USER appuser
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "--require", "./runtime/preload.cjs", "server.js"]

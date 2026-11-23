@@ -50,10 +50,22 @@ describe("route proxy vers web-api", () => {
     expect(h.refresh).toHaveBeenCalledTimes(1)
   })
 
-  it("reconstruit X-Client-IP, sans relayer celui du navigateur", async () => {
+  it("relaie l'IP posée par le module de démarrage, jamais X-Forwarded-For ni X-Real-IP", async () => {
+    vi.stubEnv("HERMES_CLIENT_IP_PRELOAD", "socket")
     fetchMock.mockResolvedValue(new Response("{}"))
-    await call("live", { "x-client-ip": "6.6.6.6", "x-forwarded-for": "6.6.6.6, 198.51.100.4" })
-    expect(sent()["x-client-ip"]).toBe("198.51.100.4")
+    await call("live", {
+      "x-client-ip": "172.18.0.1",
+      "x-real-ip": "6.6.6.6",
+      "x-forwarded-for": "6.6.6.6, 198.51.100.4",
+    })
+    expect(sent()["x-client-ip"]).toBe("172.18.0.1")
+    vi.unstubAllEnvs()
+  })
+
+  it("sans module de démarrage (next dev), ne relaie aucune IP", async () => {
+    fetchMock.mockResolvedValue(new Response("{}"))
+    await call("live", { "x-client-ip": "6.6.6.6", "x-real-ip": "6.6.6.6" })
+    expect(sent()["x-client-ip"]).toBeUndefined()
   })
 
   it("relaie la CSP sandbox de la transcription", async () => {

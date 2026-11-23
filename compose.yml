@@ -85,6 +85,8 @@ services:
       WEB_API_INTERNAL_URL: http://web-api:8000
       PG_HOST: db
       HOSTNAME: "0.0.0.0"
+      # En-tête d'IP du proxy de confiance (ex. cf-connecting-ip) ; vide = IP de la socket
+      TRUSTED_IP_HEADER: ${TRUSTED_IP_HEADER:-}
     ports:
       - "3000:3000"
     networks:
