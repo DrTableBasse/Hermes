@@ -296,7 +296,11 @@ function StatusPill({ live }: { live: LiveState | null }) {
 export function Hero({ live, grades, gamesCount, inviteUrl }: HeroProps) {
   return (
     <section className="relative -mt-[92px] pt-[92px] min-[1100px]:min-h-[900px] max-[1099px]:pb-10" aria-labelledby="hero-title">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      {/* Le décor s'efface vers le bas : pas de coupure nette avec la section suivante. */}
+      <div
+        className="pointer-events-none absolute inset-0 overflow-hidden [mask-image:linear-gradient(#000_55%,transparent)]"
+        aria-hidden="true"
+      >
         <div className="halo" style={{ left: "39%", top: -260, width: 980, height: 720, background: "rgb(155 107 255 / 0.30)" }} />
         <div className="halo" style={{ left: "74%", top: 320, width: 620, height: 520, background: "rgb(63 224 240 / 0.15)" }} />
         <div className="halo" style={{ left: "-8%", top: 640, width: 420, height: 300, background: "rgb(255 138 61 / 0.10)" }} />
