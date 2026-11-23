@@ -30,6 +30,8 @@ CASES = [
     ("get", "/admin/warns", "moderation.view", None),
     ("get", "/admin/warns/2", "moderation.view", None),
     ("get", "/admin/users/search?q=ab", "moderation.view", None),
+    # users.py : fiche d'un autre membre (page Modération)
+    ("get", "/users/42/stats", "moderation.view", None),
     ("get", "/admin/quest-templates", "quests.manage", None),
     ("post", "/admin/quest-templates", "quests.manage", QUEST),
     ("put", "/admin/quest-templates/1", "quests.manage", QUEST),

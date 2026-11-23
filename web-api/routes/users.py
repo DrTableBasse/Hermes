@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from limiter import limiter
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import get_current_user, require_permission
 import database as db
 from grades import get_grades, public_grade
 
@@ -143,13 +143,14 @@ async def _check_achievements(user_id: int, total_messages: int, voice_hours: fl
 
 @router.get("/{user_id}/stats")
 async def get_user_stats(user_id: int, caller: dict = Depends(get_current_user)):
-    """Fiche complète (avertissements, dernière présence) : le membre lui-même ou un admin.
+    """Fiche complète (avertissements, dernière présence) : le membre lui-même, ou un détenteur de
+    `moderation.view` (admin compris) — c'est la fiche de la page Modération.
 
     Les autres membres passent par `/users/{id}/public` (constat I3).
     """
     is_self = str(caller.get("sub")) == str(user_id)
-    if not (is_self or caller.get("is_admin")):
-        raise HTTPException(status_code=403, detail="Fiche réservée au membre et aux admins")
+    if not is_self:
+        require_permission(caller, "moderation.view")
 
     user = await db.fetchrow("SELECT * FROM user_voice_data WHERE user_id = $1", user_id)
     if not user:

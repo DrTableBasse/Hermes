@@ -1,4 +1,4 @@
-"""`GET /users/{id}/stats` : réservé au membre lui-même et aux admins (constat I3)."""
+"""`GET /users/{id}/stats` : le membre lui-même, ou un détenteur de `moderation.view` (admin compris)."""
 import pytest
 
 from middleware import auth_middleware
@@ -12,9 +12,10 @@ def _fresh():
 
 @pytest.fixture
 def as_user(client, monkeypatch):
-    def _as(discord_id, is_admin=False):
+    def _as(discord_id, is_admin=False, permissions=frozenset()):
         async def fake_session(token):
-            return {"sub": discord_id, "is_admin": is_admin, "is_redacteur": False}
+            return {"sub": discord_id, "is_admin": is_admin, "is_redacteur": False,
+                    "permissions": frozenset(permissions)}
 
         monkeypatch.setattr(auth_middleware, "_fetch_session", fake_session)
         client.cookies.set("better-auth.session_token", "tok")
@@ -63,6 +64,23 @@ def test_admin_lit_la_fiche_sans_ecrire_de_succes_pour_autrui(client, fake_db, a
     assert r.status_code == 200
     assert r.json()["stats"]["warn_count"] == 3
     assert _achievement_writes(fake_db) == []
+
+
+def test_moderateur_lit_la_fiche_sans_ecrire_de_succes_pour_autrui(client, fake_db, as_user):
+    _program(fake_db)
+    as_user("7", permissions={"moderation.view"})
+    r = client.get("/users/42/stats")
+    assert r.status_code == 200
+    assert r.json()["stats"]["warn_count"] == 3
+    assert _achievement_writes(fake_db) == []
+
+
+def test_autre_droit_que_moderation_view_refuse(client, fake_db, as_user):
+    _program(fake_db)
+    as_user("7", permissions={"tickets.manage", "moderation.act"})
+    r = client.get("/users/42/stats")
+    assert r.status_code == 403
+    assert r.json()["detail"] == "Droit requis : Voir la modération et le journal"
 
 
 def test_non_connecte_refuse(client, fake_db):
