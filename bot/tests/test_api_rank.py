@@ -32,7 +32,7 @@ TOKEN = "jeton-de-test"
 def _role(rid, name, position, *, managed=False, default=False, color=0):
     return SimpleNamespace(
         id=rid, name=name, position=position, managed=managed,
-        color=SimpleNamespace(value=color), is_default=lambda: default,
+        color=SimpleNamespace(value=color), is_default=lambda: default, members=[],
     )
 
 
@@ -47,6 +47,7 @@ class FakeGuild:
 
     def __init__(self, members):
         self.roles = [EVERYONE, MODO, MEMBRE, BOT_ROLE]
+        self.me = SimpleNamespace(top_role=BOT_ROLE)
         self._members = {m.id: m for m in members}
 
     def get_member(self, user_id):
@@ -105,5 +106,7 @@ def test_rank_requires_token(http):
 def test_roles_expose_position_and_managed(http):
     roles = http.get("/discord/roles").json()["roles"]
     assert [r["id"] for r in roles] == ["30", "20", "10"]  # position décroissante, sans @everyone
-    assert roles[0] == {"id": "30", "name": "Hermes", "color": 0, "position": 8, "managed": True}
-    assert roles[1] == {"id": "20", "name": "Modo", "color": 0x112233, "position": 5, "managed": False}
+    assert roles[0] == {"id": "30", "name": "Hermes", "color": 0, "position": 8, "managed": True,
+                        "members": 0, "below_bot": False}
+    assert roles[1] == {"id": "20", "name": "Modo", "color": 0x112233, "position": 5, "managed": False,
+                        "members": 0, "below_bot": True}
