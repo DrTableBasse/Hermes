@@ -15,6 +15,15 @@ export const ROLE_TTL_MS = 10 * 60 * 1000
 /** Mémoire locale : au plus une lecture en base par session et par minute. */
 export const RECHECK_MS = 60 * 1000
 
+/** Sessions mémorisées au plus (constat M1) : au-delà, les plus anciennes sont oubliées. */
+export const MAX_RECENT = 10_000
+
+/**
+ * Forme d'un jeton de session BetterAuth (`generateId(32)` : alphanumérique). Un cookie qui n'a
+ * pas cette forme ne déclenche ni requête SQL ni entrée en mémoire (constat M1).
+ */
+const TOKEN_RE = /^[A-Za-z0-9_-]{16,128}$/
+
 export type StaffRoles = [isAdmin: boolean, isRedacteur: boolean]
 
 export interface SessionRoles {
@@ -50,8 +59,23 @@ export function createRoleRefresher(deps: RoleRefreshDeps) {
     } catch (e) {
       console.error("[auth] réévaluation des droits impossible:", e)
     } finally {
-      recent.set(token, deps.now())
+      remember(token)
     }
+  }
+
+  /** Mémorise la date de vérification ; purge les entrées expirées puis, au besoin, les plus anciennes. */
+  function remember(token: string): void {
+    const now = deps.now()
+    recent.delete(token)
+    if (recent.size >= MAX_RECENT) {
+      for (const [key, at] of recent) if (now - at >= RECHECK_MS) recent.delete(key)
+      // Ordre d'insertion = ordre de vérification : on retire les plus anciennes.
+      for (const key of recent.keys()) {
+        if (recent.size < MAX_RECENT) break
+        recent.delete(key)
+      }
+    }
+    recent.set(token, now)
   }
 
   return function refresh(rawToken: string): Promise<void> {
@@ -61,9 +85,12 @@ export function createRoleRefresher(deps: RoleRefreshDeps) {
       decoded = decodeURIComponent(rawToken)
     } catch {}
     const token = decoded.split(".")[0]
-    if (!token) return Promise.resolve()
+    if (!TOKEN_RE.test(token)) return Promise.resolve()
     const last = recent.get(token)
-    if (last !== undefined && deps.now() - last < RECHECK_MS) return Promise.resolve()
+    if (last !== undefined) {
+      if (deps.now() - last < RECHECK_MS) return Promise.resolve()
+      recent.delete(token)
+    }
     const pending = inflight.get(token)
     if (pending) return pending
     const p = run(token).finally(() => inflight.delete(token))
