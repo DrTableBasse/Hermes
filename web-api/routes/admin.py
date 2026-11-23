@@ -39,10 +39,24 @@ async def _bot(method: str, path: str, **kwargs):
         return r.json()
 
 
+KIND_OF_ACTION: dict[str, str] = {
+    "kick": "sanction",
+    "ban": "sanction",
+    "timeout": "sanction",
+    "warn": "sanction",
+    "delete_warn": "sanction",
+    "command_toggle": "setting",
+    "quest_template_create": "content",
+    "quest_template_update": "content",
+    "quest_template_delete": "content",
+    "quest_deploy": "content",
+}
+
+
 async def _log(action_type: str, actor_id: int,
                target_id: int | None = None,
                details: dict | None = None):
-    """Insert into admin_logs. Never raises."""
+    """Insert into audit_events (source 'site'). Never raises."""
     try:
         actor = await db.fetchrow(
             "SELECT COALESCE(nickname, username) AS name FROM user_voice_data WHERE user_id = $1",
@@ -59,14 +73,16 @@ async def _log(action_type: str, actor_id: int,
             target_name = target["name"] if target else str(target_id)
 
         await db.execute(
-            """INSERT INTO admin_logs
-                   (action_type, actor_id, actor_name, target_id, target_name, details)
-               VALUES ($1, $2, $3, $4, $5, $6::jsonb)""",
-            action_type, actor_id, actor_name, target_id, target_name,
+            """INSERT INTO audit_events
+                   (kind, action, source, actor_id, actor_name,
+                    target_id, target_name, details)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)""",
+            KIND_OF_ACTION.get(action_type, "setting"), action_type, "site",
+            actor_id, actor_name, target_id, target_name,
             json.dumps(details or {}),
         )
     except Exception as e:
-        logger.warning(f"admin_logs insert failed: {e}")
+        logger.warning(f"audit_events insert failed: {e}")
 
 
 class ModerationAction(BaseModel):

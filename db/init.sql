@@ -553,6 +553,28 @@ CREATE INDEX IF NOT EXISTS idx_admin_logs_created ON admin_logs(created_at DESC)
 CREATE INDEX IF NOT EXISTS idx_admin_logs_type    ON admin_logs(action_type);
 CREATE INDEX IF NOT EXISTS idx_admin_logs_actor   ON admin_logs(actor_id);
 
+-- ─── Journal unique des évènements (migration 020) ────────────
+CREATE TABLE IF NOT EXISTS audit_events (
+    id            BIGSERIAL PRIMARY KEY,
+    occurred_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    kind          VARCHAR(32)  NOT NULL,
+    action        VARCHAR(100) NOT NULL,
+    source        VARCHAR(16)  NOT NULL CHECK (source IN ('site', 'hermes', 'discord')),
+    actor_id      BIGINT,
+    actor_name    VARCHAR(255),
+    target_id     BIGINT,
+    target_name   VARCHAR(255),
+    channel_id    BIGINT,
+    channel_name  VARCHAR(255),
+    success       BOOLEAN NOT NULL DEFAULT TRUE,
+    details       JSONB NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_audit_events_occurred ON audit_events(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_events_kind     ON audit_events(kind, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_events_actor    ON audit_events(actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_target   ON audit_events(target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_events_action   ON audit_events(action);
+
 -- ─── Réglages du serveur (migration 013) ──────────────────────
 CREATE TABLE IF NOT EXISTS bot_settings (
     key         TEXT PRIMARY KEY,
