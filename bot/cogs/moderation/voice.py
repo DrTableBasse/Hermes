@@ -6,7 +6,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from utils import settings
 from utils.command_manager import command_enabled
 from utils.database import voice_manager, db_manager, streak_manager, quest_manager, notification_manager, achievement_manager
 from utils.logging import log_voice_event
@@ -127,14 +126,7 @@ class VoiceCog(commands.Cog):
                         for q in completed_quests:
                             await quest_cog.notify(member.id, q)
 
-            # Fetch une seule fois pour le rôle Batman et achievements
             user_data = await voice_manager.get_user(member.id)
-
-            batman_role = settings.get_role(member.guild, 'role_batman')
-            if batman_role and user_data:
-                hours_for_role = settings.get_int('voice_hours_for_role', 100)
-                if user_data['total_time'] >= hours_for_role * 3600 and batman_role not in member.roles:
-                    await member.add_roles(batman_role)
 
             # Vérification achievements vocaux en temps réel (DM + rôle)
             try:
@@ -153,6 +145,14 @@ class VoiceCog(commands.Cog):
                             await notifier.notify(member.id, a['id'])
             except Exception as e:
                 logger.error(f"Voice achievement notify error for {member.id}: {e}")
+
+            # Rôles automatiques (heures de vocal, série…) : cog RoleEngine
+            engine = self.bot.get_cog('RoleEngine')
+            if engine:
+                try:
+                    await engine.evaluate_member(member)
+                except Exception as e:
+                    logger.error(f"Règles de rôles (vocal) pour {member.id} : {e}")
 
         except Exception as e:
             logger.error(f"_update_time error: {e}", exc_info=True)
