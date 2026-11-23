@@ -19,6 +19,19 @@ export const RECHECK_MS = 60 * 1000
 export const MAX_RECENT = 10_000
 
 /**
+ * Cache négatif (constat m5) : un jeton inconnu de la base n'est pas relu avant `UNKNOWN_TTL_MS`.
+ * Il est tenu à part de `recent` : un flot de jetons aléatoires ne chasse pas les vraies sessions.
+ */
+export const UNKNOWN_TTL_MS = 5 * 60 * 1000
+export const MAX_UNKNOWN = 10_000
+
+/**
+ * Lectures en base simultanées au plus (constat m5). Au-delà, la réévaluation est remise à la
+ * requête suivante de la session : elle est d'arrière-plan et rien n'en dépend.
+ */
+export const MAX_INFLIGHT = 64
+
+/**
  * Forme d'un jeton de session BetterAuth (`generateId(32)` : alphanumérique). Un cookie qui n'a
  * pas cette forme ne déclenche ni requête SQL ni entrée en mémoire (constat M1).
  */
@@ -42,15 +55,21 @@ export interface RoleRefreshDeps {
 }
 
 export function createRoleRefresher(deps: RoleRefreshDeps) {
+  /** Sessions valides : date de la dernière vérification. */
   const recent = new Map<string, number>()
+  /** Jetons inconnus de la base (ou lecture en erreur) : date du dernier essai. */
+  const unknown = new Map<string, number>()
   const inflight = new Map<string, Promise<void>>()
   /** Discord injoignable : pas de nouvel appel, toutes sessions confondues, avant cette date. */
   let discordRetryAt = 0
 
   async function run(token: string): Promise<void> {
+    let known = false
     try {
       const session = await deps.lookup(token)
-      if (!session?.discordId) return
+      if (!session) return
+      known = true
+      if (!session.discordId) return
       if (deps.now() - session.checkedAt.getTime() < ROLE_TTL_MS) return
       if (deps.now() < discordRetryAt) return
       const roles = await deps.resolve(session.discordId)
@@ -59,23 +78,33 @@ export function createRoleRefresher(deps: RoleRefreshDeps) {
     } catch (e) {
       console.error("[auth] réévaluation des droits impossible:", e)
     } finally {
-      remember(token)
+      if (known) remember(recent, token, RECHECK_MS, MAX_RECENT)
+      else remember(unknown, token, UNKNOWN_TTL_MS, MAX_UNKNOWN)
     }
   }
 
-  /** Mémorise la date de vérification ; purge les entrées expirées puis, au besoin, les plus anciennes. */
-  function remember(token: string): void {
+  /** Mémorise la date d'essai ; purge les entrées expirées puis, au besoin, les plus anciennes. */
+  function remember(map: Map<string, number>, token: string, ttl: number, max: number): void {
     const now = deps.now()
-    recent.delete(token)
-    if (recent.size >= MAX_RECENT) {
-      for (const [key, at] of recent) if (now - at >= RECHECK_MS) recent.delete(key)
+    map.delete(token)
+    if (map.size >= max) {
+      for (const [key, at] of map) if (now - at >= ttl) map.delete(key)
       // Ordre d'insertion = ordre de vérification : on retire les plus anciennes.
-      for (const key of recent.keys()) {
-        if (recent.size < MAX_RECENT) break
-        recent.delete(key)
+      for (const key of map.keys()) {
+        if (map.size < max) break
+        map.delete(key)
       }
     }
-    recent.set(token, now)
+    map.set(token, now)
+  }
+
+  /** Vrai si le jeton a été vu il y a moins de `ttl` ; oublie l'entrée expirée. */
+  function seen(map: Map<string, number>, token: string, ttl: number): boolean {
+    const last = map.get(token)
+    if (last === undefined) return false
+    if (deps.now() - last < ttl) return true
+    map.delete(token)
+    return false
   }
 
   return function refresh(rawToken: string): Promise<void> {
@@ -86,13 +115,10 @@ export function createRoleRefresher(deps: RoleRefreshDeps) {
     } catch {}
     const token = decoded.split(".")[0]
     if (!TOKEN_RE.test(token)) return Promise.resolve()
-    const last = recent.get(token)
-    if (last !== undefined) {
-      if (deps.now() - last < RECHECK_MS) return Promise.resolve()
-      recent.delete(token)
-    }
+    if (seen(recent, token, RECHECK_MS) || seen(unknown, token, UNKNOWN_TTL_MS)) return Promise.resolve()
     const pending = inflight.get(token)
     if (pending) return pending
+    if (inflight.size >= MAX_INFLIGHT) return Promise.resolve()
     const p = run(token).finally(() => inflight.delete(token))
     inflight.set(token, p)
     return p
