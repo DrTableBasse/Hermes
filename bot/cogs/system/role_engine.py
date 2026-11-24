@@ -145,6 +145,11 @@ class RoleEngine(commands.Cog):
         son identifiant est enregistré dans la règle."""
         name = rule.create_role_name
         role = discord.utils.get(guild.roles, name=name)
+        if role is not None and (role.managed or not role.is_assignable()):
+            # Défense en profondeur (C1) : un homonyme hors de portée n'est jamais donné.
+            self._warn_once(rule, "homonym", "Règle de rôle %s : le rôle '%s' existe mais n'est pas "
+                            "gérable par le bot ; règle ignorée", rule.id, name)
+            return
         if role is None:
             try:
                 role = await guild.create_role(

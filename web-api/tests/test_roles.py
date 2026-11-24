@@ -670,3 +670,64 @@ def test_apply_on_role_above_actor_is_403(client, fake_db, bot, rules, session_w
     session_with({"roles.manage"})
     assert client.post("/admin/role-rules/1/apply", json={"confirm": True}).status_code == 403
     assert _writes(bot) == []
+
+
+# ── C1 : « créer au premier déblocage » sous un nom de rôle existant ───────
+
+def _achievement_rule(name):
+    return {"condition_type": "achievement", "condition_value": "3", "create_role_name": name}
+
+
+def test_create_rule_with_name_of_role_above_actor_is_403(client, fake_db, bot, rules, session_with):
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json=_achievement_rule("Chef"))
+    assert r.status_code == 403
+    assert rules["store"] == {}
+
+
+def test_create_rule_with_name_of_unmanageable_role_is_422(client, fake_db, bot, rules, session_with):
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True, "role_ids": []}
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json=_achievement_rule("Fondateur"))
+    assert r.status_code == 422 and "bot" in r.json()["detail"]
+    assert rules["store"] == {}
+
+
+def test_create_rule_with_name_of_role_owner_is_exempt(client, fake_db, bot, rules, session_with):
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True, "role_ids": []}
+    session_with({"roles.manage"})
+    assert client.post("/admin/role-rules", json=_achievement_rule("Chef")).status_code == 200
+
+
+def test_create_rule_with_name_of_role_below_actor_is_allowed(client, fake_db, bot, rules, session_with):
+    session_with({"roles.manage"})
+    assert client.post("/admin/role-rules", json=_achievement_rule("Membre")).status_code == 200
+
+
+def test_create_rule_with_new_name_needs_room_below_actor(client, fake_db, bot, rules, session_with):
+    bot["ranks"]["1"] = {"top_position": 1, "is_owner": False, "role_ids": []}
+    session_with({"roles.manage"})
+    assert client.post("/admin/role-rules", json=_achievement_rule("🏆 Neuf")).status_code == 403
+    assert rules["store"] == {}
+
+
+def test_patch_rule_to_name_of_role_above_actor_is_403(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="achievement", condition_value="3", create_role_name="🏆 Moulin")
+    session_with({"roles.manage"})
+    r = client.patch("/admin/role-rules/1", json={"create_role_name": "Chef"})
+    assert r.status_code == 403
+    assert rules["store"][1]["create_role_name"] == "🏆 Moulin"
+
+
+def test_patch_rule_to_name_of_role_owner_is_exempt(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="achievement", condition_value="3", create_role_name="🏆 Moulin")
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True, "role_ids": []}
+    session_with({"roles.manage"})
+    assert client.patch("/admin/role-rules/1", json={"create_role_name": "Chef"}).status_code == 200
+
+
+def test_apply_unresolved_rule_named_like_role_above_actor_is_403(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="achievement", condition_value="3", create_role_name="Chef")
+    session_with({"roles.manage"})
+    assert client.post("/admin/role-rules/1/apply", json={"confirm": True}).status_code == 403
+    assert _writes(bot) == []

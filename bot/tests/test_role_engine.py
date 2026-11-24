@@ -20,8 +20,8 @@ from cogs.moderation import voice as voice_module  # noqa: E402
 # ── Faux Discord ─────────────────────────────────────────────────────────────
 
 class FakeRole:
-    def __init__(self, id, name, assignable=True):
-        self.id, self.name, self._assignable = id, name, assignable
+    def __init__(self, id, name, assignable=True, managed=False):
+        self.id, self.name, self._assignable, self.managed = id, name, assignable, managed
 
     def is_assignable(self):
         return self._assignable
@@ -284,6 +284,27 @@ def test_achievement_unlock_reuses_existing_role_with_same_name(env, monkeypatch
     assert e.guild.created == []
     assert e.db.rules[0]["role_id"] == 77
     assert member.calls == [("add", 77)]
+
+
+@pytest.mark.parametrize("homonym", [
+    FakeRole(77, "💬 Pipelette", assignable=False),
+    FakeRole(77, "💬 Pipelette", managed=True),
+])
+def test_achievement_unlock_ignores_unmanageable_homonym(env, monkeypatch, caplog, homonym):
+    """C1 : un rôle de même nom au-dessus du bot (ou d'intégration) n'est ni réutilisé ni doublé."""
+    async def scenario():
+        e = _notifier_env(env, monkeypatch, roles=[homonym])
+        member = e.guild.member(7)
+        await notifier_module.AchievementsNotifier(e.bot).notify(7, 3)
+        await e.engine.evaluate_member(member)
+        return e, member
+
+    with caplog.at_level(logging.WARNING, logger=engine_module.__name__):
+        e, member = run(scenario)
+    assert e.guild.created == []
+    assert e.db.rules[0]["role_id"] is None
+    assert member.calls == []
+    assert len([r for r in caplog.records if "Pipelette" in r.getMessage()]) == 1
 
 
 # ── Aperçu et application ────────────────────────────────────────────────────

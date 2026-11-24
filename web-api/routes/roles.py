@@ -369,8 +369,24 @@ def _bot_can_give(role: dict | None) -> None:
                             detail="Ce rôle n'est pas sous le rôle le plus haut du bot : il ne pourrait pas le donner")
 
 
+def _check_created_role(rule: dict, roles: list[dict], actor: dict, *, target_changed: bool) -> None:
+    """« Créer au premier déblocage » : le bot réutilisera un rôle de même nom s'il existe.
+
+    Ce rôle homonyme est donc la vraie cible : même contrôle qu'un ``role_id`` (C1). Sans
+    homonyme, le rôle sera créé tout en bas (position 1).
+    """
+    homonym = next((r for r in roles if r["name"] == rule["create_role_name"]), None)
+    if homonym is None:
+        _require_outranks(actor, 1)
+        return
+    if target_changed:
+        _bot_can_give(homonym)
+    _require_outranks(actor, homonym["position"])
+
+
 async def _check_rule(rule: dict, *, rule_id: int | None, role_changed: bool, roles: list[dict],
-                      actor: dict, previous_role_id: int | None = None) -> None:
+                      actor: dict, previous_role_id: int | None = None,
+                      name_changed: bool = True) -> None:
     """Valide une règle complète (création ou résultat d'un PATCH) ; lève 422/403."""
     await _validate_condition(rule["condition_type"], rule["condition_value"])
     _validate_target(rule)
@@ -381,6 +397,8 @@ async def _check_rule(rule: dict, *, rule_id: int | None, role_changed: bool, ro
             _bot_can_give(role)
         if role is not None:
             _require_outranks(actor, role["position"])
+    elif rule["create_role_name"] is not None:
+        _check_created_role(rule, roles, actor, target_changed=role_changed or name_changed)
     if previous_role_id is not None and previous_role_id != rule["role_id"]:
         previous = roles_by_id.get(str(previous_role_id))
         if previous is not None:
@@ -467,7 +485,8 @@ async def update_rule(rule_id: int, body: RuleUpdate, user: dict = Depends(get_c
     role_changed = rule["role_id"] != existing["role_id"]
     roles = await _roles()
     await _check_rule(rule, rule_id=rule_id, role_changed=role_changed, roles=roles,
-                      actor=await actor_rank(user), previous_role_id=existing["role_id"])
+                      actor=await actor_rank(user), previous_role_id=existing["role_id"],
+                      name_changed=rule["create_role_name"] != existing["create_role_name"])
 
     # L'ancien rôle est mémorisé : apply n'acceptera de retirer que lui (remove_previous_role_id).
     previous_role_id = existing["role_id"] if role_changed else existing.get("previous_role_id")
@@ -531,11 +550,14 @@ async def apply_rule(rule_id: int, body: RuleApply, user: dict = Depends(get_cur
     if body.remove_previous_role_id is not None:
         require_permission(user, "members.roles")
     rule = await _rule(rule_id)
-    roles_by_id = {r["id"]: r for r in await _roles()}
+    roles = await _roles()
+    roles_by_id = {r["id"]: r for r in roles}
     actor = await actor_rank(user)
     target = roles_by_id.get(str(rule["role_id"])) if rule["role_id"] is not None else None
     if target is not None:
         _require_outranks(actor, target["position"])
+    elif rule["role_id"] is None and rule["create_role_name"] is not None:
+        _check_created_role(rule, roles, actor, target_changed=True)
 
     previous = None
     if body.remove_previous_role_id is not None:
