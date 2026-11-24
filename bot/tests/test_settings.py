@@ -48,3 +48,31 @@ def test_registries_identical():
                             "web-api", "settings_registry.py")
     with open(bot_file, "rb") as a, open(web_file, "rb") as b:
         assert a.read() == b.read()
+
+
+# ── staff_roles / get_roles (étape 4, tâche 2) ───────────────────────────────
+
+def test_staff_roles_est_dans_le_groupe_roles():
+    from utils.settings_registry import G_ROLES, SETTINGS, validate
+    assert SETTINGS["staff_roles"].group == G_ROLES
+    assert validate("staff_roles", "1, 2") == "1,2"
+
+
+def test_get_roles_ignore_les_identifiants_perimes_et_les_doublons(monkeypatch):
+    from types import SimpleNamespace as N
+    from utils import settings
+
+    roles = {10: N(id=10), 20: N(id=20)}
+    guild = N(get_role=lambda i: roles.get(i))
+    monkeypatch.setitem(settings._cache, "staff_roles", "10, 99,abc,20,10")
+    assert [r.id for r in settings.get_roles(guild, "staff_roles")] == [10, 20]
+    monkeypatch.delitem(settings._cache, "staff_roles")
+    assert settings.get_roles(guild, "staff_roles") == []
+
+
+def test_amorcage_env_des_listes_de_roles_resout_les_noms():
+    from types import SimpleNamespace as N
+    from utils import settings
+    from utils.settings_registry import SETTINGS
+    guild = N(roles=[N(id=7, name="Staff")])
+    assert settings._env_to_value(SETTINGS["authorized_roles"], "Staff,5", guild) == "7,5"

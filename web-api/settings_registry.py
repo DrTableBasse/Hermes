@@ -84,6 +84,8 @@ _DEFS = [
     _s("mod_role", "Rôle modération", G_ROLES, "role", default="Modération"),
     _s("authorized_roles", "Rôles autorisés (identifiants séparés par des virgules)",
        G_ROLES, "text", env="AUTHORIZED_ROLES"),
+    _s("staff_roles", "Rôles du staff (identifiants séparés par des virgules)",
+       G_ROLES, "text"),
     _s("role_batman", "Rôle Batman", G_ROLES, "role", env="ROLE_BATMAN"),
     _s("role_level_5", "Rôle du niveau 5", G_XP, "role", env="ROLE_LEVEL_5"),
     _s("role_level_10", "Rôle du niveau 10", G_XP, "role", env="ROLE_LEVEL_10"),
@@ -106,6 +108,9 @@ _DEFS = [
 ]
 
 SETTINGS: dict[str, SettingDef] = {d.key: d for d in _DEFS}
+
+# Réglages de type texte qui contiennent une liste d'identifiants de rôles séparés par des virgules.
+ROLE_LIST_KEYS = frozenset({"authorized_roles", "staff_roles"})
 
 
 def _check_id(raw: str) -> str:
@@ -142,7 +147,7 @@ def validate(key: str, raw: str) -> str:
         if value.lower() not in ("true", "false"):
             raise ValueError("booléen attendu (true/false)")
         return value.lower()
-    if key == "authorized_roles":
+    if key in ROLE_LIST_KEYS:
         parts = [p.strip() for p in value.split(",") if p.strip()]
         return ",".join(_check_id(p) for p in parts)
     return value

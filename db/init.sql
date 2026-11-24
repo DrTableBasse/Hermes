@@ -657,6 +657,14 @@ CREATE TABLE IF NOT EXISTS site_games (
 -- Migration 019 : accroche éditable des jeux (accueil), NULL tant que l'admin ne l'a pas saisie.
 ALTER TABLE site_games ADD COLUMN IF NOT EXISTS tagline TEXT;
 
+-- Migration 023 : colonnes de provisionnement des jeux (étape 4).
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS emoji        VARCHAR(32);
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS command_name VARCHAR(32);
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS lfg_cooldown INT NOT NULL DEFAULT 3600;
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS provisioned  BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS archived     BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS site_games_command_name_key ON site_games (command_name);
+
 -- Clés alignées sur GAMES de bot/cogs/fun/game_lfg.py ; War Dogs n'y figure pas.
 INSERT INTO site_games (key, name, color, position) VALUES
     ('war-dogs',  'War Dogs',          '#A12D2F', 1),
@@ -667,6 +675,14 @@ INSERT INTO site_games (key, name, color, position) VALUES
     ('fortnite',  'Fortnite',          '#9B59B6', 6),
     ('minecraft', 'Minecraft',         '#57F287', 7)
 ON CONFLICT (key) DO NOTHING;
+
+UPDATE site_games g
+SET emoji        = COALESCE(g.emoji, v.emoji),
+    command_name = COALESCE(g.command_name, g.key),
+    provisioned  = TRUE
+FROM (VALUES ('dbd', '🔪'), ('lol', '⚔️'), ('warframe', '🚀'),
+             ('overwatch', '🌀'), ('fortnite', '🏹'), ('minecraft', '⛏️')) AS v(key, emoji)
+WHERE g.key = v.key;
 
 CREATE TABLE IF NOT EXISTS site_pages (
     slug       TEXT PRIMARY KEY,

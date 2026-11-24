@@ -19,3 +19,23 @@ RETURNING id)
 INSERT INTO bot_settings (key, value)
 SELECT 'bump_rule_seeded', '1' FROM ins
 ON CONFLICT (key) DO NOTHING;
+
+-- ── Jeux en un clic : colonnes de provisionnement ──────────────────────────
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS emoji        VARCHAR(32);
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS command_name VARCHAR(32);
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS lfg_cooldown INT NOT NULL DEFAULT 3600;
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS provisioned  BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE site_games ADD COLUMN IF NOT EXISTS archived     BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS site_games_command_name_key ON site_games (command_name);
+
+-- Bascule sans changement visible : les 6 jeux de GAMES (bot/cogs/fun/game_lfg.py) gardent leur
+-- commande (= leur clé), leur emoji et leur cooldown. War Dogs reste non provisionné (command_name NULL).
+-- Rejouable : COALESCE ne remplace jamais une valeur déjà saisie par un admin ; provisioned ne
+-- repasse jamais à FALSE.
+UPDATE site_games g
+SET emoji        = COALESCE(g.emoji, v.emoji),
+    command_name = COALESCE(g.command_name, g.key),
+    provisioned  = TRUE
+FROM (VALUES ('dbd', '🔪'), ('lol', '⚔️'), ('warframe', '🚀'),
+             ('overwatch', '🌀'), ('fortnite', '🏹'), ('minecraft', '⛏️')) AS v(key, emoji)
+WHERE g.key = v.key;

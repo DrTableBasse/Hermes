@@ -13,7 +13,7 @@ from discord.ext import tasks
 
 from utils.role_ref import role_ref
 from utils.settings_backoff import CreationBackoff
-from utils.settings_registry import SETTINGS, needs_channel_creation
+from utils.settings_registry import ROLE_LIST_KEYS, SETTINGS, needs_channel_creation
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,23 @@ def get_role(guild: discord.Guild, key: str) -> Optional[discord.Role]:
     return discord.utils.get(guild.roles, name=target)
 
 
+def get_roles(guild: discord.Guild, key: str) -> list[discord.Role]:
+    """Rôles d'un réglage « liste de rôles » (identifiants séparés par des virgules).
+
+    Seuls les identifiants qui résolvent encore sont renvoyés ; les autres sont ignorés
+    (un rôle supprimé ne retombe jamais sur un homonyme).
+    """
+    roles: list[discord.Role] = []
+    for part in (get(key) or "").split(","):
+        part = part.strip()
+        if not part.isdigit():
+            continue
+        role = guild.get_role(int(part))
+        if role is not None and role not in roles:
+            roles.append(role)
+    return roles
+
+
 # ── Chargement ────────────────────────────────────────────────────────────────
 
 async def load() -> None:
@@ -145,7 +162,7 @@ def _role_id(guild: Optional[discord.Guild], name_or_id: str) -> Optional[str]:
 def _env_to_value(definition, raw: str, guild: Optional[discord.Guild]) -> Optional[str]:
     if definition.kind == "role":
         return _role_id(guild, raw)
-    if definition.key == "authorized_roles":
+    if definition.key in ROLE_LIST_KEYS:
         ids = [_role_id(guild, part.strip()) for part in raw.split(",") if part.strip()]
         return ",".join(i for i in ids if i) or None
     if definition.kind in ("channel", "category") and not raw.isdigit():
