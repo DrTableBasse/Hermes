@@ -32,7 +32,9 @@ import type {
   CommandToggle,
   DailyActivity,
   Endorsements,
+  GameDiscordStatus,
   GameInput,
+  GameProvisionResult,
   GradeInput,
   ModerationAction,
   Notification,
@@ -195,9 +197,19 @@ export const api = {
     updateQuestTemplate: (id: number, data: QuestTemplateInput) =>
       request<QuestTemplate>(`/admin/quest-templates/${seg(id)}`, send("PUT", data)),
     deleteQuestTemplate: (id: number) => request<void>(`/admin/quest-templates/${seg(id)}`, send("DELETE")),
-    createGame: (data: GameInput & { key: string }) => request<{ ok: boolean; key: string }>("/admin/games", send("POST", data)),
-    updateGame: (key: string, data: Partial<GameInput>) => request<Ok>(`/admin/games/${seg(key)}`, send("PUT", data)),
-    deactivateGame: (key: string) => request<Ok>(`/admin/games/${seg(key)}`, send("DELETE")),
+    createGame: (data: GameInput & { key: string }) =>
+      request<{ ok: boolean; key: string; bot_reloaded: boolean }>("/admin/games", send("POST", data)),
+    updateGame: (key: string, data: Partial<GameInput>) =>
+      request<{ ok: boolean; bot_reloaded: boolean }>(`/admin/games/${seg(key)}`, send("PUT", data)),
+    /** Archive côté Discord (commande retirée, forum masqué au rôle) et retire du site. */
+    deactivateGame: (key: string) =>
+      request<{ ok: boolean; status: GameDiscordStatus | null }>(`/admin/games/${seg(key)}`, send("DELETE")),
+    reactivateGame: (key: string) =>
+      request<{ ok: boolean; status: GameDiscordStatus | null }>(`/admin/games/${seg(key)}/reactivate`, send("POST")),
+    provisionGame: (key: string) => request<GameProvisionResult>(`/admin/games/${seg(key)}/provision`, send("POST")),
+    gameForumsPreview: () => request<{ forums: number }>("/admin/games/resync-permissions"),
+    resyncGameForums: (confirmForums: number) =>
+      request<{ ok: boolean; forums: number }>("/admin/games/resync-permissions", send("POST", { confirm_forums: confirmForums })),
     updateGrade: (slug: string, data: GradeInput) => request<Ok>(`/admin/grades/${seg(slug)}`, send("PUT", data)),
     updatePage: (slug: string, data: PageInput) =>
       request<Ok>(`/admin/pages/${seg(slug)}`, send("PUT", data)),

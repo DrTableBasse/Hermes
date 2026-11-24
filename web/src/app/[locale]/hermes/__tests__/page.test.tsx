@@ -2,12 +2,12 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { HermesStatus } from "@/lib/api/types"
 
-const api = vi.hoisted(() => ({ getHermesStatus: vi.fn() }))
+const api = vi.hoisted(() => ({ getHermesStatus: vi.fn(), getGames: vi.fn() }))
 vi.mock("@/lib/api/server", () => api)
 
 import HermesPage from "@/app/[locale]/hermes/page"
 import { LOG_INTERVAL_MS } from "@/components/hermes/absurd-console"
-import { BOT_COMMANDS } from "@/content/commands"
+import { BOT_COMMANDS, GAME_COMMAND_COMMENTS } from "@/content/commands"
 import { HERMES_LOGS } from "@/content/hermes-logs"
 
 function curve(values: Array<number | null>) {
@@ -35,8 +35,15 @@ function mockMotion(reduced: boolean) {
 
 const logLines = () => within(screen.getByTestId("hermes-console")).getAllByRole("listitem")
 
+const game = (key: string, name: string, command_name: string | null) => ({
+  key, name, color: "#000000", image: null, tagline: null, players: null, forum_url: null, command_name,
+})
+
 beforeEach(() => {
   api.getHermesStatus.mockResolvedValue(STATUS)
+  api.getGames.mockResolvedValue({
+    games: [game("dbd", "Dead by Daylight", "dbd"), game("war-dogs", "War Dogs", null), game("apex", "Apex Legends", "apex")],
+  })
   mockMotion(false)
 })
 
@@ -88,6 +95,7 @@ describe("page /hermes", () => {
 
   it("reste debout quand web-api est indisponible", async () => {
     api.getHermesStatus.mockResolvedValue(null)
+    api.getGames.mockResolvedValue(null)
     render(await HermesPage())
     expect(screen.getByRole("heading", { level: 1 })).toBeTruthy()
     expect(screen.getByTestId("hermes-status").textContent).toBe("Hermes ne répond pas")
@@ -97,6 +105,7 @@ describe("page /hermes", () => {
     // Console et commandes sont du contenu statique : toujours là.
     expect(logLines()).toHaveLength(8)
     expect(screen.getByText("/rang")).toBeTruthy()
+    expect(screen.queryByText("/dbd")).toBeNull()
   })
 
   it("signale un statut périmé", async () => {
@@ -113,6 +122,20 @@ describe("page /hermes", () => {
     const rang = screen.getByText("/rang").closest("li") as HTMLElement
     expect(within(rang).queryByText("Staff")).toBeNull()
     expect(screen.getByRole("heading", { level: 3, name: "Réservées au staff" })).toBeTruthy()
+  })
+
+  it("commandes de jeux : celles des jeux actifs, en tête de « Jeux et détente », commentées", async () => {
+    render(await HermesPage())
+    const section = within(screen.getByRole("region", { name: "Jeux et détente" }))
+    const names = section.getAllByRole("listitem").map(li => li.querySelector("code")?.textContent)
+    expect(names.slice(0, 2)).toEqual(["/dbd", "/apex"])
+    expect(names).toContain("/blague")
+    const dbd = screen.getByText("/dbd").closest("li") as HTMLElement
+    expect(within(dbd).getByText(GAME_COMMAND_COMMENTS.dbd)).toBeTruthy()
+    const apex = screen.getByText("/apex").closest("li") as HTMLElement
+    expect(within(apex).getByText(/Appelle les joueurs de Apex Legends/)).toBeTruthy()
+    // War Dogs n'est pas provisionné : aucune commande.
+    expect(screen.queryByText("/war-dogs")).toBeNull()
   })
 })
 

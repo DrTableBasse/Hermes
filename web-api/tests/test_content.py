@@ -66,11 +66,18 @@ def _writes(fake_db):
 
 TABLE = [  # volontairement dans le désordre ; "old" est désactivé
     {"key": "lol", "name": "League of Legends", "color": "#F5A623", "image": "/media/a.png",
-     "tagline": "Toxicité laissée au vestiaire.", "forum_channel_id": 555, "position": 3, "active": True},
+     "tagline": "Toxicité laissée au vestiaire.", "forum_channel_id": 555, "position": 3, "active": True,
+     "command_name": "lol", "provisioned": True, "archived": False},
     {"key": "old", "name": "Ancien", "color": "#000000", "image": None, "tagline": None,
-     "forum_channel_id": None, "position": 1, "active": False},
+     "forum_channel_id": None, "position": 1, "active": False,
+     "command_name": "old", "provisioned": True, "archived": True},
     {"key": "war-dogs", "name": "War Dogs", "color": "#A12D2F", "image": None, "tagline": None,
-     "forum_channel_id": None, "position": 2, "active": True},
+     "forum_channel_id": None, "position": 2, "active": True,
+     "command_name": None, "provisioned": False, "archived": False},
+    # Actif sur le site mais archivé côté Discord (désactivation interrompue) : commande retirée.
+    {"key": "apex", "name": "Apex", "color": "#FF0000", "image": None, "tagline": None,
+     "forum_channel_id": None, "position": 4, "active": True,
+     "command_name": "apex", "provisioned": True, "archived": True},
 ]
 
 
@@ -88,8 +95,8 @@ def test_games_ordered_by_position(client, fake_db, monkeypatch):
     _live(monkeypatch, {"game_players": {"lol": 12}})
     _site_games(fake_db)
     games = client.get("/games").json()["games"]
-    assert [g["key"] for g in games] == ["war-dogs", "lol"]
-    war, lol = games
+    assert [g["key"] for g in games] == ["war-dogs", "lol", "apex"]
+    war, lol, _ = games
     assert war["players"] is None and war["forum_url"] is None  # absent de /live, sans forum
     assert lol["players"] == 12
     assert lol["forum_url"] == "https://discord.com/channels/999/555"
@@ -107,7 +114,15 @@ def test_games_bot_down_players_null(client, fake_db, monkeypatch):
     _live(monkeypatch, None)
     _site_games(fake_db)
     r = client.get("/games")
-    assert r.status_code == 200 and [g["players"] for g in r.json()["games"]] == [None, None]
+    assert r.status_code == 200 and [g["players"] for g in r.json()["games"]] == [None, None, None]
+
+
+def test_games_command_only_when_provisioned_and_not_archived(client, fake_db, monkeypatch):
+    """/hermes liste les commandes de jeux d'après cette route : seulement celles que le bot inscrit."""
+    _live(monkeypatch, None)
+    _site_games(fake_db)
+    games = {g["key"]: g["command_name"] for g in client.get("/games").json()["games"]}
+    assert games == {"war-dogs": None, "lol": "lol", "apex": None}
 
 
 def test_games_db_down_never_500(client, fake_db, monkeypatch):

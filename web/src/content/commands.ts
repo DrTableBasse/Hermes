@@ -1,7 +1,11 @@
 /**
- * Commandes slash réelles du bot (relevées dans `bot/cogs/**`), commentées par Hermes.
- * `src/content/__tests__/commands.test.ts` vérifie que la liste suit les cogs : ni commande inventée,
- * ni commande oubliée, ni réservation au staff mal signalée.
+ * Commandes slash réelles du bot, commentées par Hermes.
+ * - `BOT_COMMANDS` : commandes déclarées dans `bot/cogs/**` ;
+ * - commandes d'appel des jeux : créées par le bot depuis `site_games` (pilotées par l'admin), lues sur
+ *   `GET /games` (`command_name`) et commentées par `gameCommands`.
+ * `src/content/__tests__/commands.test.ts` vérifie que `BOT_COMMANDS` suit les cogs (ni commande inventée,
+ * ni oubliée, ni réservation au staff mal signalée) et que les commentaires de jeux suivent l'amorçage
+ * de la migration 023.
  */
 export type CommandGroup = "progression" | "jeux" | "services" | "staff"
 
@@ -39,13 +43,7 @@ export const BOT_COMMANDS: readonly BotCommand[] = [
   { name: "quest-claim", group: "progression", comment: "Réclame l’XP d’un défi terminé. Je vérifie avant de payer." },
   { name: "achievements", group: "progression", comment: "Les succès débloqués d’un membre. Certains sont secrets. Je ne dirai rien." },
 
-  // ── Jeux et détente ──
-  { name: "dbd", group: "jeux", comment: "Appelle les joueurs de Dead by Daylight. Je ne viens pas, j’ai peur du noir." },
-  { name: "lol", group: "jeux", comment: "Appelle les joueurs de League of Legends. Je décline toute responsabilité." },
-  { name: "warframe", group: "jeux", comment: "Appelle les joueurs de Warframe. Prévoir du temps. Beaucoup de temps." },
-  { name: "overwatch", group: "jeux", comment: "Appelle les joueurs d’Overwatch. Quelqu’un devra jouer soigneur." },
-  { name: "fortnite", group: "jeux", comment: "Appelle les joueurs de Fortnite. Je ne danserai pas." },
-  { name: "minecraft", group: "jeux", comment: "Appelle les bâtisseurs de Minecraft. La statue de saucisse ne se finira pas seule." },
+  // ── Jeux et détente (les commandes d'appel des jeux viennent de `gameCommands`) ──
   { name: "blague", group: "jeux", comment: "Une blague au hasard. Je les raconte, je ne les comprends pas." },
   { name: "confess", group: "jeux", comment: "Une confession anonyme. Je garde le secret. C’est mon métier." },
 
@@ -72,3 +70,28 @@ export const BOT_COMMANDS: readonly BotCommand[] = [
   { name: "disable-command", group: "staff", staff: true, comment: "Désactive une commande. Elle ne m’en voudra pas." },
   { name: "commands-status", group: "staff", staff: true, comment: "L’état de toutes les commandes. Tableau de bord du tableau de bord." },
 ]
+
+/** Commentaires d'Hermes pour les commandes d'appel des jeux amorcés (clé = nom de commande). */
+export const GAME_COMMAND_COMMENTS: Readonly<Record<string, string>> = {
+  dbd: "Appelle les joueurs de Dead by Daylight. Je ne viens pas, j’ai peur du noir.",
+  lol: "Appelle les joueurs de League of Legends. Je décline toute responsabilité.",
+  warframe: "Appelle les joueurs de Warframe. Prévoir du temps. Beaucoup de temps.",
+  overwatch: "Appelle les joueurs d’Overwatch. Quelqu’un devra jouer soigneur.",
+  fortnite: "Appelle les joueurs de Fortnite. Je ne danserai pas.",
+  minecraft: "Appelle les bâtisseurs de Minecraft. La statue de saucisse ne se finira pas seule.",
+}
+
+/** Commande d'appel d'un jeu ajouté depuis l'admin, sans commentaire écrit à la main. */
+export const genericGameComment = (game: string) => `Appelle les joueurs de ${game}. Je transmets, je ne joue pas.`
+
+/**
+ * Commandes d'appel des jeux actifs (`GET /games`, dans l'ordre du site) ; un jeu sans commande inscrite
+ * (`command_name` nul : non provisionné ou archivé) n'en a pas.
+ */
+export function gameCommands(games: ReadonlyArray<{ name: string; command_name?: string | null }>): BotCommand[] {
+  return games.flatMap(g =>
+    g.command_name
+      ? [{ name: g.command_name, group: "jeux" as const, comment: GAME_COMMAND_COMMENTS[g.command_name] ?? genericGameComment(g.name) }]
+      : [],
+  )
+}

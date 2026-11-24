@@ -36,3 +36,22 @@ export function adminErrorText(error: unknown): string {
       return `Échec (erreur ${error.status}). Réessaie dans un moment.`
   }
 }
+
+/** Libellés HTTP bruts (aucun détail rédigé par l'API). */
+const STATUS_TEXT = new Set(["Bad Gateway", "Service Unavailable", "Gateway Timeout"])
+
+/**
+ * Comme `adminErrorText`, mais garde le détail des 502/503/504 rédigé par l'API pour les actions
+ * Discord des jeux (« Erreur Discord : … », « Le bot n'a pas répondu à temps : … »).
+ */
+export function botActionErrorText(error: unknown): string {
+  if (
+    error instanceof ApiError &&
+    (error.status === 502 || error.status === 503 || error.status === 504) &&
+    !NO_DETAIL.has(error.message) &&
+    !STATUS_TEXT.has(error.message)
+  ) {
+    return error.message
+  }
+  return adminErrorText(error)
+}

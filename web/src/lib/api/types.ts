@@ -208,6 +208,8 @@ export interface Game {
   /** `null` : bot muet ou compteur invalide. */
   players: number | null
   forum_url: string | null
+  /** Commande slash du jeu, `null` tant qu'elle n'est pas inscrite (non provisionné ou archivé). */
+  command_name?: string | null
 }
 
 export interface GamesResponse {
@@ -692,6 +694,8 @@ export interface GameInput {
   forum_channel_id?: Snowflake | null
   position?: number
   active?: boolean
+  emoji?: string
+  command_name?: string
 }
 
 export interface StaffProfileInput {
@@ -812,7 +816,38 @@ export interface AdminGame {
   discord_role_id: Snowflake | null
   forum_channel_id: Snowflake | null
   position: number
+  /** Affiché sur le site public. */
   active: boolean
+  emoji: string | null
+  command_name: string | null
+  lfg_cooldown: number
+  /** Rôle, forum et commande créés ou rattachés par le bot. */
+  provisioned: boolean
+  /** Désactivé côté Discord : commande retirée, forum archivé. */
+  archived: boolean
+  /** État Discord d'après le bot ; `null` : bot muet ou jeu pas encore relu. */
+  status: GameDiscordStatus | null
+}
+
+export type GameDiscordStatus = {
+  role: "ok" | "missing"
+  forum: "ok" | "missing"
+  command: "ok" | "missing" | "none"
+}
+
+/** `GET /admin/games`. */
+export interface AdminGamesResponse {
+  bot_reachable: boolean
+  games: AdminGame[]
+}
+
+/** `POST /admin/games/{key}/provision` : `created` vide = rôle et forum réutilisés. */
+export interface GameProvisionResult {
+  role_id: Snowflake
+  forum_id: Snowflake
+  command: string | null
+  created: Array<"role" | "forum">
+  status: GameDiscordStatus | null
 }
 
 /** `GET /admin/gallery` : élément de galerie avec son état de modération. */

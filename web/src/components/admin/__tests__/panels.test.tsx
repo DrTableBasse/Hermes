@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import type { AdminGalleryItem, AdminGame } from "@/lib/api/types"
+import type { AdminGalleryItem } from "@/lib/api/types"
 
 const client = vi.hoisted(() => {
   class ApiError extends Error {
@@ -13,7 +13,7 @@ const client = vi.hoisted(() => {
   }
   const admin = Object.fromEntries(
     [
-      "setGalleryHidden", "deleteGalleryItem", "toggleCommand", "createGame", "updateGame", "deactivateGame",
+      "setGalleryHidden", "deleteGalleryItem", "toggleCommand",
       "updatePage", "updateGrade", "updateStaffProfile", "warn", "kick", "ban", "timeout", "searchUsers",
     ].map(n => [n, vi.fn()]),
   )
@@ -23,7 +23,6 @@ vi.mock("@/lib/api/client", () => client)
 
 import { CommandsPanel } from "@/components/admin/commands-panel"
 import { GalleryModeration } from "@/components/admin/gallery-moderation"
-import { GamesAdmin } from "@/components/admin/games-admin"
 import { GradesEditor } from "@/components/admin/grades-editor"
 import { ModerationActions } from "@/components/admin/moderation-actions"
 import { PageEditor } from "@/components/admin/page-editor"
@@ -40,11 +39,6 @@ const button = (name: string | RegExp) => screen.getByRole("button", { name })
 const image = (id: number, hidden = false): AdminGalleryItem => ({
   id, kind: "image", url: `/media/gallery/${id}.png`, provider: null, caption: `Image ${id}`, hidden,
   author: { id: "2", name: "Zoé", avatar: null }, created_at: null,
-})
-
-const game = (key: string, position: number, active = true): AdminGame => ({
-  key, name: key.toUpperCase(), color: "#3FA9C9", image: null, tagline: null,
-  discord_role_id: null, forum_channel_id: null, position, active,
 })
 
 beforeEach(() => {
@@ -119,46 +113,6 @@ describe("CommandsPanel", () => {
     await click(screen.getByRole("switch", { name: "/rank" }))
     expect(screen.getByRole("switch", { name: "/rank" }).getAttribute("aria-checked")).toBe("true")
     expect(screen.getByRole("alert").textContent).toMatch(/\/rank : Hermes \(le bot\) ne répond pas/)
-  })
-})
-
-describe("GamesAdmin", () => {
-  it("ajout d’un jeu : clé, couleur, accroche, position suivante", async () => {
-    render(<GamesAdmin games={[game("lol", 4)]} roles={[{ id: "20", name: "LoL", color: 0 }]} channels={null} />)
-    await click(button("Ajouter un jeu"))
-    fireEvent.change(screen.getByLabelText("Clé (définitive)"), { target: { value: "Apex" } })
-    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: " Apex Legends " } })
-    fireEvent.change(screen.getByLabelText("Couleur"), { target: { value: "#aabbcc" } })
-    fireEvent.change(screen.getByLabelText("Accroche"), { target: { value: "Tombe, relève-toi." } })
-    fireEvent.change(screen.getByLabelText("Rôle Discord"), { target: { value: "20" } })
-    await click(button("Ajouter le jeu"))
-    expect(a.createGame).toHaveBeenCalledWith(
-      expect.objectContaining({ key: "apex", name: "Apex Legends", color: "#aabbcc", tagline: "Tombe, relève-toi.", discord_role_id: "20", position: 5 }),
-    )
-    expect(screen.getByRole("status").textContent).toMatch(/ajouté/)
-  })
-
-  it("couleur invalide : envoi bloqué", async () => {
-    render(<GamesAdmin games={[]} roles={null} channels={null} />)
-    await click(button("Ajouter un jeu"))
-    fireEvent.change(screen.getByLabelText("Clé (définitive)"), { target: { value: "x" } })
-    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "X" } })
-    fireEvent.change(screen.getByLabelText("Couleur"), { target: { value: "rouge" } })
-    expect(screen.getByText("Couleur au format #RRGGBB.")).toBeTruthy()
-    expect((button("Ajouter le jeu") as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  it("ordre : descendre échange et renumérote ; désactiver puis réactiver", async () => {
-    render(<GamesAdmin games={[game("b", 7), game("a", 3)]} roles={null} channels={null} />)
-    await click(button("Descendre A"))
-    expect(a.updateGame).toHaveBeenCalledWith("b", { position: 1 })
-    expect(a.updateGame).toHaveBeenCalledWith("a", { position: 2 })
-    expect(screen.getAllByRole("listitem").map(li => li.querySelector("p")?.firstChild?.textContent)).toEqual(["B", "A"])
-    await click(screen.getAllByRole("button", { name: "Désactiver" })[0])
-    expect(a.deactivateGame).toHaveBeenCalledWith("b")
-    expect(screen.getByText("Désactivé")).toBeTruthy()
-    await click(button("Réactiver"))
-    expect(a.updateGame).toHaveBeenLastCalledWith("b", { active: true })
   })
 })
 

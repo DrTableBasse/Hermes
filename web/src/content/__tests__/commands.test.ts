@@ -2,9 +2,23 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import { BOT_COMMANDS, COMMAND_GROUPS } from "@/content/commands"
+import { BOT_COMMANDS, COMMAND_GROUPS, GAME_COMMAND_COMMENTS, gameCommands, genericGameComment } from "@/content/commands"
 
-const COGS = join(__dirname, "..", "..", "..", "..", "bot", "cogs")
+const ROOT = join(__dirname, "..", "..", "..", "..")
+const COGS = join(ROOT, "bot", "cogs")
+const GAMES_MIGRATION = join(ROOT, "db", "migrations", "023_games_and_bump_rule.sql")
+
+/**
+ * Commandes de jeux amorcées par la migration 023 : `command_name = COALESCE(g.command_name, g.key)`
+ * pour chaque clé de la liste `VALUES` (les 6 jeux de l'ancien `GAMES` du bot).
+ */
+function seededGameCommands(): string[] {
+  const sql = readFileSync(GAMES_MIGRATION, "utf8")
+  expect(sql).toMatch(/command_name\s*=\s*COALESCE\(g\.command_name,\s*g\.key\)/)
+  const values = /FROM\s*\(VALUES\s*([\s\S]*?)\)\s*AS\s+v\(key,\s*emoji\)/.exec(sql)
+  if (!values) throw new Error("liste VALUES des jeux introuvable dans la migration 023")
+  return [...values[1].matchAll(/\(\s*'([a-z0-9-]+)'\s*,/g)].map(m => m[1])
+}
 
 function pythonFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
@@ -114,11 +128,42 @@ describe("commandes affichées sur /hermes", () => {
   })
 
   // Hors dépôt complet (image Docker du site), les cogs ne sont pas là : rien à comparer.
+  // Les commandes d'appel des jeux n'y sont plus déclarées : le bot les crée depuis `site_games`.
   it.skipIf(!existsSync(COGS))("suit exactement les cogs du bot, réservations au staff comprises", () => {
     const { found: cogs, rawCount } = cogCommands()
     // Un .command( non reconnu (guillemets, ordre des décorateurs, propriétaire inattendu) ne doit pas passer inaperçu.
     expect(cogs.size).toBe(rawCount)
     expect(new Set(BOT_COMMANDS.map(c => c.name))).toEqual(new Set(cogs.keys()))
     for (const c of BOT_COMMANDS) expect([c.name, c.staff === true]).toEqual([c.name, cogs.get(c.name)])
+  })
+
+  it.skipIf(!existsSync(GAMES_MIGRATION))("commentaires de jeux : exactement les commandes amorcées par la migration 023", () => {
+    const seeded = seededGameCommands()
+    expect(seeded).toEqual(["dbd", "lol", "warframe", "overwatch", "fortnite", "minecraft"])
+    expect(new Set(Object.keys(GAME_COMMAND_COMMENTS))).toEqual(new Set(seeded))
+    // Une commande de jeu ne double jamais une commande des cogs (le bot le refuse aussi, 422).
+    const statics = new Set(BOT_COMMANDS.map(c => c.name))
+    for (const name of seeded) expect(statics.has(name)).toBe(false)
+    for (const comment of Object.values(GAME_COMMAND_COMMENTS)) expect(comment.length).toBeGreaterThan(10)
+  })
+})
+
+describe("commandes d'appel des jeux (GET /games)", () => {
+  it("une par jeu qui a une commande inscrite, dans l'ordre du site ; commentaire d'Hermes ou générique", () => {
+    const commands = gameCommands([
+      { name: "War Dogs", command_name: null },
+      { name: "Dead by Daylight", command_name: "dbd" },
+      { name: "Apex Legends", command_name: "apex" },
+      { name: "Ancien site", command_name: undefined },
+    ])
+    expect(commands).toEqual([
+      { name: "dbd", group: "jeux", comment: GAME_COMMAND_COMMENTS.dbd },
+      { name: "apex", group: "jeux", comment: genericGameComment("Apex Legends") },
+    ])
+    expect(genericGameComment("Apex Legends")).toBe("Appelle les joueurs de Apex Legends. Je transmets, je ne joue pas.")
+  })
+
+  it("commentaire gardé quand le nom de commande correspond, même si le jeu a été renommé", () => {
+    expect(gameCommands([{ name: "DBD 2", command_name: "dbd" }])[0].comment).toBe(GAME_COMMAND_COMMENTS.dbd)
   })
 })

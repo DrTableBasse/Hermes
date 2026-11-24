@@ -4,7 +4,8 @@ import { CommandsGrid } from "@/components/hermes/commands-grid"
 import { DailyReport } from "@/components/hermes/daily-report"
 import { StatusBoard } from "@/components/hermes/status-board"
 import { SectionHeading } from "@/components/ui/section-heading"
-import { getHermesStatus } from "@/lib/api/server"
+import { gameCommands } from "@/content/commands"
+import { getGames, getHermesStatus } from "@/lib/api/server"
 
 export const metadata: Metadata = {
   title: "Hermes · SaucisseLand",
@@ -12,8 +13,9 @@ export const metadata: Metadata = {
 }
 
 export default async function HermesPage() {
-  // `null` : web-api muette ; le tableau de bord l'annonce, console et commandes restent (contenu statique).
-  const status = await getHermesStatus()
+  // `null` : web-api muette ; le tableau de bord l'annonce, console et commandes des cogs restent
+  // (contenu statique) ; les commandes d'appel des jeux, lues en base, manquent alors.
+  const [status, games] = await Promise.all([getHermesStatus(), getGames()])
   const now = new Date().getTime()
 
   return (
@@ -46,7 +48,7 @@ export default async function HermesPage() {
             title="Ses commandes, commentées par lui-même"
             sub="Toutes les commandes slash d’Hermes, à taper dans Discord. Certaines sont réservées au staff : Hermes vérifie les galons."
           />
-          <CommandsGrid />
+          <CommandsGrid gameCommands={gameCommands(games?.games ?? [])} />
         </section>
       </div>
     </main>

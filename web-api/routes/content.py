@@ -81,15 +81,17 @@ def _forum_url(forum_channel_id) -> Optional[str]:
 async def list_games(request: Request):
     try:
         rows = await db.fetch(
-            "SELECT key, name, color, image, tagline, forum_channel_id FROM site_games "
-            "WHERE active ORDER BY position, key")
+            "SELECT key, name, color, image, tagline, forum_channel_id, command_name, provisioned, archived "
+            "FROM site_games WHERE active ORDER BY position, key")
     except Exception as exc:
         log.warning("Lecture des jeux impossible : %s", exc)
         return {"games": [], "stale": True}
     players = await cached("games-live", LIVE_TTL, _players)
     return {"games": [
         {"key": r["key"], "name": r["name"], "color": r["color"], "image": r["image"], "tagline": r["tagline"],
-         "players": _count(players, r["key"]), "forum_url": _forum_url(r["forum_channel_id"])}
+         "players": _count(players, r["key"]), "forum_url": _forum_url(r["forum_channel_id"]),
+         # Commande inscrite par le bot (R6 : provisionné et non archivé), sinon None.
+         "command_name": r["command_name"] if r["provisioned"] and not r["archived"] else None}
         for r in rows
     ]}
 

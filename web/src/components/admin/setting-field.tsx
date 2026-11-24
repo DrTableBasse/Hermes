@@ -7,7 +7,9 @@ import { api } from "@/lib/api/client"
 import type { DiscordChannel, DiscordRole, SettingItem } from "@/lib/api/types"
 import { cn } from "@/lib/cn"
 import { adminErrorText, FIELD, type Feedback } from "./form"
-import { isIdKind, isKeySetting } from "./key-settings"
+import { ForumsResync } from "./forums-resync"
+import { isIdKind, isKeySetting, ROLE_LIST_KEYS, splitIds } from "./key-settings"
+import { RoleChecklist } from "./role-checklist"
 
 type Props = {
   item: SettingItem
@@ -49,10 +51,26 @@ export function validateSetting(item: Pick<SettingItem, "key" | "kind">, raw: st
       return "Adresse http(s) attendue (https://…)."
     }
   }
-  if (item.key === "authorized_roles") {
+  if (ROLE_LIST_KEYS.has(item.key)) {
     return /^\d+(\s*,\s*\d+)*$/.test(value) ? null : "Identifiants de rôles séparés par des virgules."
   }
   return null
+}
+
+const sameIds = (a: string, b: string) => {
+  const x = new Set(splitIds(a))
+  const y = new Set(splitIds(b))
+  return x.size === y.size && [...x].every(id => y.has(id))
+}
+
+/** Rôles d'une liste par leur nom ; un identifiant absent de Discord est signalé. */
+function roleListText(value: string, roles: DiscordRole[]): string {
+  return splitIds(value)
+    .map(id => {
+      const role = roles.find(r => r.id === id)
+      return role ? `@${role.name}` : `introuvable (${id})`
+    })
+    .join(", ")
 }
 
 function groupBy(choices: Choice[]): Array<[string | null, Choice[]]> {
@@ -70,14 +88,18 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
   const [feedback, setFeedback] = useState<Feedback>(null)
 
   const choices = isIdKind(item.kind) ? choicesFor(item.kind, channels, roles) : null
+  // Liste de rôles : cases à cocher quand la liste Discord est là, saisie d'identifiants sinon.
+  const roleList = ROLE_LIST_KEYS.has(item.key)
+  const checklist = roleList && roles !== null
   const current = choices?.find(c => c.id === saved)
   // Introuvable : l'API l'a dit pour la valeur chargée, ou la liste fraîche ne la contient pas.
   const missing =
     isIdKind(item.kind) && /^\d+$/.test(saved) && (choices ? !current : item.resolved?.exists === false)
-  const unchanged = draft.trim() === saved
+  const unchanged = roleList ? sameIds(draft, saved) : draft.trim() === saved
   // Valeur chargée jamais signalée (un défaut par nom, « Modération », n'est pas une saisie fautive).
   const error = unchanged ? null : validateSetting(item, draft)
   const helpId = `${ids}-help`
+  const labelId = `${ids}-label`
   const fieldId = `setting-${item.key}-input`
 
   async function save(value: string) {
@@ -120,7 +142,9 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
   const currentText =
     saved === ""
       ? "non réglé"
-      : missing
+      : checklist
+        ? roleListText(saved, roles)
+        : missing
         ? `introuvable sur Discord (identifiant ${saved})`
         : current
           ? current.name
@@ -131,8 +155,10 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
   return (
     <form id={`setting-${item.key}`} onSubmit={onSubmit} noValidate className="grid scroll-mt-24 gap-2 border-t border-line pt-4 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-2">
-        {readOnly ? (
-          <span className="font-semibold">{item.label}</span>
+        {readOnly || checklist ? (
+          <span id={labelId} className="font-semibold">
+            {item.label}
+          </span>
         ) : (
           <label htmlFor={fieldId} className="font-semibold">
             {item.label}
@@ -151,7 +177,19 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
       ) : (
       <>
       <div className="flex flex-wrap items-start gap-2">
-        {choices ? (
+        {checklist ? (
+          <RoleChecklist
+            id={fieldId}
+            labelledBy={labelId}
+            describedBy={helpId}
+            value={draft}
+            roles={roles}
+            onChange={value => {
+              setDraft(value)
+              setFeedback(null)
+            }}
+          />
+        ) : choices ? (
           <select
             id={fieldId}
             value={draft}
@@ -231,10 +269,11 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
           <p role="status" className="m-0 text-green">
             {feedback.text}
           </p>
-        ) : isIdKind(item.kind) && !choices ? (
+        ) : (isIdKind(item.kind) && !choices) || (roleList && !checklist) ? (
           <p className="m-0 text-muted">Liste Discord indisponible (bot muet) : saisis l’identifiant.</p>
         ) : null}
       </div>
+      {item.key === "staff_roles" && <ForumsResync />}
       </>
       )}
     </form>

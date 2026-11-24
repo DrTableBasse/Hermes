@@ -1,12 +1,16 @@
 import { Chip } from "@/components/ui/chip"
-import { BOT_COMMANDS, COMMAND_GROUPS } from "@/content/commands"
+import { BOT_COMMANDS, COMMAND_GROUPS, type BotCommand } from "@/content/commands"
 
-/** Commandes réelles du bot, par famille, chacune commentée par Hermes ; le staff est signalé. */
-export function CommandsGrid() {
+/**
+ * Commandes réelles du bot, par famille, chacune commentée par Hermes ; le staff est signalé.
+ * `gameCommands` : commandes d'appel des jeux actifs, en tête de « Jeux et détente ».
+ */
+export function CommandsGrid({ gameCommands }: { gameCommands: readonly BotCommand[] }) {
+  const all = [...gameCommands, ...BOT_COMMANDS]
   return (
     <div className="mt-8 grid gap-10">
       {COMMAND_GROUPS.map(group => {
-        const commands = BOT_COMMANDS.filter(c => c.group === group.id)
+        const commands = all.filter(c => c.group === group.id)
         if (!commands.length) return null
         const titleId = `commandes-${group.id}`
         return (

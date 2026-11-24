@@ -136,7 +136,7 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
   })
 
   it("jeux : listes Discord refusées (403) → accès signalé, pas « Hermes ne répond pas »", async () => {
-    api.getAdminGames.mockResolvedValue([])
+    api.getAdminGames.mockResolvedValue({ bot_reachable: true, games: [] })
     api.getDiscordRoles.mockResolvedValue("forbidden")
     api.getDiscordChannels.mockResolvedValue([])
     render(await GamesPage())
@@ -254,10 +254,14 @@ describe("sous-pages admin : rendu et erreurs de l’API", () => {
   })
 
   it("jeux : jeux désactivés listés ; API muette → erreur", async () => {
-    api.getAdminGames.mockResolvedValue([
-      { key: "old", name: "Ancien", color: "#000000", image: null, tagline: null, discord_role_id: null, forum_channel_id: null, position: 2, active: false },
-      { key: "lol", name: "LoL", color: "#F5A623", image: null, tagline: "Accroche", discord_role_id: null, forum_channel_id: null, position: 1, active: true },
-    ])
+    const g = { image: null, discord_role_id: null, forum_channel_id: null, emoji: null, lfg_cooldown: 3600, provisioned: true, status: null }
+    api.getAdminGames.mockResolvedValue({
+      bot_reachable: true,
+      games: [
+        { ...g, key: "old", name: "Ancien", color: "#000000", tagline: null, position: 2, active: false, archived: true, command_name: "old" },
+        { ...g, key: "lol", name: "LoL", color: "#F5A623", tagline: "Accroche", position: 1, active: true, archived: false, command_name: "lol" },
+      ],
+    })
     render(await GamesPage())
     const items = screen.getAllByRole("listitem")
     expect(within(items[0]).getByText("LoL")).toBeTruthy()

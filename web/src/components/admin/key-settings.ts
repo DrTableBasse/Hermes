@@ -20,3 +20,13 @@ export function settingState(item: SettingItem | undefined): { ok: boolean; labe
   if (item.resolved && item.resolved.exists === null) return { ok: false, label: "Non vérifié (bot muet)" }
   return { ok: true, label: item.resolved?.name ? `Réglé : ${item.resolved.name}` : "Réglé" }
 }
+
+/** Réglages texte qui listent des rôles par identifiant (copie de `ROLE_LIST_KEYS` du registre). */
+export const ROLE_LIST_KEYS: ReadonlySet<string> = new Set(["authorized_roles", "staff_roles"])
+
+/** « 1, 2 ,3 » → ["1", "2", "3"] (vides ignorés). */
+export const splitIds = (value: string) =>
+  value
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)

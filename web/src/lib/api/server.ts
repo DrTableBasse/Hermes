@@ -5,7 +5,7 @@ import type {
   AchievementCatalog,
   ActiveQuest,
   AdminGalleryItem,
-  AdminGame,
+  AdminGamesResponse,
   AdminStats,
   AnalyticsData,
   CommandsResponse,
@@ -321,9 +321,8 @@ export async function getRoleRules(token: string): Promise<RoleRule[] | null> {
   return data ? data.rules : null
 }
 
-export async function getAdminGames(token: string): Promise<AdminGame[] | null> {
-  const data = await apiGetOrNull<{ games: AdminGame[] }>("/admin/games", { token })
-  return data ? data.games : null
+export async function getAdminGames(token: string): Promise<AdminGamesResponse | null> {
+  return apiGetOrNull<AdminGamesResponse>("/admin/games", { token })
 }
 
 export async function getAdminGallery(token: string): Promise<AdminGalleryItem[] | null> {
