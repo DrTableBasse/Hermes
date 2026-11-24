@@ -125,10 +125,10 @@ def test_surcharges_jeu_actif():
 def test_surcharges_jeu_archive():
     ows = forum_overwrites(EVERYONE, GAME, [STAFF1], BOT, archived=True)
     allow, deny = _allowed(ows[GAME])
-    assert allow == {"view_channel"}
-    assert "send_messages_in_threads" in deny and "send_messages" in deny
+    # Archivé : forum masqué au rôle du jeu.
+    assert allow == set() and "view_channel" in deny
     # Le staff et le bot gardent la main sur un forum archivé.
-    assert "manage_threads" in _allowed(ows[STAFF1])[0]
+    assert {"view_channel", "manage_threads"} <= _allowed(ows[STAFF1])[0]
     assert "send_messages_in_threads" in _allowed(ows[BOT])[0]
     assert _allowed(ows[EVERYONE])[1] == {"view_channel"}
 

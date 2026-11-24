@@ -137,15 +137,12 @@ def validate_emoji(value: str, taken: set[str]) -> str | None:
 def forum_overwrites(everyone, game_role, staff_roles, bot_member, archived: bool) -> dict:
     """Surcharges du forum d'un jeu : réservé au rôle du jeu, au staff et au bot.
 
-    Archivé : le rôle du jeu voit encore le forum mais n'écrit plus dans les fils.
+    Archivé : forum masqué au rôle du jeu ; le staff et le bot gardent l'accès.
     """
     overwrites: dict = {everyone: discord.PermissionOverwrite(view_channel=False)}
     if game_role is not None:
         if archived:
-            overwrites[game_role] = discord.PermissionOverwrite(
-                view_channel=True, send_messages=False, send_messages_in_threads=False,
-                create_public_threads=False,
-            )
+            overwrites[game_role] = discord.PermissionOverwrite(view_channel=False)
         else:
             overwrites[game_role] = discord.PermissionOverwrite(
                 view_channel=True, send_messages=True, send_messages_in_threads=True,

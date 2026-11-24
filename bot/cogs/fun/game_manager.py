@@ -31,7 +31,8 @@ SYNC_DELAY = 60
 
 LFG_THREAD_NAME = "recherche joueurs"
 
-# Posé une fois les jeux lus au démarrage (réussi ou non) : le message de rôles par réaction l'attend.
+# Posé une fois le démarrage terminé (réussi ou non) : le message de rôles par réaction l'attend.
+# Les jeux ne sont réellement connus que si ``GameManager.loaded`` est vrai.
 ready = asyncio.Event()
 
 _COLUMNS = ("key, name, color, position, discord_role_id, forum_channel_id, emoji, "
@@ -89,6 +90,8 @@ class GameManager(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.games: dict[str, Game] = {}
+        # Vrai dès qu'une lecture de site_games a réussi ; faux : jeux inconnus (base en échec).
+        self.loaded = False
         # clé du jeu -> (nom de commande, nom du jeu) inscrits dans l'arbre
         self._registered: dict[str, tuple[str, str]] = {}
         self._cooldowns: dict[str, float] = {}  # clé -> instant du dernier ping (monotonic)
@@ -151,6 +154,7 @@ class GameManager(commands.Cog):
     async def _load(self):
         rows = await db_manager.fetch(f"SELECT {_COLUMNS} FROM site_games ORDER BY position, key")
         self.games = {row["key"]: Game.from_row(row) for row in rows}
+        self.loaded = True
 
     async def _save(self, key: str, **fields):
         assert fields and set(fields) <= _WRITABLE, fields
@@ -193,47 +197,58 @@ class GameManager(commands.Cog):
         await self._notify_reaction_roles()
 
     async def provision(self, key: str) -> dict:
-        """Rôle, forum et commande du jeu : réutilisés s'ils existent, créés sinon."""
-        async with self._lock:
-            await self._load()
-            game = self._game(key)
-            guild = self._guild()
-            if guild is None:
-                raise RuntimeError("Serveur Discord introuvable")
-            created: list[str] = []
+        """Rôle, forum et commande du jeu : réutilisés s'ils existent, créés sinon.
 
-            role = self._role(guild, game.role_id) or discord.utils.get(guild.roles, name=game.name)
-            if role is None:
-                role = await guild.create_role(
-                    name=game.name, mentionable=False,  # seul le bot pingue (allowed_mentions)
-                    reason="Rôle de jeu créé depuis le site",
-                )
-                created.append("role")
-            if role.id != game.role_id:
-                # Écrit tout de suite : un échec du forum ne fera pas recréer le rôle.
-                await self._save(key, discord_role_id=role.id)
-                game.role_id = role.id
+        Une erreur Discord est relancée ; commandes et message de réactions sont tout de même
+        mis en accord avec la base.
+        """
+        try:
+            async with self._lock:
+                try:
+                    return await self._provision(key)
+                finally:
+                    if self._reconcile_commands():
+                        self._schedule_sync()
+        finally:
+            await self._notify_reaction_roles()
 
-            forum = self._forum(guild, game.forum_id) or discord.utils.get(guild.forums, name=forum_name(key))
-            if forum is None:
-                command = f"/{game.command_name}" if game.command_name else "la commande du jeu"
-                forum = await guild.create_forum_channel(
-                    name=forum_name(key),
-                    category=self._category(guild),
-                    topic=(f"{game.emoji or '🎮'} Forum {game.name} — Recherche de joueurs. "
-                           f"Utilisez {command} pour notifier les joueurs {game.name}."),
-                    overwrites=forum_overwrites(
-                        guild.default_role, role, settings.get_roles(guild, "staff_roles"),
-                        guild.me, game.archived),
-                    reason="Forum de jeu créé depuis le site",
-                )
-                created.append("forum")
-            game.forum_id, game.provisioned = forum.id, True
-            await self._save(key, forum_channel_id=forum.id, provisioned=True)
+    async def _provision(self, key: str) -> dict:
+        await self._load()
+        game = self._game(key)
+        guild = self._guild()
+        if guild is None:
+            raise RuntimeError("Serveur Discord introuvable")
+        created: list[str] = []
 
-            if self._reconcile_commands():
-                self._schedule_sync()
-        await self._notify_reaction_roles()
+        role = self._role(guild, game.role_id) or discord.utils.get(guild.roles, name=game.name)
+        if role is None:
+            role = await guild.create_role(
+                name=game.name, color=discord.Color(game.color),
+                mentionable=False,  # seul le bot pingue (allowed_mentions)
+                reason="Rôle de jeu créé depuis le site",
+            )
+            created.append("role")
+        if role.id != game.role_id:
+            # Écrit tout de suite : un échec du forum ne fera pas recréer le rôle.
+            await self._save(key, discord_role_id=role.id)
+            game.role_id = role.id
+
+        forum = self._forum(guild, game.forum_id) or discord.utils.get(guild.forums, name=forum_name(key))
+        if forum is None:
+            command = f"/{game.command_name}" if game.command_name else "la commande du jeu"
+            forum = await guild.create_forum_channel(
+                name=forum_name(key),
+                category=self._category(guild),
+                topic=(f"{game.emoji or '🎮'} Forum {game.name} — Recherche de joueurs. "
+                       f"Utilisez {command} pour notifier les joueurs {game.name}."),
+                overwrites=forum_overwrites(
+                    guild.default_role, role, settings.get_roles(guild, "staff_roles"),
+                    guild.me, game.archived),
+                reason="Forum de jeu créé depuis le site",
+            )
+            created.append("forum")
+        game.forum_id, game.provisioned = forum.id, True
+        await self._save(key, forum_channel_id=forum.id, provisioned=True)
         return {
             "role_id": role.id,
             "forum_id": forum.id,
@@ -242,28 +257,35 @@ class GameManager(commands.Cog):
         }
 
     async def archive(self, key: str) -> dict:
-        """Retire la commande et verrouille le forum pour le rôle du jeu ; le rôle est gardé."""
+        """Retire la commande et masque le forum au rôle du jeu ; le rôle est gardé."""
         return await self._set_archived(key, True)
 
     async def unarchive(self, key: str) -> dict:
         return await self._set_archived(key, False)
 
     async def _set_archived(self, key: str, archived: bool) -> dict:
-        async with self._lock:
-            await self._load()
-            game = self._game(key)
-            await self._save(key, archived=archived)
-            game.archived = archived
-            guild = self._guild()
-            if guild:
-                forum, role = self._forum(guild, game.forum_id), self._role(guild, game.role_id)
-                if forum and role:
-                    overwrite = forum_overwrites(guild.default_role, role, [], None, archived)[role]
-                    await forum.set_permissions(role, overwrite=overwrite,
-                                                reason="Jeu archivé" if archived else "Jeu réactivé")
-            if self._reconcile_commands():
-                self._schedule_sync()
-        await self._notify_reaction_roles()
+        """La base fait foi : commande et message de réactions la suivent même si Discord refuse
+        la surcharge du forum (erreur relancée ; ``resync_permissions`` la réécrira)."""
+        try:
+            async with self._lock:
+                await self._load()
+                game = self._game(key)
+                await self._save(key, archived=archived)
+                game.archived = archived
+                try:
+                    guild = self._guild()
+                    if guild:
+                        forum, role = self._forum(guild, game.forum_id), self._role(guild, game.role_id)
+                        if forum and role:
+                            overwrite = forum_overwrites(guild.default_role, role, [], None, archived)[role]
+                            await forum.set_permissions(
+                                role, overwrite=overwrite,
+                                reason="Jeu archivé" if archived else "Jeu réactivé")
+                finally:
+                    if self._reconcile_commands():
+                        self._schedule_sync()
+        finally:
+            await self._notify_reaction_roles()
         return self.status(key)
 
     async def resync_permissions(self) -> int:

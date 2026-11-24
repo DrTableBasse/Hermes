@@ -85,8 +85,9 @@ class FakeGuild:
     def get_channel(self, channel_id):
         return next((c for c in [*self.forums, *self.channels] if c.id == channel_id), None)
 
-    async def create_role(self, name, mentionable=False, reason=None):
+    async def create_role(self, name, mentionable=False, color=None, reason=None):
         role = FakeRole(self._id(), name)
+        role.color = color
         self.roles.append(role)
         self.created_roles.append(role)
         return role
@@ -433,7 +434,7 @@ def test_archive_retire_la_commande_et_verrouille_le_forum(make):
     forum = e.guild.get_channel(200)
     (target, overwrite), = forum.permission_calls
     assert target.name == "Dead by Daylight"
-    assert overwrite.view_channel is True and overwrite.send_messages_in_threads is False
+    assert overwrite.view_channel is False  # forum masqué au rôle du jeu
     # Le rôle est gardé.
     assert e.guild.get_role(100) is not None
 
@@ -481,7 +482,7 @@ def test_resync_permissions_reecrit_tous_les_forums(make):
         assert ows[e.guild.default_role].view_channel is False
         assert e.guild.me in ows
     ow = e.guild.get_channel(203).edits[0][e.guild.get_role(103)]
-    assert ow.send_messages_in_threads is False  # overwatch archivé
+    assert ow.view_channel is False  # overwatch archivé : masqué
 
 
 # ── Noms de commande pris ────────────────────────────────────────────────────
@@ -792,3 +793,130 @@ def test_reaction_donne_le_role_du_jeu_par_identifiant(make):
         return member
 
     assert run(scenario).added == [100]
+
+
+# ── Correction tour 1 : échecs Discord, jeux non chargés, couleur ───────────
+
+def forbidden():
+    return discord.Forbidden(N(status=403, reason="Forbidden"), "Missing Permissions")
+
+
+def test_archive_refuse_par_discord_commande_et_message_restent_coherents(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        existing = FakeMessage(700, None, rr_module._build_embed(e.gm.reaction_games()),
+                               reactions=NOTIF + SIX)
+        reaction_env(e, [existing])
+
+        async def refused(*args, **kwargs):
+            raise forbidden()
+        e.guild.get_channel(202).set_permissions = refused
+        with pytest.raises(discord.Forbidden):
+            await e.gm.archive("warframe")
+        return e, existing
+
+    e, existing = run(scenario)
+    assert e.db.rows["warframe"]["archived"] is True
+    assert "warframe" not in e.tree.guild_names()
+    assert e.gm.status("warframe")["command"] == "none"
+    assert existing.removed == ["🚀"]
+    assert "Warframe" not in game_field(existing.embeds[0])
+
+
+def test_unarchive_refuse_par_discord_commande_reinscrite(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        await e.gm.archive("lol")
+
+        async def refused(*args, **kwargs):
+            raise forbidden()
+        e.guild.get_channel(201).set_permissions = refused
+        with pytest.raises(discord.Forbidden):
+            await e.gm.unarchive("lol")
+        return e
+
+    e = run(scenario)
+    assert e.db.rows["lol"]["archived"] is False
+    assert "lol" in e.tree.guild_names()
+    assert e.gm.status("lol")["command"] == "ok"
+
+
+def test_provision_refuse_par_discord_commandes_en_accord_avec_la_base(make):
+    async def scenario():
+        guild = legacy_guild()
+        guild.forums = [f for f in guild.forums if f.name != "lol"]
+        e = make(guild=guild)
+        await e.gm.cog_load()
+        e.db.rows["lol"]["command_name"] = "lolx"  # modifié sur le site avant le clic
+
+        async def refused(*args, **kwargs):
+            raise forbidden()
+        guild.create_forum_channel = refused
+        with pytest.raises(discord.Forbidden):
+            await e.gm.provision("lol")
+        return e
+
+    e = run(scenario)
+    names = e.tree.guild_names()
+    assert "lolx" in names and "lol" not in names
+    assert e.gm.status("lol")["command"] == "ok"
+
+
+def test_base_en_echec_le_message_de_reactions_garde_ses_jeux(make):
+    class Broken(FakeDB):
+        async def fetch(self, sql, *args):
+            raise RuntimeError("base indisponible")
+
+    async def scenario():
+        e = make()
+        gm_module.db_manager = Broken([])
+        await e.gm.cog_load()
+        assert e.gm.loaded is False
+        embed = rr_module._build_embed([(em, n, None) for _, n, _, _, em in LEGACY])
+        existing = FakeMessage(700, None, embed, reactions=["⭐", "🎭", *SIX])  # 📺 manquante
+        rr, _ = reaction_env(e, [existing])
+        await rr.refresh()
+        return existing
+
+    existing = run(scenario)
+    assert existing.edited == [] and existing.removed == []
+    assert existing.added == ["📺"]  # seules les notifications peuvent être ajoutées
+    assert game_field(existing.embeds[0]).split(chr(10)) == [f"{em}  **{n}**" for _, n, _, _, em in LEGACY]
+
+
+def test_cog_des_jeux_absent_le_message_de_reactions_garde_ses_jeux(make):
+    async def scenario():
+        e = make()
+        del e.bot.cogs["GameManager"]
+        embed = rr_module._build_embed([(em, n, None) for _, n, _, _, em in LEGACY])
+        existing = FakeMessage(700, None, embed, reactions=NOTIF + SIX)
+        rr, _ = reaction_env(e, [existing])
+        await rr.refresh()
+        return existing
+
+    existing = run(scenario)
+    assert existing.edited == [] and existing.removed == [] and existing.added == []
+
+
+def test_jeux_charges_au_demarrage(make):
+    async def scenario():
+        e = make()
+        before = e.gm.loaded
+        await e.gm.cog_load()
+        return before, e.gm.loaded
+
+    assert run(scenario) == (False, True)
+
+
+def test_role_cree_par_provision_prend_la_couleur_du_jeu(make):
+    async def scenario():
+        e = war_dogs_setup(make)
+        await e.gm.cog_load()
+        await e.gm.provision("war-dogs")
+        return e
+
+    e = run(scenario)
+    (role,) = e.guild.created_roles
+    assert role.color == discord.Color(0xA12D2F)

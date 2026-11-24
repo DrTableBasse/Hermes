@@ -76,7 +76,7 @@ class ReactionRoles(commands.Cog):
         try:
             await asyncio.wait_for(game_manager.ready.wait(), timeout=120)
         except asyncio.TimeoutError:
-            logger.warning("ReactionRoles: jeux non chargés, message posté sans rôles de jeux")
+            logger.warning("ReactionRoles: jeux non chargés, rôles de jeux du message laissés tels quels")
         guild = self.bot.get_guild(GUILD_ID)
         if not guild:
             logger.warning("ReactionRoles: guild introuvable")
@@ -91,9 +91,12 @@ class ReactionRoles(commands.Cog):
         await self._ensure_roles(guild)
         await self.refresh()
 
-    def _games(self) -> list[tuple[str, str, int | None]]:
+    def _games(self) -> list[tuple[str, str, int | None]] | None:
+        """Jeux actifs, ou ``None`` s'ils ne sont pas chargés (cog absent ou base en échec)."""
         manager = self.bot.get_cog('GameManager')
-        return manager.reaction_games() if manager else []
+        if manager is None or not getattr(manager, 'loaded', False):
+            return None
+        return manager.reaction_games()
 
     async def _ensure_roles(self, guild: discord.Guild):
         """Crée les rôles de notification manquants (les rôles de jeux relèvent de GameManager)."""
@@ -121,12 +124,20 @@ class ReactionRoles(commands.Cog):
             return
         async with self._refresh_lock:
             games = self._games()
+            if games is None:
+                # Jeux inconnus : on ne touche ni au texte ni aux réactions de jeux du message.
+                logger.warning("ReactionRoles: jeux non chargés, message de réactions laissé tel quel")
+                msg = await self._ensure_message(channel, _build_embed([]), update=False)
+                if msg:
+                    await self._sync_reactions(msg, list(NOTIFICATION_ROLES), remove=False)
+                return
             msg = await self._ensure_message(channel, _build_embed(games))
             if msg:
                 await self._sync_reactions(msg, [*NOTIFICATION_ROLES, *(e for e, _, _ in games)])
 
-    async def _ensure_message(self, channel: discord.TextChannel, embed: discord.Embed):
-        """Trouve l'embed existant (modifié seulement s'il diffère) ou en poste un nouveau."""
+    async def _ensure_message(self, channel: discord.TextChannel, embed: discord.Embed,
+                              update: bool = True):
+        """Trouve l'embed existant (modifié seulement s'il diffère et si ``update``) ou en poste un nouveau."""
         existing: discord.Message | None = None
         async for msg in channel.history(limit=100):
             if (
@@ -139,7 +150,7 @@ class ReactionRoles(commands.Cog):
 
         if existing:
             self.message_id = existing.id
-            if not _same_content(existing.embeds[0], embed):
+            if update and not _same_content(existing.embeds[0], embed):
                 try:
                     await existing.edit(embed=embed)
                     logger.info(f"ReactionRoles: message existant mis à jour ({existing.id})")
@@ -155,10 +166,12 @@ class ReactionRoles(commands.Cog):
             logger.warning("ReactionRoles: permission refusée pour poster dans le salon")
             return None
 
-    async def _sync_reactions(self, msg: discord.Message, emojis: list[str]):
-        """Ajoute les réactions manquantes (dans l'ordre) et retire celles du bot devenues inutiles."""
+    async def _sync_reactions(self, msg: discord.Message, emojis: list[str], remove: bool = True):
+        """Ajoute les réactions manquantes (dans l'ordre) et, si ``remove``, retire celles du bot
+        devenues inutiles."""
         mine = {str(r.emoji) for r in msg.reactions if r.me}
-        for emoji in [str(r.emoji) for r in msg.reactions if r.me and str(r.emoji) not in emojis]:
+        stale = [str(r.emoji) for r in msg.reactions if r.me and str(r.emoji) not in emojis] if remove else []
+        for emoji in stale:
             try:
                 await msg.remove_reaction(emoji, self.bot.user)
             except discord.HTTPException as e:
@@ -176,7 +189,7 @@ class ReactionRoles(commands.Cog):
         name = NOTIFICATION_ROLES.get(emoji)
         if name:
             return discord.utils.get(guild.roles, name=name)
-        for game_emoji, _, role_id in self._games():
+        for game_emoji, _, role_id in self._games() or []:
             if game_emoji == emoji:
                 return guild.get_role(role_id) if role_id else None
         return None
