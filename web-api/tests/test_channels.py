@@ -186,8 +186,8 @@ def test_list_channels_admin_nothing_pending_when_staff_roles_unchanged(client, 
 def test_create_channel_calls_bot_and_logs(client, mod, bot, fake_db):
     r = client.post("/admin/channels", json={"name": "  annonces ", "type": "announcement", "parent_id": "20"})
     assert r.status_code == 200
-    assert bot["calls"][0][:3] == ("post", "/discord/channels", {
-        "name": "annonces", "type": "announcement", "parent_id": "20", "actor_name": "Bob"})
+    assert _writes(bot)[0][:3] == ("post", "/discord/channels", {
+        "name": "annonces", "type": "announcement", "parent_id": "20", "actor_id": "1", "actor_name": "Bob"})
     [row] = _audit(fake_db)
     assert (row["kind"], row["action"], row["target_id"], row["target_name"], row["success"]) == \
         ("channel", "channel_create", 99, "annonces", True)
@@ -502,3 +502,33 @@ def test_staff_resync_error_relayed_without_name(mod, client, bot, session_with)
         403, "Vous ne voyez pas l'un des salons concernés dans Discord.")
     r = client.post("/admin/channels/staff-resync/preview")
     assert r.status_code == 403 and "staff-only" not in r.text
+
+
+# ── Catégorie parente invisible ou inexistante : 404 uniforme (I1) ──────────
+
+HIDDEN_CAT_TREE = [_ch("10", "general"), _ch("40", "Secrets", "category", visible=False),
+                   _ch("21", "fortnite", parent="20"), _ch("20", "Jeux", "category")]
+
+
+@pytest.mark.parametrize("parent", ["40", "999", "10"])  # cachée, inexistante, pas une catégorie
+def test_create_in_unseen_or_missing_category_is_uniform_404(client, mod, bot, monkeypatch, parent):
+    monkeypatch.setattr(sys.modules[__name__], "TREE", HIDDEN_CAT_TREE)
+    r = client.post("/admin/channels", json={"name": "x", "type": "text", "parent_id": parent})
+    assert r.status_code == 404 and r.json()["detail"] == "Catégorie introuvable"
+    assert "Secrets" not in r.text and _writes(bot) == []
+
+
+@pytest.mark.parametrize("parent", ["40", "999"])
+def test_move_into_unseen_or_missing_category_is_uniform_404(client, mod, bot, monkeypatch, parent):
+    monkeypatch.setattr(sys.modules[__name__], "TREE", HIDDEN_CAT_TREE)
+    r = client.patch("/admin/channels/10", json={"parent_id": parent})
+    assert r.status_code == 404 and r.json()["detail"] == "Catégorie introuvable"
+    assert "Secrets" not in r.text and _writes(bot) == []
+
+
+def test_move_into_visible_category_and_owner_exemption(client, mod, bot, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "TREE", HIDDEN_CAT_TREE)
+    assert client.patch("/admin/channels/10", json={"parent_id": "20"}).status_code == 200
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True}
+    assert client.patch("/admin/channels/10", json={"parent_id": "40"}).status_code == 200
+    assert client.post("/admin/channels", json={"name": "x", "type": "text", "parent_id": "40"}).status_code == 200

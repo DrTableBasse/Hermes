@@ -787,6 +787,7 @@ async def _apply_entries(guild, entries, template, saved_roles, actor_id, actor_
 
 
 class ChannelCreateRequest(ActorRequest):
+    actor_id:  DiscordId
     name:      str = Field(min_length=1, max_length=100)
     type:      ChannelType
     parent_id: Optional[DiscordId] = None
@@ -863,6 +864,7 @@ def _parent_category(guild: discord.Guild, parent_id: Optional[str]):
 @_channel_errors
 async def create_channel(req: ChannelCreateRequest):
     guild = _get_guild()
+    actor = await _actor(guild, int(req.actor_id))
     reason = _site_reason(req.actor_name)
     if req.type == "category":
         if req.parent_id is not None:
@@ -870,6 +872,8 @@ async def create_channel(req: ChannelCreateRequest):
         channel = await guild.create_category(req.name, reason=reason)
     else:
         parent = _parent_category(guild, req.parent_id)
+        if parent is not None:
+            _require_view(guild, actor, [parent])
         if req.type == "voice":
             channel = await guild.create_voice_channel(req.name, category=parent, reason=reason)
         elif req.type == "forum":
@@ -886,14 +890,18 @@ async def create_channel(req: ChannelCreateRequest):
 async def update_channel(channel_id: int, req: ChannelUpdateRequest):
     guild = _get_guild()
     channel = _get_channel(guild, channel_id)
-    _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
+    actor = await _actor(guild, int(req.actor_id))
+    _require_view(guild, actor, [channel])
     changes: dict = {}
     if req.name is not None:
         changes["name"] = req.name
     if "parent_id" in req.model_fields_set:
         if channels_api.channel_type(channel) == "category":
             raise HTTPException(status_code=422, detail="Une catégorie ne peut pas être dans une catégorie")
-        changes["category"] = _parent_category(guild, req.parent_id)
+        parent = _parent_category(guild, req.parent_id)
+        if parent is not None:
+            _require_view(guild, actor, [parent])
+        changes["category"] = parent
     if req.position is not None:
         changes["position"] = req.position
     if changes:

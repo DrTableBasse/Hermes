@@ -239,27 +239,27 @@ def test_requires_token(env):
 def test_create_channels_of_each_type(env):
     c = env.client
     r = c.post("/discord/channels", json={"name": "annonces", "type": "announcement",
-                                          "parent_id": "100", "actor_name": "Alice"})
+                                          "parent_id": "100", "actor_id": "42", "actor_name": "Alice"})
     assert r.status_code == 200 and r.json()["type"] == "announcement"
     ch, reason = env.guild.created[-1]
     assert ch.type == discord.ChannelType.news and ch.category_id == 100 and reason == REASON
     assert c.post("/discord/channels", json={"name": "Nouvelle", "type": "category",
-                                             "actor_name": "Alice"}).status_code == 200
+                                             "actor_id": "42", "actor_name": "Alice"}).status_code == 200
     assert env.guild.created[-1][0].type == discord.ChannelType.category
     assert c.post("/discord/channels", json={"name": "f", "type": "forum",
-                                             "actor_name": "Alice"}).json()["type"] == "forum"
+                                             "actor_id": "42", "actor_name": "Alice"}).json()["type"] == "forum"
 
 
 def test_create_rejects_bad_parent_and_type(env):
     c = env.client
     assert c.post("/discord/channels", json={"name": "x", "type": "category", "parent_id": "100",
-                                             "actor_name": "Alice"}).status_code == 422
+                                             "actor_id": "42", "actor_name": "Alice"}).status_code == 422
     assert c.post("/discord/channels", json={"name": "x", "type": "text", "parent_id": "101",
-                                             "actor_name": "Alice"}).status_code == 404
+                                             "actor_id": "42", "actor_name": "Alice"}).status_code == 404
     assert c.post("/discord/channels", json={"name": "x", "type": "stage",
-                                             "actor_name": "Alice"}).status_code == 422
+                                             "actor_id": "42", "actor_name": "Alice"}).status_code == 422
     assert c.post("/discord/channels", json={"name": "", "type": "text",
-                                             "actor_name": "Alice"}).status_code == 422
+                                             "actor_id": "42", "actor_name": "Alice"}).status_code == 422
 
 
 def test_patch_rename_move_and_leave_category(env):
@@ -547,3 +547,56 @@ def test_staff_resync_hidden_staff_channel_refused_without_name(env):
     r = env.client.post("/discord/channels/staff-resync/apply",
                         json={"actor_id": "43", "actor_name": "Bob", "token": "x"})
     assert r.status_code == 403 and "staff" not in r.text.replace("Vous ne voyez pas", "")
+
+
+# ── Création / déplacement vers une catégorie que l'acteur ne voit pas (I1) ──
+
+def _create(env, actor=42, parent="100", **extra):
+    return env.client.post("/discord/channels", json={
+        "name": "nouveau", "type": "text", "parent_id": parent, "actor_id": str(actor),
+        "actor_name": "Alice", **extra})
+
+
+def test_create_requires_actor_id(env):
+    r = env.client.post("/discord/channels", json={"name": "x", "type": "text", "actor_name": "Alice"})
+    assert r.status_code == 422 and env.guild.created == []
+
+
+def test_create_in_hidden_category_is_403_without_name(env):
+    env.guild.cat.hidden_from.add(42)
+    r = _create(env)
+    assert r.status_code == 403 and env.guild.created == []
+    assert "Jeux" not in r.text
+    r = _create(env, type="category", parent=None)  # sans parent : aucun contrôle de catégorie
+    assert r.status_code == 200
+
+
+def test_create_in_hidden_category_owner_is_exempt(env):
+    env.guild.cat.hidden_from.add(999)
+    assert _create(env, actor=999).status_code == 200 and len(env.guild.created) == 1
+
+
+def test_create_with_absent_actor_is_403(env):
+    assert _create(env, actor=12345).status_code == 403 and env.guild.created == []
+
+
+def test_move_into_hidden_category_is_403_without_name(env):
+    env.guild.cat.hidden_from.add(42)
+    r = env.client.patch("/discord/channels/101", json={"parent_id": "100", "actor_id": "42",
+                                                        "actor_name": "Alice"})
+    assert r.status_code == 403 and env.guild.general.edits == [] and "Jeux" not in r.text
+
+
+def test_move_into_hidden_category_owner_is_exempt(env):
+    env.guild.cat.hidden_from.add(999)
+    r = env.client.patch("/discord/channels/101", json={"parent_id": "100", "actor_id": "999",
+                                                        "actor_name": "P"})
+    assert r.status_code == 200 and env.guild.general.category_id == 100
+
+
+def test_leaving_a_category_needs_no_destination_check(env):
+    env.guild.cat.hidden_from.add(42)
+    r = env.client.patch("/discord/channels/102", json={"parent_id": None, "actor_id": "42",
+                                                        "actor_name": "Alice"})
+    assert r.status_code == 200 and env.guild.child1.category_id is None
+

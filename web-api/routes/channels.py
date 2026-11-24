@@ -90,7 +90,7 @@ async def _tree(user: dict) -> dict:
     return await _call("get", "/discord/channels/tree", params={"actor_id": user["sub"]})
 
 
-async def _channel(user: dict, channel_id: int) -> dict:
+async def _channel(user: dict, channel_id: int, missing: str = "Salon introuvable") -> dict:
     """Salon de l'arbre visible pour l'acteur (propriétaire exempté) ; un salon invisible est
     indiscernable d'un identifiant inexistant : 404, sans jamais citer son nom."""
     tree = await _tree(user)
@@ -98,8 +98,18 @@ async def _channel(user: dict, channel_id: int) -> dict:
     channel = next((c for c in tree["channels"]
                     if c["id"] == str(channel_id) and (owner or c.get("visible_to_actor"))), None)
     if channel is None:
-        raise HTTPException(404, "Salon introuvable")
+        raise HTTPException(404, missing)
     return channel
+
+
+async def _require_parent(user: dict, parent_id: str | None) -> None:
+    """Catégorie parente : visible de l'acteur et de type catégorie, sinon 404 uniforme
+    (inexistante, invisible ou pas une catégorie : indiscernables)."""
+    if parent_id is None:
+        return
+    parent = await _channel(user, int(parent_id), "Catégorie introuvable")
+    if parent["type"] != "category":
+        raise HTTPException(404, "Catégorie introuvable")
 
 
 def _require_admin(user: dict) -> None:
@@ -223,9 +233,10 @@ async def list_channels(user: dict = Depends(get_current_user)):
 async def create_channel(body: ChannelCreate, user: dict = Depends(get_current_user)):
     require_permission(user, "channels.manage")
     details = body.model_dump()
+    await _require_parent(user, body.parent_id)
     result = await _write("channel_create", user, "post", "/discord/channels", details=details,
                           target_name=body.name,
-                          json={**details, "actor_name": await _actor_name(user)})
+                          json={**details, "actor_id": user["sub"], "actor_name": await _actor_name(user)})
     await admin._log("channel_create", int(user["sub"]), int(result["id"]),
                      {**details, "name": result["name"]}, target_name=result["name"])
     return result
@@ -242,6 +253,7 @@ async def update_channel(channel_id: int, body: ChannelUpdate, user: dict = Depe
     if "position" in changes and changes["position"] is None:
         raise HTTPException(422, "Position invalide")
     await _channel(user, channel_id)
+    await _require_parent(user, changes.get("parent_id"))
     details = {"changes": changes}
     result = await _write("channel_update", user, "patch", f"/discord/channels/{channel_id}",
                           details=details, target_id=channel_id, target_name=str(channel_id),
