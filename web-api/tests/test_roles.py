@@ -588,7 +588,7 @@ def test_apply_starts_job_and_logs(client, fake_db, bot, rules, session_with):
     session_with({"roles.manage"})
     r = client.post("/admin/role-rules/1/apply", json={"confirm": True, "remove_previous_role_id": None})
     assert r.status_code == 200
-    assert r.json() == {"job_id": "job-apply", "remove_job_id": None}
+    assert r.json() == {"job_id": "job-apply", "remove_job_id": None, "remove_error": None}
     assert [c[1] for c in _writes(bot)] == ["/role-rules/1/apply"]
     (row,) = _audit(fake_db)
     assert row["kind"] == "setting" and row["action"] == "role_rule_apply"
@@ -613,7 +613,7 @@ def test_apply_removes_previous_role_when_asked(client, fake_db, bot, rules, ses
     session_with({"roles.manage", "members.roles"})
     r = _apply_previous(client)
     assert r.status_code == 200
-    assert r.json() == {"job_id": "job-apply", "remove_job_id": "job-bulk"}
+    assert r.json() == {"job_id": "job-apply", "remove_job_id": "job-bulk", "remove_error": None}
     assert ("post", "/discord/roles/150/bulk", {"action": "remove", "user_ids": None, "from_role_id": "150",
                                                 "actor_name": "1"}) in bot["calls"]
     (row,) = _audit(fake_db)
@@ -827,3 +827,51 @@ def test_patch_changing_target_cannot_keep_reconcile(client, fake_db, bot, rules
     r = client.patch("/admin/role-rules/1", json={"condition_value": "6", "reconcile": True, "preview_seen": True})
     assert r.status_code == 200
     assert rules["store"][1]["reconcile"] is False
+
+
+# ── Mineurs T4 n°3 et n°2 ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize("value", ["²", "١", "9999999999", "3 "])
+def test_achievement_value_must_be_small_ascii_integer(client, fake_db, bot, rules, session_with, value):
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json={"condition_type": "achievement", "condition_value": value,
+                                               "create_role_name": "X"})
+    if value == "3 ":  # espaces retirés par le modèle : succès 3 valide
+        assert r.status_code == 200
+    else:
+        assert r.status_code == 422 and "succès" in r.json()["detail"]
+
+
+def test_apply_runs_rule_before_removing_previous_role(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    session_with({"roles.manage", "members.roles"})
+    assert _apply_previous(client).status_code == 200
+    assert [c[1] for c in _writes(bot)] == ["/role-rules/1/apply", "/discord/roles/150/bulk"]
+
+
+def test_apply_failure_does_not_remove_previous_role(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    bot["errors"][("post", "/role-rules/1/apply")] = HTTPException(status_code=503, detail="Bot injoignable")
+    session_with({"roles.manage", "members.roles"})
+    assert _apply_previous(client).status_code == 503
+    assert [c[1] for c in _writes(bot)] == ["/role-rules/1/apply"]
+
+
+def test_apply_previous_role_over_500_members_is_422_before_anything(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    next(r for r in bot["roles"] if r["id"] == "150")["members"] = 501
+    session_with({"roles.manage", "members.roles"})
+    r = _apply_previous(client, count=501)
+    assert r.status_code == 422 and "500" in r.json()["detail"]
+    assert _writes(bot) == []
+
+
+def test_apply_reports_previous_role_removal_failure(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    bot["errors"][("post", "/discord/roles/150/bulk")] = HTTPException(status_code=403, detail="Permission refusée")
+    session_with({"roles.manage", "members.roles"})
+    r = _apply_previous(client)
+    assert r.status_code == 200
+    assert r.json() == {"job_id": "job-apply", "remove_job_id": None, "remove_error": "Permission refusée"}
+    failed, done = _audit(fake_db)
+    assert failed["success"] is False and done["success"] is True

@@ -8,6 +8,7 @@ Les travaux longs (lots, application d'une règle) sont lancés au bot, qui rép
 ``job_id`` consultable avec ``GET /admin/jobs/{job_id}``.
 """
 import logging
+import re
 from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -33,6 +34,8 @@ RULE_FIELDS = ("condition_type", "condition_value", "role_id", "create_role_name
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 Color = Annotated[int, Field(ge=0, le=0xFFFFFF)]
 Snowflake = Annotated[str, StringConstraints(pattern=r"^\d{1,20}$")]
+BULK_LIMIT = 500  # membres par lot, même limite que le bot
+
 Group = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 
 
@@ -332,7 +335,8 @@ async def _validate_condition(ctype: str, value: str) -> None:
             refuse(f"Grade inconnu : {value}")
         return
     if ctype == "achievement":
-        if not value.isdigit() or not await db.fetchval("SELECT 1 FROM achievements WHERE id = $1", int(value)):
+        # ASCII seulement (« ² » passe isdigit) et dans un int4 (T4 n°3).
+        if not re.fullmatch(r"\d{1,9}", value) or not await db.fetchval("SELECT 1 FROM achievements WHERE id = $1", int(value)):
             refuse("Ce succès n'existe pas")
         return
     try:
@@ -604,6 +608,12 @@ async def apply_rule(rule_id: int, body: RuleApply, user: dict = Depends(get_cur
         if previous is None:
             raise HTTPException(status_code=404, detail="Ancien rôle introuvable")
         _require_manageable(actor, previous)
+        if previous["members"] > BULK_LIMIT:  # le bot le refuserait : rien n'est lancé
+            raise HTTPException(
+                status_code=422,
+                detail=f"L'ancien rôle compte plus de {BULK_LIMIT} membres : retirez-le en plusieurs lots "
+                       "depuis la page Rôles, puis appliquez la règle sans cette case.",
+            )
         if body.confirm_previous_members != previous["members"]:
             raise HTTPException(
                 status_code=409,
@@ -615,18 +625,22 @@ async def apply_rule(rule_id: int, body: RuleApply, user: dict = Depends(get_cur
     details = {"rule_id": rule_id, "remove_previous_role_id": body.remove_previous_role_id}
     if previous is not None:
         details["previous_members"] = previous["members"]
-    remove_job_id = None
-    if previous is not None:  # d'abord : un refus (> 500 membres) n'aura rien lancé
-        job = await _bot_write(
-            "role_rule_apply", actor_id, "post", f"/discord/roles/{previous['id']}/bulk",
-            {"action": "remove", "user_ids": None, "from_role_id": previous["id"],
-             "actor_name": await _actor_name(user)},
-            details=details,
-        )
-        remove_job_id = job["job_id"]
+    # La règle d'abord : si elle échoue, personne ne perd l'ancien rôle sans gagner le nouveau (T4 n°2).
     job = await _bot_write("role_rule_apply", actor_id, "post", f"/role-rules/{rule_id}/apply", {},
-                           details={**details, "remove_job_id": remove_job_id})
+                           details=details)
+    remove_job_id, remove_error = None, None
+    if previous is not None:
+        try:
+            removal = await _bot_write(
+                "role_rule_apply", actor_id, "post", f"/discord/roles/{previous['id']}/bulk",
+                {"action": "remove", "user_ids": None, "from_role_id": previous["id"],
+                 "actor_name": await _actor_name(user)},
+                details={**details, "job_id": job["job_id"]},
+            )
+            remove_job_id = removal["job_id"]
+        except HTTPException as e:  # déjà journalisé (success=false) ; la règle tourne
+            remove_error = str(e.detail)
     await admin._log("role_rule_apply", actor_id, details={
         **details, "job_id": job["job_id"], "remove_job_id": remove_job_id,
     })
-    return {"job_id": job["job_id"], "remove_job_id": remove_job_id}
+    return {"job_id": job["job_id"], "remove_job_id": remove_job_id, "remove_error": remove_error}

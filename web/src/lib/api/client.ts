@@ -178,7 +178,7 @@ export const api = {
       request<{ ok: boolean; reloaded: boolean }>(`/admin/role-rules/${seg(id)}`, send("DELETE")),
     previewRoleRule: (id: number) => request<RoleRulePreview>(`/admin/role-rules/${seg(id)}/preview`),
     applyRoleRule: (id: number, data: RoleRuleApplyInput) =>
-      request<{ job_id: string; remove_job_id: string | null }>(`/admin/role-rules/${seg(id)}/apply`, send("POST", data)),
+      request<{ job_id: string; remove_job_id: string | null; remove_error?: string | null }>(`/admin/role-rules/${seg(id)}/apply`, send("POST", data)),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
     settings: () => request<SettingsResponse>("/admin/settings"),
     putSetting: (key: string, value: string) =>

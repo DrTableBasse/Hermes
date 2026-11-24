@@ -317,6 +317,18 @@ describe("page /admin/regles", () => {
     )
   })
 
+  it("retrait de l’ancien rôle impossible à lancer : la règle tourne, l’échec est signalé", async () => {
+    server.getRoleRules.mockResolvedValue([{ ...BATMAN, role_id: "400", role_name: "Fortnite", previous_role_id: "500", reconcile: true }])
+    client.api.admin.applyRoleRule.mockResolvedValue({ job_id: "a1", remove_job_id: null, remove_error: "Permission refusée" })
+    render(await AdminRulesPage())
+    const p = await preview("Vocal total")
+    fireEvent.click(p.getByRole("checkbox", { name: "Retirer l’ancien rôle « 🦇 Batman » à ses 7 membres" }))
+    await confirm(row("Vocal total"), "Valider", "Appliquer")
+    expect((await p.findByRole("alert")).textContent).toBe(
+      "Règle appliquée, mais l’ancien rôle n’a pas été retiré : Permission refusée",
+    )
+  })
+
   it("sans la case : l’ancien rôle n’est pas retiré", async () => {
     server.getRoleRules.mockResolvedValue([{ ...BATMAN, role_id: "400", role_name: "Fortnite", previous_role_id: "500" }])
     client.api.admin.updateRoleRule.mockResolvedValue({ rule: { ...BATMAN, reconcile: true }, previous_role: null, reloaded: true })

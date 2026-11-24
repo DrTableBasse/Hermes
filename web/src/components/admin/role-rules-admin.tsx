@@ -154,6 +154,10 @@ export function RoleRulesAdmin({ initialRules, roles, achievements, grades, canM
       const res = await api.admin.applyRoleRule(rule.id, body)
       jobs = { apply: res.job_id, remove: res.remove_job_id }
       patch({ jobs, validated: true })
+      if (res.remove_error) {
+        // La règle tourne, mais le retrait de l'ancien rôle n'a pas pu être lancé.
+        patch({ applyError: `Règle appliquée, mais l’ancien rôle n’a pas été retiré : ${res.remove_error}` })
+      }
     } catch (e) {
       patch({ applyError: adminErrorText(e) })
       return
