@@ -13,23 +13,38 @@ from tests.test_role_engine import FakeRole, env, rule_row, run  # noqa: F401
 
 
 class BumpDB:
-    """FakeDB du moteur + insertion de la règle de bump (le SQL de l'amorçage)."""
+    """FakeDB du moteur + SQL d'amorçage : marqueur ``bump_rule_seeded`` et insertion de la règle."""
 
     def __init__(self, base):
         self._base = base
+        self.markers = set()
 
     def __getattr__(self, name):
         return getattr(self._base, name)
 
+    def _has_bumps(self):
+        return any(r["condition_type"] == "bumps" for r in self._base.rules)
+
     async def fetchval(self, sql, *args):
-        assert "INSERT INTO role_rules" in sql and "NOT EXISTS" in sql  # garde SQL d'idempotence
+        if sql.startswith("SELECT 1 FROM bot_settings"):
+            assert "bump_rule_seeded" in sql
+            return 1 if "bump_rule_seeded" in self.markers else None
+        # Un seul ordre SQL : règle + marqueur ensemble (atomique), gardé par NOT EXISTS.
+        assert "INSERT INTO role_rules" in sql and "NOT EXISTS" in sql and "bump_rule_seeded" in sql
         role_id, threshold = args
-        rules = self._base.rules
-        if any(r["condition_type"] == "bumps" for r in rules):
+        self.markers.add("bump_rule_seeded")
+        if self._has_bumps():
             return None
+        rules = self._base.rules
         rule = rule_row(max([r["id"] for r in rules] + [0]) + 1, "bumps", threshold, role_id=role_id)
         rules.append(rule)
         return rule["id"]
+
+    async def execute(self, sql, *args):
+        # Rôle non résolu mais règle déjà là : on pose seulement le marqueur.
+        assert "bump_rule_seeded" in sql and "EXISTS" in sql
+        if self._has_bumps():
+            self.markers.add("bump_rule_seeded")
 
 
 @pytest.fixture
@@ -248,3 +263,42 @@ def test_tracker_no_longer_hardcodes_bump_role():
     src = inspect.getsource(tracker_module)
     assert "bump_role" not in src and "add_roles" not in src
     assert "evaluate_member" in src
+
+
+def test_seed_marks_seeding_with_the_rule(bump_env):
+    async def scenario():
+        e = bump_env(roles=[FakeRole(70, "Bumper Fou")])
+        await e.engine.seed_bump_rule(e.guild)
+        return e
+
+    assert "bump_rule_seeded" in run(scenario).engine.db.markers
+
+
+def test_deleted_rule_is_not_recreated_at_next_startup(bump_env):
+    async def scenario():
+        e = bump_env(roles=[FakeRole(70, "Bumper Fou")])
+        await e.engine.seed_bump_rule(e.guild)      # premier démarrage
+        e.db.rules[:] = []                          # l'admin supprime la règle
+        await e.engine.seed_bump_rule(e.guild)      # redémarrage
+        return e
+
+    assert bumps_rules(run(scenario)) == []
+
+
+def test_marker_blocks_seeding_even_without_any_bump_rule(bump_env):
+    async def scenario():
+        e = bump_env(roles=[FakeRole(70, "Bumper Fou")])
+        e.engine.db.markers.add("bump_rule_seeded")
+        await e.engine.seed_bump_rule(e.guild)
+        return e
+
+    assert bumps_rules(run(scenario)) == []
+
+
+def test_existing_rule_gets_marked_even_if_role_does_not_resolve(bump_env):
+    async def scenario():
+        e = bump_env(rules=[rule_row(3, "bumps", 50, role_id=72)], roles=[FakeRole(1, "Autre")])
+        await e.engine.seed_bump_rule(e.guild)
+        return e
+
+    assert "bump_rule_seeded" in run(scenario).engine.db.markers

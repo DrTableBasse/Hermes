@@ -348,20 +348,34 @@ class RoleEngine(commands.Cog):
             logger.error("Amorçage de la règle de bump : %s", e, exc_info=True)
 
     async def seed_bump_rule(self, guild: discord.Guild) -> None:
-        """Rôle de bump → règle ``bumps ≥ seuil`` (mode aperçu), si aucune règle ``bumps`` n'existe.
+        """Rôle de bump → règle ``bumps ≥ seuil`` (mode aperçu), une seule fois.
 
-        Remplace les réglages bump_role / bump_role_threshold (étape 4). Sans rôle résolu, rien
-        n'est créé ; l'insertion est gardée en SQL, donc rejouable à chaque démarrage.
+        Remplace les réglages bump_role / bump_role_threshold (étape 4). Le marqueur
+        ``bump_rule_seeded`` (clé hors registre : jamais affichée dans Réglages) est posé dans le
+        même ordre SQL que la règle ; une règle supprimée ensuite par un admin n'est pas recréée.
+        Sans rôle résolu, rien n'est créé (et le marqueur n'est posé que si une règle existe déjà).
         """
+        if await db_manager.fetchval(
+                "SELECT 1 FROM bot_settings WHERE key = 'bump_rule_seeded'"):
+            return
         role = settings.get_role(guild, 'bump_role')
         if role is None:
+            await db_manager.execute(
+                "INSERT INTO bot_settings (key, value) "
+                "SELECT 'bump_rule_seeded', '1' "
+                "WHERE EXISTS (SELECT 1 FROM role_rules WHERE condition_type = 'bumps') "
+                "ON CONFLICT (key) DO NOTHING")
             return
         threshold = settings.get_int('bump_role_threshold', 20)
         created = await db_manager.fetchval(
-            "INSERT INTO role_rules (condition_type, condition_value, role_id) "
-            "SELECT 'bumps', $2::TEXT, $1::BIGINT "
-            "WHERE NOT EXISTS (SELECT 1 FROM role_rules WHERE condition_type = 'bumps') "
-            "RETURNING id",
+            "WITH ins AS ("
+            " INSERT INTO role_rules (condition_type, condition_value, role_id) "
+            " SELECT 'bumps', $2::TEXT, $1::BIGINT "
+            " WHERE NOT EXISTS (SELECT 1 FROM role_rules WHERE condition_type = 'bumps') "
+            " RETURNING id), "
+            "mark AS (INSERT INTO bot_settings (key, value) VALUES ('bump_rule_seeded', '1') "
+            " ON CONFLICT (key) DO NOTHING) "
+            "SELECT id FROM ins",
             role.id, str(threshold),
         )
         if created is not None:
