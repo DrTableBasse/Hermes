@@ -238,7 +238,9 @@ async def list_commands():
     statuses = await CommandStatusManager.get_all()
     bot = _get_bot()
     descriptions = {}
-    for cmd in bot.tree.get_commands():
+    # Commandes globales et commandes de serveur (commandes de jeux, cogs/fun/game_manager.py).
+    guild = discord.Object(id=int(os.getenv('GUILD_ID', '0')))
+    for cmd in [*bot.tree.get_commands(), *bot.tree.get_commands(guild=guild)]:
         if cmd.name not in statuses:
             statuses[cmd.name] = True
         descriptions[cmd.name] = cmd.description or ''

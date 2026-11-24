@@ -11,14 +11,11 @@ import os
 import discord
 from discord.ext import commands, tasks
 
-from cogs.fun.game_lfg import GAMES
 from utils import settings
 from utils.database import db_manager
 from utils.live_stats import MemberView, MessageCounter, summarize
 
 logger = logging.getLogger(__name__)
-
-GAME_ROLES = {key: game["role_name"] for key, game in GAMES.items()}
 
 
 class LiveStats(commands.Cog):
@@ -49,7 +46,9 @@ class LiveStats(commands.Cog):
             )
             for m in guild.members
         )
-        return summarize(views, GAME_ROLES)
+        # Clé du jeu -> nom de son rôle, lu dans site_games par GameManager.
+        manager = self.bot.get_cog('GameManager')
+        return summarize(views, manager.game_roles() if manager else {})
 
     def _guild(self):
         return self.bot.get_guild(int(os.getenv('GUILD_ID', '0')))

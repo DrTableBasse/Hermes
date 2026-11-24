@@ -1,7 +1,8 @@
 """Données des jeux (étape 4, tâche 2) : colonnes de provisionnement, amorçage, réglage staff_roles.
 
 Le SQL n'est pas exécuté (pas de PostgreSQL dans les tests) : on lit la migration et ``init.sql``
-et on vérifie qu'ils posent les mêmes colonnes et le même amorçage que ``GAMES`` du bot.
+et on vérifie qu'ils posent les mêmes colonnes et le même amorçage que les jeux historiques du bot
+(``bot/utils/games.py``).
 """
 import ast
 import re
@@ -17,19 +18,15 @@ INIT = (ROOT / "db/init.sql").read_text(encoding="utf-8")
 EMOJIS = {"dbd": "🔪", "lol": "⚔️", "warframe": "🚀", "overwatch": "🌀", "fortnite": "🏹", "minecraft": "⛏️"}
 
 
-def _games_from_bot() -> dict:
-    tree = ast.parse((ROOT / "bot/cogs/fun/game_lfg.py").read_text(encoding="utf-8"))
+def _bot_constant(name: str):
+    """Constante littérale de ``bot/utils/games.py`` (lue par AST, sans importer le bot)."""
+    tree = ast.parse((ROOT / "bot/utils/games.py").read_text(encoding="utf-8"))
     for node in ast.walk(tree):
-        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", "") == "GAMES":
-            # Les couleurs (Colors.RED) ne sont pas des littéraux : on ne garde que les emojis.
-            return {
-                ast.literal_eval(k): {
-                    ast.literal_eval(kk): ast.literal_eval(vv)
-                    for kk, vv in zip(v.keys, v.values) if ast.literal_eval(kk) == "emoji"
-                }
-                for k, v in zip(node.value.keys, node.value.values)
-            }
-    raise AssertionError("GAMES introuvable")
+        target = node.target if isinstance(node, ast.AnnAssign) else (
+            node.targets[0] if isinstance(node, ast.Assign) else None)
+        if getattr(target, "id", "") == name:
+            return ast.literal_eval(node.value)
+    raise AssertionError(f"{name} introuvable")
 
 
 def _tail(sql: str) -> str:
@@ -67,16 +64,14 @@ class TestSchema:
         assert "provisioned  = FALSE" not in seed  # la bascule ne dégrade jamais un jeu provisionné
 
 
-def test_emojis_identiques_a_games_du_bot():
-    games = _games_from_bot()
-    assert set(games) == set(EMOJIS)
-    for key, emoji in EMOJIS.items():
-        assert games[key]["emoji"] == emoji, key
+def test_jeux_amorces_identiques_aux_jeux_historiques_du_bot():
+    # GAMES (game_lfg.py) a disparu à la tâche 3 : les six jeux historiques sont ceux dont le
+    # bot rattache le forum par nom au premier démarrage.
+    assert set(_bot_constant("LEGACY_FORUM_NAMES")) == set(EMOJIS)
 
 
 def test_cooldown_par_defaut_est_celui_du_bot():
-    src = (ROOT / "bot/cogs/fun/game_lfg.py").read_text(encoding="utf-8")
-    assert "COOLDOWN_SECONDS = 3600" in src
+    assert _bot_constant("DEFAULT_LFG_COOLDOWN") == 3600
     assert "lfg_cooldown INT NOT NULL DEFAULT 3600" in MIGRATION
 
 
