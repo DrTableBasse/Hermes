@@ -12,6 +12,7 @@ from typing import Annotated, Literal, Optional
 import discord
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi import Path as FastApiPath
 from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -641,6 +642,97 @@ async def settings_ensure_channel(req: EnsureChannelRequest):
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return {"id": str(channel.id), "name": channel.name}
+
+
+# ── Jeux (cogs/fun/game_manager.py) ──────────────────────────────────────────
+# Le site écrit site_games puis appelle ces routes ; le cog GameManager fait foi pour
+# Discord (rôle, forum, commande). Ses erreurs Discord sont relancées une fois l'état
+# remis en cohérence : elles sont traduites ici en français.
+
+GameKey = Annotated[str, FastApiPath(pattern=r"^[a-z0-9-]{1,32}$")]
+
+
+def _game_manager():
+    cog = _get_bot().get_cog("GameManager")
+    if cog is None:
+        raise HTTPException(status_code=503, detail="Gestion des jeux non chargée")
+    return cog
+
+
+def _game_errors(fn):
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except KeyError:
+            raise HTTPException(status_code=404, detail="Jeu inconnu")
+        except RuntimeError as e:  # serveur Discord introuvable
+            raise HTTPException(status_code=503, detail=str(e) or "Serveur Discord introuvable")
+        except discord.Forbidden:
+            raise HTTPException(status_code=403, detail="Permission refusée — le bot n'a pas les droits "
+                                                        "nécessaires (Gérer les rôles, Gérer les salons)")
+        except discord.NotFound:
+            raise HTTPException(status_code=404, detail="Rôle ou salon Discord introuvable")
+        except discord.HTTPException as e:
+            raise HTTPException(status_code=502, detail=f"Erreur Discord : {e.text or e.status}")
+    return wrapper
+
+
+def _resync_forum_count(cog, statuses: dict) -> int:
+    """Forums que ``resync_permissions`` réécrirait : jeux provisionnés dont le forum existe."""
+    return sum(1 for key, game in cog.games.items()
+               if game.provisioned and statuses.get(key, {}).get("forum") == "ok")
+
+
+@app.post("/games/reload", dependencies=[Depends(_require_token)])
+async def games_reload():
+    await _game_manager().reload()
+    return {"ok": True}
+
+
+@app.get("/games/status", dependencies=[Depends(_require_token)])
+async def games_status():
+    """État Discord de chaque jeu (``ok`` / ``missing`` / ``none``) et nombre de forums à resynchroniser."""
+    cog = _game_manager()
+    statuses = cog.statuses()
+    return {"loaded": bool(cog.loaded), "games": statuses,
+            "resync_forums": _resync_forum_count(cog, statuses)}
+
+
+@app.get("/games/taken", dependencies=[Depends(_require_token)])
+async def games_taken(exclude: Optional[str] = None):
+    """Noms de commande et émojis déjà pris pour le jeu ``exclude`` (création : aucun)."""
+    cog = _game_manager()
+    return {"commands": sorted(cog.taken_command_names(exclude)),
+            "emojis": sorted(cog.taken_emojis(exclude))}
+
+
+@app.post("/games/resync-permissions", dependencies=[Depends(_require_token)])
+@_game_errors
+async def games_resync_permissions():
+    return {"forums": await _game_manager().resync_permissions()}
+
+
+@app.post("/games/{key}/provision", dependencies=[Depends(_require_token)])
+@_game_errors
+async def game_provision(key: GameKey):
+    cog = _game_manager()
+    result = await cog.provision(key)
+    return {"role_id": str(result["role_id"]), "forum_id": str(result["forum_id"]),
+            "command": result["command"], "created": list(result["created"]),
+            "status": cog.status(key)}
+
+
+@app.post("/games/{key}/archive", dependencies=[Depends(_require_token)])
+@_game_errors
+async def game_archive(key: GameKey):
+    return {"status": await _game_manager().archive(key)}
+
+
+@app.post("/games/{key}/unarchive", dependencies=[Depends(_require_token)])
+@_game_errors
+async def game_unarchive(key: GameKey):
+    return {"status": await _game_manager().unarchive(key)}
 
 
 # ── Statut d'Hermes ───────────────────────────────────────────────────────────

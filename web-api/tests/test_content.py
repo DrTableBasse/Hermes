@@ -20,6 +20,25 @@ def _fresh(monkeypatch):
     grades.clear_grades_cache()
 
 
+@pytest.fixture(autouse=True)
+def _bot_games(monkeypatch):
+    """Bot factice pour les jeux : rien de pris, rechargement accepté (détails : test_games_admin.py)."""
+    from routes import admin
+
+    async def fake_bot(method, path, **kwargs):
+        if path == "/games/taken":
+            return {"commands": ["rang"], "emojis": ["⭐", "📺", "🎭"]}
+        if path == "/games/reload":
+            return {"ok": True}
+        raise AssertionError(f"appel bot inattendu : {method} {path}")
+
+    async def fake_bot_get(path, timeout=1.5):
+        return None  # bot muet : statut des jeux inconnu
+
+    monkeypatch.setattr(admin, "_bot", fake_bot)
+    monkeypatch.setattr(content, "bot_get", fake_bot_get)
+
+
 @pytest.fixture
 def as_user(client, monkeypatch):
     def _as(discord_id="1", is_admin=True):
@@ -111,10 +130,12 @@ def test_forum_url_null_without_guild(client, fake_db, monkeypatch):
 
 # ── Écriture des jeux ─────────────────────────────────────────────────────────
 
+NEW = {"emoji": "🎯", "command_name": "apex"}
+
 def test_create_game(client, fake_db, as_user):
     as_user()
     r = client.post("/admin/games", json={"key": "apex", "name": " Apex ", "color": "#aabbcc",
-                                          "image": "/media/x.png", "forum_channel_id": "123"})
+                                          "image": "/media/x.png", "forum_channel_id": "123", **NEW})
     assert r.status_code == 201
     args = _writes(fake_db)[0][2]
     assert args[:4] == ("apex", "Apex", "#AABBCC", "/media/x.png") and args[5] == 123
@@ -123,7 +144,7 @@ def test_create_game(client, fake_db, as_user):
 def test_create_game_duplicate_key_409(client, fake_db, as_user):
     as_user()
     fake_db.on("SELECT 1 FROM site_games", 1)
-    r = client.post("/admin/games", json={"key": "lol", "name": "LoL", "color": "#FFFFFF"})
+    r = client.post("/admin/games", json={"key": "lol", "name": "LoL", "color": "#FFFFFF", **NEW})
     assert r.status_code == 409 and not _writes(fake_db)
 
 
@@ -161,14 +182,14 @@ def test_create_game_rejects_bad_input(client, fake_db, as_user, body):
 def test_game_image_accepted(client, fake_db, as_user, image):
     as_user()
     fake_db.on("SELECT 1 FROM site_games", None)
-    r = client.post("/admin/games", json={"key": "ok", "name": "x", "color": "#FFFFFF", "image": image})
+    r = client.post("/admin/games", json={"key": "ok", "name": "x", "color": "#FFFFFF", "image": image, **NEW})
     assert r.status_code == 201
 
 
 def test_create_game_with_tagline(client, fake_db, as_user):
     as_user()
     r = client.post("/admin/games", json={"key": "apex", "name": "Apex", "color": "#AABBCC",
-                                          "tagline": "  " + "a" * 120 + " "})
+                                          "tagline": "  " + "a" * 120 + " ", **NEW})
     assert r.status_code == 201
     sql, args = _writes(fake_db)[0][1], _writes(fake_db)[0][2]
     assert "tagline" in sql and args[7] == "a" * 120  # 120 caractères inclus, espaces retirés
@@ -178,7 +199,7 @@ def test_create_game_with_tagline(client, fake_db, as_user):
                                               ("   ", None), (None, None)])
 def test_update_game_tagline(client, fake_db, as_user, tagline, stored):
     as_user()
-    fake_db.on("SELECT 1 FROM site_games", 1)
+    fake_db.on("SELECT key, name FROM site_games", {"key": "lol", "name": "LoL"})
     assert client.put("/admin/games/lol", json={"tagline": tagline}).status_code == 200
     sql, args = _writes(fake_db)[0][1], _writes(fake_db)[0][2]
     assert "tagline = $2" in sql and args == ("lol", stored)
@@ -186,7 +207,7 @@ def test_update_game_tagline(client, fake_db, as_user, tagline, stored):
 
 def test_update_game_partial(client, fake_db, as_user):
     as_user()
-    fake_db.on("SELECT 1 FROM site_games", 1)
+    fake_db.on("SELECT key, name FROM site_games", {"key": "lol", "name": "LoL"})
     assert client.put("/admin/games/lol", json={"color": "#112233", "position": 4}).status_code == 200
     sql, args = _writes(fake_db)[0][1], _writes(fake_db)[0][2]
     assert "color = $2" in sql and "position = $3" in sql and args == ("lol", "#112233", 4)
@@ -195,15 +216,6 @@ def test_update_game_partial(client, fake_db, as_user):
 def test_update_unknown_game_404(client, fake_db, as_user):
     as_user()
     assert client.put("/admin/games/nope", json={"name": "x"}).status_code == 404
-
-
-def test_delete_game_deactivates(client, fake_db, as_user):
-    as_user()
-    fake_db.on("UPDATE site_games", 1)
-    assert client.delete("/admin/games/lol").status_code == 200
-    assert "active = false" in fake_db.calls[-1][1].lower() and "delete" not in fake_db.calls[-1][1].lower()
-    fake_db.rules.clear()
-    assert client.delete("/admin/games/nope").status_code == 404
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
@@ -337,7 +349,7 @@ def test_grade_unknown_404(client, fake_db, as_user):
 # ── Accès ─────────────────────────────────────────────────────────────────────
 
 ADMIN_CALLS = [
-    ("post", "/admin/games", {"key": "ok", "name": "x", "color": "#FFFFFF"}),
+    ("post", "/admin/games", {"key": "ok", "name": "x", "color": "#FFFFFF", "emoji": "🎯", "command_name": "ok"}),
     ("put", "/admin/games/lol", {"name": "x"}),
     ("delete", "/admin/games/lol", None),
     ("put", "/admin/pages/reglement", {"title": "t", "body_md": ""}),
@@ -358,9 +370,10 @@ def test_content_admin_only(client, fake_db, as_user, method, url, body):
 
 def test_admin_games_lists_inactive_with_editable_fields(client, fake_db, as_user):
     as_user()
+    extra = {"emoji": None, "command_name": None, "lfg_cooldown": 3600, "provisioned": False, "archived": False}
     fake_db.on("FROM site_games", [
-        {**TABLE[1], "discord_role_id": None},
-        {**TABLE[0], "discord_role_id": 1234567890123456789},
+        {**TABLE[1], **extra, "discord_role_id": None},
+        {**TABLE[0], **extra, "discord_role_id": 1234567890123456789},
     ])
     r = client.get("/admin/games")
     assert r.status_code == 200

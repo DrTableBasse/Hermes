@@ -26,7 +26,7 @@ def test_nom_de_commande_valide(name):
     assert validate_command_name(name, set()) is None
 
 
-@pytest.mark.parametrize("name", ["", "Dbd", "war dogs", "x" * 33, "jeu!", "é", None])
+@pytest.mark.parametrize("name", ["", "Dbd", "war dogs", "x" * 33, "jeu!", "é", None, "dbd\n"])
 def test_nom_de_commande_mal_forme(name):
     error = validate_command_name(name, set())
     assert error and "invalide" in error

@@ -26,8 +26,8 @@ def _bot_headers():
     return {"Authorization": f"Bearer {BOT_API_TOKEN}"}
 
 
-async def _bot(method: str, path: str, **kwargs):
-    async with httpx.AsyncClient(timeout=10) as client:
+async def _bot(method: str, path: str, *, timeout: float = 10, **kwargs):
+    async with httpx.AsyncClient(timeout=timeout) as client:
         # request() plutôt que get()/delete()… : httpx refuse un corps JSON sur client.delete().
         r = await client.request(method.upper(), f"{BOT_API_URL}{path}",
                                  headers=_bot_headers(), **kwargs)
@@ -63,6 +63,13 @@ KIND_OF_ACTION: dict[str, str] = {
     "role_rule_update": "setting",
     "role_rule_delete": "setting",
     "role_rule_apply": "setting",
+    # Jeux (routes/content.py)
+    "game_create": "game",
+    "game_update": "game",
+    "game_provision": "game",
+    "game_archive": "game",
+    "game_reactivate": "game",
+    "game_resync_permissions": "game",
 }
 
 

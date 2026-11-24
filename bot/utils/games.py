@@ -36,7 +36,7 @@ def validate_command_name(name: str, taken: set[str]) -> str | None:
 
     ``taken`` : noms déjà pris (commandes des autres jeux et toutes les autres commandes du bot).
     """
-    if not isinstance(name, str) or not _COMMAND.match(name):
+    if not isinstance(name, str) or not _COMMAND.fullmatch(name):
         return ("Nom de commande invalide : 1 à 32 caractères parmi les minuscules, "
                 "les chiffres, « _ » et « - ».")
     if name in taken:
