@@ -76,6 +76,9 @@ KIND_OF_ACTION: dict[str, str] = {
     "channel_delete": "channel",
     "channel_template_apply": "permission",
     "channel_staff_resync": "permission",
+    # Permissions des rôles et accès aux commandes (routes/permissions_admin.py)
+    "role_permissions_update": "permission",
+    "command_permissions_update": "permission",
 }
 
 
