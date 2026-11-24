@@ -12,7 +12,11 @@ puis refaite par le bot (défense en profondeur), avec la même règle (``discor
 
 Commandes Hermes — liste blanche par commande racine (``command_permissions``), appliquée par le
 bot : l'acteur n'ajoute ou ne retire qu'un rôle strictement sous lui ; la liste d'une commande
-réservée aux admins ne se modifie que par un admin du site (``is_admin``).
+réservée aux admins ne se modifie que par un admin du site (``is_admin``). Hors propriétaire et
+``is_admin``, l'acteur doit pouvoir utiliser lui-même la commande, avant **et** après la
+modification (règle ``can_use`` du bot avec ses rôles Discord) : il ne s'ouvre pas une commande
+restreinte par un rôle qu'il porte, ne restreint pas une commande qu'il ne peut pas utiliser et ne
+se l'interdit pas.
 
 Toute écriture est journalisée dans ``audit_events`` (kind ``permission``), échecs compris.
 """
@@ -37,6 +41,10 @@ Flag = Annotated[str, StringConstraints(min_length=1, max_length=64)]
 
 ADMIN_COMMAND = "Seul un administrateur du site peut modifier l'accès à une commande réservée aux admins"
 ROLE_ABOVE = "Le rôle « {} » est au niveau du vôtre ou au-dessus : vous ne pouvez pas le modifier"
+CANNOT_USE = ("Vous ne pouvez pas modifier l'accès à une commande que vous ne pouvez pas "
+              "utiliser vous-même")
+SELF_LOCKOUT = ("Cette modification vous retirerait l'accès à la commande : vous ne pouvez pas "
+                "vous l'interdire vous-même")
 CONFIRM_ADMINISTRATOR = "Activer « Administrateur » demande une confirmation explicite"
 DELETED_ROLE = "Rôle supprimé"
 
@@ -185,6 +193,12 @@ async def _allowed() -> dict[str, list[str]]:
     return allowed
 
 
+def _can_use_free(actor_role_ids, allowed_ids) -> bool:
+    """``can_use`` du bot pour une commande libre, acteur ni propriétaire ni admin : liste vide =
+    tout le monde, sinon via un rôle de la liste."""
+    return not allowed_ids or bool(set(actor_role_ids) & set(allowed_ids))
+
+
 def _role_names(role_ids, by_id: dict) -> list[str]:
     return [by_id[r]["name"] if r in by_id else f"{DELETED_ROLE} ({r})" for r in role_ids]
 
@@ -244,7 +258,7 @@ async def update_command_permissions(name: str, body: CommandPermissionsUpdate,
     added = [r for r in new_ids if r not in old_ids]
     removed = [r for r in old_ids if r not in new_ids]
     by_id = {r["id"]: r for r in await _roles()}
-    actor = await actor_rank(user)
+    actor = await actor_rank(user, with_role_ids=True)
     for rid in added:
         if rid not in by_id:
             raise HTTPException(404, "Rôle introuvable")
@@ -252,6 +266,12 @@ async def update_command_permissions(name: str, body: CommandPermissionsUpdate,
         role = by_id.get(rid)  # rôle supprimé de Discord : retrait toujours permis (nettoyage)
         if role is not None and not outranks(actor, role["position"]):
             raise HTTPException(403, ROLE_ABOVE.format(role["name"]))
+    # Une commande admin n'arrive ici qu'avec ``is_admin`` : seules les commandes libres sont en jeu.
+    if (added or removed) and not actor["is_owner"] and not user.get("is_admin"):
+        if not _can_use_free(actor["role_ids"], old_ids):
+            raise HTTPException(403, CANNOT_USE)
+        if not _can_use_free(actor["role_ids"], new_ids):
+            raise HTTPException(403, SELF_LOCKOUT)
     if not added and not removed:
         # Rien à écrire ni à journaliser, mais le rechargement est relancé : c'est le « Réessayer »
         # d'après un ``reload_failed`` précédent.

@@ -85,7 +85,8 @@ def bot(monkeypatch, fake_db):
     """Bot factice + table ``command_permissions`` en mémoire."""
     state = {
         "actor": {"permissions": MOD_PERMS, "top_position": 7, "is_owner": False},
-        "rank": {"top_position": 7, "is_owner": False},
+        # Le modérateur porte Modo et Membre (sous son rôle le plus haut, rang 7).
+        "rank": {"top_position": 7, "is_owner": False, "role_ids": ["400", "200"]},
         "calls": [], "errors": {},
         "allowed": [("kick", 400)],
         "tx": [], "tx_fail": False,
@@ -475,8 +476,8 @@ def test_role_above_actor_refused(mod, bot, before, role_ids):
 
 
 def test_role_above_kept_untouched_is_allowed(mod, bot):
-    bot["allowed"] = [("blague", 500)]
-    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["500", "200"]})
+    bot["allowed"] = [("blague", 500), ("blague", 200)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["500", "200", "400"]})
     assert r.status_code == 200
 
 
@@ -488,10 +489,67 @@ def test_owner_exempt_for_command_roles(mod, bot):
 def test_unknown_role_added_404_but_deleted_role_removable(mod, bot):
     r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["777"]})
     assert r.status_code == 404 and r.json()["detail"] == "Rôle introuvable"
-    bot["allowed"] = [("blague", 777)]
-    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": []})
+    bot["allowed"] = [("blague", 777), ("blague", 200)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200"]})
     assert r.status_code == 200
 
 
 def test_invalid_role_id_rejected(mod, bot):
     assert mod.put("/admin/permissions/commands/blague", json={"role_ids": ["abc"]}).status_code == 422
+
+
+# ── I1 : on ne modifie que l'accès d'une commande qu'on peut soi-même utiliser ──
+
+CANNOT_USE = ("Vous ne pouvez pas modifier l'accès à une commande que vous ne pouvez pas "
+              "utiliser vous-même")
+SELF_LOCKOUT = ("Cette modification vous retirerait l'accès à la commande : vous ne pouvez pas "
+                "vous l'interdire vous-même")
+
+
+def test_actor_cannot_open_restricted_command_with_a_role_he_carries(mod, bot, fake_db):
+    """Scénario de la relecture : /blague restreinte à « Équipe Event » (Chef ici, non porté),
+    le modérateur y ajoute « Animateur » (Modo ici), qu'il porte."""
+    bot["allowed"] = [("blague", 500)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["500", "400"]})
+    assert r.status_code == 403 and r.json()["detail"] == CANNOT_USE
+    assert bot["tx"] == [] and _audit(fake_db) == []
+
+
+def test_actor_cannot_restrict_a_command_he_cannot_use(mod, bot):
+    bot["rank"] = {"top_position": 7, "is_owner": False, "role_ids": ["400"]}
+    bot["allowed"] = [("blague", 200)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": []})
+    assert r.status_code == 403 and r.json()["detail"] == CANNOT_USE
+
+
+def test_actor_cannot_lock_himself_out(mod, bot):
+    bot["rank"] = {"top_position": 7, "is_owner": False, "role_ids": ["400"]}
+    bot["allowed"] = []
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200"]})
+    assert r.status_code == 403 and r.json()["detail"] == SELF_LOCKOUT
+    assert bot["tx"] == []
+
+
+def test_actor_who_can_use_the_command_may_change_it(mod, bot):
+    bot["allowed"] = [("blague", 200)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200", "400"]})
+    assert r.status_code == 200 and r.json()["changed"] is True
+
+
+def test_actor_without_server_roles_cannot_restrict(mod, bot):
+    bot["rank"] = {"top_position": 7, "is_owner": False}  # ancienne forme : pas de role_ids
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200"]})
+    assert r.status_code == 403 and r.json()["detail"] == SELF_LOCKOUT
+
+
+def test_owner_exempt_from_usage_rule(mod, bot):
+    bot["rank"] = {"top_position": 11, "is_owner": True, "role_ids": []}
+    bot["allowed"] = [("blague", 500)]
+    assert mod.put("/admin/permissions/commands/blague", json={"role_ids": ["400"]}).status_code == 200
+
+
+def test_site_admin_exempt_from_usage_rule(session_with, bot):
+    bot["rank"] = {"top_position": 11, "is_owner": False, "role_ids": []}  # au-dessus de Chef
+    bot["allowed"] = [("blague", 500)]
+    admin_client = session_with(is_admin=True)
+    assert admin_client.put("/admin/permissions/commands/blague", json={"role_ids": ["400"]}).status_code == 200
