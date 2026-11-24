@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS role_rules (
            OR (condition_type = 'achievement' AND create_role_name IS NOT NULL))
 );
 
+-- Ancien rôle visé, mémorisé quand un PATCH change role_id : seul rôle que
+-- « appliquer » accepte de retirer à ses porteurs (remove_previous_role_id).
+ALTER TABLE role_rules ADD COLUMN IF NOT EXISTS previous_role_id BIGINT;
+
 -- Batman : heures de vocal >= voice_hours_for_role (100 par défaut).
 INSERT INTO role_rules (condition_type, condition_value, role_id)
 SELECT 'voice_hours',

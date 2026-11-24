@@ -97,7 +97,7 @@ def rules(fake_db):
     def update(sql, rid, *args):
         if rid not in store:
             return None
-        store[rid].update(dict(zip(RULE_COLS, args)))
+        store[rid].update(dict(zip(RULE_COLS + ("previous_role_id",), args)))
         return store[rid]
 
     def delete(sql, rid):
@@ -515,8 +515,11 @@ def test_patch_role_change_reports_previous_role(client, fake_db, bot, rules, se
     assert r.status_code == 200
     assert r.json()["previous_role"] == {"id": "200", "name": "Membre", "members": 37}
     assert r.json()["rule"]["role_id"] == "150"
-    # Sans changement de rôle : pas d'ancien rôle.
+    assert r.json()["rule"]["previous_role_id"] == "200"
+    assert rules["store"][1]["previous_role_id"] == 200  # mémorisé pour apply
+    # Sans changement de rôle : pas d'ancien rôle, mais l'ancien mémorisé reste.
     assert client.patch("/admin/role-rules/1", json={"active": False}).json()["previous_role"] is None
+    assert rules["store"][1]["previous_role_id"] == 200
 
 
 def test_patch_keeps_rule_with_missing_role_editable(client, fake_db, bot, rules, session_with):
@@ -592,25 +595,72 @@ def test_apply_starts_job_and_logs(client, fake_db, bot, rules, session_with):
     assert row["details"]["job_id"] == "job-apply"
 
 
-def test_apply_removes_previous_role_when_asked(client, fake_db, bot, rules, session_with):
-    rules["add"](condition_type="level", condition_value="5", role_id=200)
+def _rule_with_previous(rules, bot, previous_role_id=150):
+    """Règle passée de l'ancien rôle ``previous_role_id`` au rôle 200 (« Membre »)."""
+    rules["add"](condition_type="level", condition_value="5", role_id=200, previous_role_id=previous_role_id)
     bot["roles"].append({"id": "150", "name": "Ancien", "color": 0, "position": 2, "managed": False,
                          "members": 4, "below_bot": True})
-    session_with({"roles.manage"})
-    r = client.post("/admin/role-rules/1/apply", json={"confirm": True, "remove_previous_role_id": "150"})
+
+
+def _apply_previous(client, role_id="150", count=4):
+    return client.post("/admin/role-rules/1/apply", json={
+        "confirm": True, "remove_previous_role_id": role_id, "confirm_previous_members": count,
+    })
+
+
+def test_apply_removes_previous_role_when_asked(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    session_with({"roles.manage", "members.roles"})
+    r = _apply_previous(client)
+    assert r.status_code == 200
     assert r.json() == {"job_id": "job-apply", "remove_job_id": "job-bulk"}
     assert ("post", "/discord/roles/150/bulk", {"action": "remove", "user_ids": None, "from_role_id": "150",
                                                 "actor_name": "1"}) in bot["calls"]
     (row,) = _audit(fake_db)
     assert row["details"]["remove_previous_role_id"] == "150" and row["details"]["remove_job_id"] == "job-bulk"
+    assert row["details"]["previous_members"] == 4
+
+
+def test_apply_previous_role_with_stale_count_is_409(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    session_with({"roles.manage", "members.roles"})
+    r = _apply_previous(client, count=3)
+    assert r.status_code == 409 and "4 membre(s)" in r.json()["detail"]
+    missing = client.post("/admin/role-rules/1/apply", json={"confirm": True, "remove_previous_role_id": "150"})
+    assert missing.status_code == 409
+    assert _writes(bot) == []
+
+
+def test_apply_previous_role_requires_members_roles(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    session_with({"roles.manage"})
+    assert _apply_previous(client).status_code == 403
+    assert _writes(bot) == []
+
+
+def test_apply_previous_role_must_be_the_rules_old_role(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot)
+    bot["roles"].append({"id": "120", "name": "Autre", "color": 0, "position": 2, "managed": False,
+                         "members": 9, "below_bot": True})
+    session_with({"roles.manage", "members.roles"})
+    r = _apply_previous(client, role_id="120", count=9)
+    assert r.status_code == 422 and r.json()["detail"] == "Ce rôle n'est pas l'ancien rôle de la règle"
+    assert _writes(bot) == []
+
+
+def test_apply_previous_role_without_recorded_old_role_is_422(client, fake_db, bot, rules, session_with):
+    _rule_with_previous(rules, bot, previous_role_id=None)
+    session_with({"roles.manage", "members.roles"})
+    assert _apply_previous(client).status_code == 422
+    assert _writes(bot) == []
 
 
 def test_apply_previous_role_checks(client, fake_db, bot, rules, session_with):
-    rules["add"](condition_type="level", condition_value="5", role_id=200)
-    session_with({"roles.manage"})
-    same = client.post("/admin/role-rules/1/apply", json={"confirm": True, "remove_previous_role_id": "200"})
+    rules["add"](condition_type="level", condition_value="5", role_id=200, previous_role_id=500)
+    session_with({"roles.manage", "members.roles"})
+    same = _apply_previous(client, role_id="200", count=37)
     assert same.status_code == 422
-    above = client.post("/admin/role-rules/1/apply", json={"confirm": True, "remove_previous_role_id": "500"})
+    above = _apply_previous(client, role_id="500", count=2)
     assert above.status_code == 403
     assert _writes(bot) == []
 

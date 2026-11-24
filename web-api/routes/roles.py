@@ -91,6 +91,7 @@ class RuleUpdate(BaseModel):
 class RuleApply(BaseModel):
     confirm: bool
     remove_previous_role_id: Optional[Snowflake] = None
+    confirm_previous_members: Optional[int] = None  # nombre affiché, requis avec remove_previous_role_id
 
 
 # ── Outils ──────────────────────────────────────────────────────────────────
@@ -306,10 +307,12 @@ def find_conflicts(rules: list[dict], role_names: dict[str, str] | None = None) 
 def _rule_out(row: dict, roles_by_id: dict[str, dict]) -> dict:
     role_id = None if row["role_id"] is None else str(row["role_id"])
     role = roles_by_id.get(role_id) if role_id else None
+    previous_role_id = row.get("previous_role_id")
     out = {
         "id": row["id"],
         **{k: row[k] for k in RULE_FIELDS},
         "role_id": role_id,
+        "previous_role_id": None if previous_role_id is None else str(previous_role_id),
         "role_name": role["name"] if role else None,
         "missing_role": role_id is not None and role is None,
     }
@@ -466,11 +469,13 @@ async def update_rule(rule_id: int, body: RuleUpdate, user: dict = Depends(get_c
     await _check_rule(rule, rule_id=rule_id, role_changed=role_changed, roles=roles,
                       actor=await actor_rank(user), previous_role_id=existing["role_id"])
 
+    # L'ancien rôle est mémorisé : apply n'acceptera de retirer que lui (remove_previous_role_id).
+    previous_role_id = existing["role_id"] if role_changed else existing.get("previous_role_id")
     row = await db.fetchrow(
         f"""UPDATE role_rules SET {", ".join(f"{k} = ${i}" for i, k in enumerate(RULE_FIELDS, start=2))},
-                                  updated_at = NOW()
+                                  previous_role_id = ${len(RULE_FIELDS) + 2}, updated_at = NOW()
             WHERE id = $1 RETURNING *""",
-        rule_id, *_rule_args(rule),
+        rule_id, *_rule_args(rule), previous_role_id,
     )
     if row is None:  # supprimée entre la lecture et l'écriture
         raise HTTPException(status_code=404, detail="Règle introuvable")
@@ -515,11 +520,16 @@ async def apply_rule(rule_id: int, body: RuleApply, user: dict = Depends(get_cur
     """Réconcilie la règle sur tout le serveur (travail du bot, Ruling R8).
 
     ``remove_previous_role_id`` : après un changement de rôle, retire aussi l'ancien rôle à tous
-    ceux qui le portent (lot ``from_role_id``, limité à 500 membres par le bot).
+    ceux qui le portent (lot ``from_role_id``, limité à 500 membres par le bot). C'est un retrait
+    en lot : il exige ``members.roles``, ne vise que l'ancien rôle mémorisé par le dernier PATCH
+    qui a changé le rôle de la règle, et ``confirm_previous_members`` doit égaler son nombre de
+    membres actuel (sinon 409).
     """
     require_permission(user, "roles.manage")
     if not body.confirm:
         raise HTTPException(status_code=422, detail="Confirmation requise pour appliquer la règle")
+    if body.remove_previous_role_id is not None:
+        require_permission(user, "members.roles")
     rule = await _rule(rule_id)
     roles_by_id = {r["id"]: r for r in await _roles()}
     actor = await actor_rank(user)
@@ -531,13 +541,24 @@ async def apply_rule(rule_id: int, body: RuleApply, user: dict = Depends(get_cur
     if body.remove_previous_role_id is not None:
         if rule["role_id"] is not None and body.remove_previous_role_id == str(rule["role_id"]):
             raise HTTPException(status_code=422, detail="L'ancien rôle est le rôle actuel de la règle")
+        recorded = rule.get("previous_role_id")
+        if recorded is None or body.remove_previous_role_id != str(recorded):
+            raise HTTPException(status_code=422, detail="Ce rôle n'est pas l'ancien rôle de la règle")
         previous = roles_by_id.get(body.remove_previous_role_id)
         if previous is None:
             raise HTTPException(status_code=404, detail="Ancien rôle introuvable")
         _require_manageable(actor, previous)
+        if body.confirm_previous_members != previous["members"]:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Le nombre a changé : l'ancien rôle compte maintenant {previous['members']} membre(s). "
+                       "Vérifiez puis confirmez à nouveau.",
+            )
 
     actor_id = int(user["sub"])
     details = {"rule_id": rule_id, "remove_previous_role_id": body.remove_previous_role_id}
+    if previous is not None:
+        details["previous_members"] = previous["members"]
     remove_job_id = None
     if previous is not None:  # d'abord : un refus (> 500 membres) n'aura rien lancé
         job = await _bot_write(
