@@ -422,3 +422,53 @@ def test_no_mass_reconciliation_for_preview_rules(env):
 
     member = run(scenario)
     assert member.calls == []
+
+
+# ── Mineurs T2 n°1 et n°2 ────────────────────────────────────────────────────
+
+def test_preview_of_unresolved_rule_resolves_homonym_read_only(env):
+    """T2 n°1 : ceux qui portent déjà le rôle homonyme ne sont pas comptés comme gagnants."""
+    async def scenario():
+        homonym = FakeRole(77, "💬 Pipelette")
+        e = env([rule_row(4, "achievement", 3, create_role_name="💬 Pipelette")],
+                stats={1: {"achievements": [3]}, 2: {"achievements": [3]}}, roles=[homonym])
+        e.guild.member(1, [homonym])
+        e.guild.member(2)
+        return e, await e.engine.preview(4)
+
+    e, result = run(scenario)
+    assert result == {"gain": [2], "lose": [], "missing_role": False}
+    assert e.db.executed == [] and e.db.rules[0]["role_id"] is None
+
+
+class _Failing(FakeGuild):
+    def __init__(self):
+        super().__init__()
+        self.attempts = 0
+
+    async def create_role(self, name, color, reason=None):
+        self.attempts += 1
+        raise discord.HTTPException(N(status=400, reason="Bad Request"), "Maximum number of guild roles reached")
+
+
+def test_failed_role_creation_is_retried_only_after_delay(env, monkeypatch):
+    """T2 n°2 : un échec de création n'est pas retenté à chaque évènement."""
+    now = {"t": 1000.0}
+    monkeypatch.setattr(engine_module.time, "monotonic", lambda: now["t"])
+
+    async def scenario():
+        e = env([rule_row(4, "achievement", 3, create_role_name="💬 Pipelette")],
+                stats={7: {"achievements": [3]}})
+        guild = _Failing()
+        e.bot.guild = guild
+        member = guild.member(7)
+        await e.engine.evaluate_member(member)
+        await e.engine.evaluate_member(member)
+        first = guild.attempts
+        now["t"] += engine_module.CREATE_RETRY_SECONDS + 1
+        await e.engine.evaluate_member(member)
+        return first, guild.attempts
+
+    first, total = run(scenario)
+    assert first == 1
+    assert total == 2

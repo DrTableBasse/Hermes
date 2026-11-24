@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import discord
 from discord.ext import commands, tasks
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 GUILD_ID = int(os.getenv('GUILD_ID', '0'))
 BATCH_SIZE = 500  # membres par requête de statistiques, jamais plus
+CREATE_RETRY_SECONDS = 3600  # délai avant de retenter une création de rôle refusée (T2 n°2)
 
 _RULE_COLUMNS = (
     "id, condition_type, condition_value, role_id, remove_when_lost, exclusive_group, "
@@ -83,6 +85,7 @@ class RoleEngine(commands.Cog):
         self.bot = bot
         self._rules: list[Rule] | None = None
         self._warned: set[tuple[int, int, str]] = set()
+        self._create_failed: dict[int, float] = {}  # règle → heure (monotonic) du dernier échec
         self.reconcile_loop.start()
 
     def cog_unload(self):
@@ -145,6 +148,10 @@ class RoleEngine(commands.Cog):
         son identifiant est enregistré dans la règle."""
         name = rule.create_role_name
         role = discord.utils.get(guild.roles, name=name)
+        if role is None:
+            failed_at = self._create_failed.get(rule.id)
+            if failed_at is not None and time.monotonic() - failed_at < CREATE_RETRY_SECONDS:
+                return  # échec récent (ex. 250 rôles atteints) : pas d'appel Discord à chaque évènement
         if role is not None and (role.managed or not role.is_assignable()):
             # Défense en profondeur (C1) : un homonyme hors de portée n'est jamais donné.
             self._warn_once(rule, "homonym", "Règle de rôle %s : le rôle '%s' existe mais n'est pas "
@@ -158,9 +165,11 @@ class RoleEngine(commands.Cog):
                     reason="Rôle de succès créé automatiquement par Hermes",
                 )
             except discord.HTTPException as e:
+                self._create_failed[rule.id] = time.monotonic()
                 self._warn_once(rule, "create", "Règle de rôle %s : création du rôle '%s' impossible (%s)",
                                 rule.id, name, e)
                 return
+            self._create_failed.pop(rule.id, None)
             logger.info("Rôle de succès créé : '%s'", name)
             await record(
                 kind="role", action="create", source="hermes",
@@ -240,6 +249,11 @@ class RoleEngine(commands.Cog):
         """Membres qui gagneraient / perdraient le rôle de la règle (rien n'est modifié)."""
         rules = [r for r in await self._get_rules() if r.id != rule.id]
         probe = Rule(**{**rule.__dict__, "active": True})
+        if probe.role_id is None and probe.create_role_name:
+            # Rôle homonyme déjà présent : c'est lui que la règle utilisera (lecture seule, T2 n°1).
+            homonym = discord.utils.get(guild.roles, name=probe.create_role_name)
+            if homonym is not None and not homonym.managed and homonym.is_assignable():
+                probe.role_id = homonym.id
         rules.append(probe)
         grades = await self._grades()
         members = [m for m in guild.members if not m.bot]
