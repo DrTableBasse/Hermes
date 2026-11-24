@@ -713,16 +713,17 @@ def _staff_role_ids(guild: discord.Guild) -> list[int]:
     return [r.id for r in settings.get_roles(guild, "staff_roles")]
 
 
-def _check_removals(guild: discord.Guild, actor: discord.Member, changes: list[dict]) -> None:
-    """On ne retire pas la surcharge d'un rôle au même niveau ou au-dessus de soi (sauf propriétaire)."""
+def _check_role_changes(guild: discord.Guild, actor: discord.Member, changes: list[dict]) -> None:
+    """On ne modifie pas (ajout, modification, retrait) la surcharge d'un rôle au même niveau
+    ou au-dessus de son rôle le plus haut (sauf propriétaire)."""
     if _is_owner(guild, actor):
         return
     for c in changes:
-        if c["action"] != "remove" or c["target_type"] != "role":
+        if c["target_type"] != "role":
             continue
         role = guild.get_role(c["target_id"])
         if role is not None and not role.is_default() and role.position >= actor.top_role.position:
-            raise HTTPException(status_code=403, detail=f"Impossible de retirer la surcharge du rôle "
+            raise HTTPException(status_code=403, detail=f"Impossible de modifier la surcharge du rôle "
                                                         f"« {role.name} », au-dessus de votre rôle le plus haut")
 
 
@@ -743,7 +744,7 @@ async def _build_template_plan(guild, actor, channel, template, role_ids, sync_c
             current, changes = channels_api.channel_plan(guild, ch, template, roles, staff, previous)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
-        _check_removals(guild, actor, changes)
+        _check_role_changes(guild, actor, changes)
         entries.append((ch, current, changes))
     token = channels_api.combined_token(
         [(ch.id, cur) for ch, cur, _ in entries],
@@ -764,19 +765,25 @@ def _preview_payload(guild, entries, token) -> dict:
 async def _apply_entries(guild, entries, template, saved_roles, actor_id, actor_name) -> dict:
     """Écrit chaque salon séquentiellement ; continue après un échec, relance si tout échoue."""
     reason = _site_reason(actor_name)
-    applied, failed, last_error = 0, [], None
+    applied, failed, memo_failed, last_error = 0, [], [], None
     for ch, _, changes in entries:
         try:
             if changes:
                 await ch.edit(overwrites=channels_api.new_overwrites(guild, ch, changes), reason=reason)
-            await channels_api.save_template(ch.id, template, saved_roles, actor_id)
-            applied += 1
         except discord.HTTPException as e:
             last_error = e
             failed.append({"id": str(ch.id), "name": ch.name, "error": e.text or str(e.status)})
+            continue
+        applied += 1  # Discord fait foi : le salon est écrit
+        try:
+            await channels_api.save_template(ch.id, template, saved_roles, actor_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Mémorisation du modèle impossible (salon %s « %s », modèle %s, acteur %s)",
+                             ch.id, ch.name, template, actor_id)
+            memo_failed.append(str(ch.id))
     if entries and applied == 0 and last_error is not None:
         raise last_error
-    return {"applied": applied, "failed": failed}
+    return {"applied": applied, "failed": failed, "memo_failed": memo_failed}
 
 
 class ChannelCreateRequest(ActorRequest):
@@ -786,14 +793,14 @@ class ChannelCreateRequest(ActorRequest):
 
 
 class ChannelUpdateRequest(ActorRequest):
-    actor_id:  Optional[DiscordId] = None
+    actor_id:  DiscordId
     name:      Optional[str] = Field(default=None, min_length=1, max_length=100)
     parent_id: Optional[DiscordId] = None  # présent à null : sortir de la catégorie
     position:  Optional[int] = Field(default=None, ge=0)
 
 
 class ChannelDeleteRequest(ActorRequest):
-    actor_id: Optional[DiscordId] = None
+    actor_id: DiscordId
 
 
 class TemplatePreviewRequest(BaseModel):
@@ -879,8 +886,7 @@ async def create_channel(req: ChannelCreateRequest):
 async def update_channel(channel_id: int, req: ChannelUpdateRequest):
     guild = _get_guild()
     channel = _get_channel(guild, channel_id)
-    if req.actor_id is not None:
-        _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
+    _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
     changes: dict = {}
     if req.name is not None:
         changes["name"] = req.name
@@ -901,8 +907,7 @@ async def update_channel(channel_id: int, req: ChannelUpdateRequest):
 async def delete_channel(channel_id: int, req: ChannelDeleteRequest):
     guild = _get_guild()
     channel = _get_channel(guild, channel_id)
-    if req.actor_id is not None:
-        _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
+    _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
     if channels_api.channel_type(channel) == "category" and channel.channels:
         raise HTTPException(status_code=409, detail="Videz d'abord la catégorie : elle contient "
                                                     f"{len(channel.channels)} salon(s)")
@@ -945,7 +950,7 @@ async def _staff_resync_plan(guild, actor):
     for ch in targets:
         current, changes = channels_api.channel_plan(guild, ch, "staff", [], staff,
                                                      list(memo[ch.id]["roles"] or []))
-        _check_removals(guild, actor, changes)
+        _check_role_changes(guild, actor, changes)
         entries.append((ch, current, changes))
     token = channels_api.combined_token([(ch.id, cur) for ch, cur, _ in entries],
                                         ["staff-resync", sorted(staff)])

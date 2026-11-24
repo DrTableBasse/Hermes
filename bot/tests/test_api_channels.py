@@ -264,13 +264,13 @@ def test_create_rejects_bad_parent_and_type(env):
 
 def test_patch_rename_move_and_leave_category(env):
     c = env.client
-    r = c.patch("/discord/channels/101", json={"name": "accueil", "parent_id": "100", "actor_name": "Alice"})
+    r = c.patch("/discord/channels/101", json={"name": "accueil", "parent_id": "100", "actor_id": "42", "actor_name": "Alice"})
     assert r.status_code == 200 and r.json()["parent_id"] == "100"
     assert env.guild.general.edits[-1] == ({"name": "accueil", "category": env.guild.cat}, REASON)
-    r = c.patch("/discord/channels/101", json={"parent_id": None, "actor_name": "Alice"})
+    r = c.patch("/discord/channels/101", json={"parent_id": None, "actor_id": "42", "actor_name": "Alice"})
     assert r.json()["parent_id"] is None
     # parent_id absent : la catégorie n'est pas touchée
-    c.patch("/discord/channels/102", json={"position": 3, "actor_name": "Alice"})
+    c.patch("/discord/channels/102", json={"position": 3, "actor_id": "42", "actor_name": "Alice"})
     assert env.guild.child1.edits[-1][0] == {"position": 3}
 
 
@@ -280,21 +280,21 @@ def test_patch_refused_when_actor_does_not_see_channel(env):
 
 
 def test_delete_non_empty_category_is_409(env):
-    r = env.client.request("DELETE", "/discord/channels/100", json={"actor_name": "Alice"})
+    r = env.client.request("DELETE", "/discord/channels/100", json={"actor_id": "42", "actor_name": "Alice"})
     assert r.status_code == 409 and "Videz d'abord la catégorie" in r.json()["detail"]
     assert env.guild.cat in env.guild.channels
 
 
 def test_delete_channel_and_forget_template(env):
     env.memo[105] = {"template": "public", "roles": [], "applied_by": 1, "applied_at": None}
-    r = env.client.request("DELETE", "/discord/channels/105", json={"actor_name": "Alice"})
+    r = env.client.request("DELETE", "/discord/channels/105", json={"actor_id": "42", "actor_name": "Alice"})
     assert r.status_code == 200 and env.guild.empty_cat.deleted_reason == REASON
     assert 105 not in env.memo
 
 
 def test_discord_forbidden_is_translated(env):
     env.guild.general.fail = discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "no")
-    r = env.client.patch("/discord/channels/101", json={"name": "x", "actor_name": "Alice"})
+    r = env.client.patch("/discord/channels/101", json={"name": "x", "actor_id": "42", "actor_name": "Alice"})
     assert r.status_code == 403 and "le bot n'a pas les droits" in r.json()["detail"]
 
 
@@ -356,7 +356,7 @@ def test_preview_lists_changes_and_apply_writes_them(env):
     assert "Tiers" not in changes  # surcharge de membre conservée
 
     r = apply(env, 102, "role_required", body["token"], roles=[15])
-    assert r.status_code == 200 and r.json() == {"applied": 1, "failed": []}
+    assert r.status_code == 200 and r.json() == {"applied": 1, "failed": [], "memo_failed": []}
     (written, reason), = g.child1.edits
     assert reason == REASON
     final = ids(g.child1.overwrites)
@@ -405,7 +405,7 @@ def test_category_sync_children_covers_every_channel(env):
     assert apply(env, 100, "role_required", body["token"], roles=[15], sync=True).status_code == 409
     body = preview(env, 100, "role_required", roles=[15], sync=True).json()
     r = apply(env, 100, "role_required", body["token"], roles=[15], sync=True)
-    assert r.json() == {"applied": 3, "failed": []}
+    assert r.json() == {"applied": 3, "failed": [], "memo_failed": []}
     assert all(ch.edits for ch in (g.cat, g.child1, g.child2))
     assert set(env.memo) == {100, 102, 103}
 
@@ -437,8 +437,8 @@ def test_partial_failure_is_reported(env):
 
 def test_staff_resync_after_staff_roles_change(env):
     g = env.guild
-    token = preview(env, 104, "staff").json()["token"]
-    assert apply(env, 104, "staff", token).status_code == 200
+    token = preview(env, 104, "staff", actor=999).json()["token"]
+    assert apply(env, 104, "staff", token, actor=999).status_code == 200
     assert env.memo[104]["roles"] == [20]
     env.staff_roles[:] = [g.vip]  # staff_roles changé : VIP remplace Modo
     r = env.client.post("/discord/channels/staff-resync/preview", json={"actor_id": "999"})
@@ -452,7 +452,7 @@ def test_staff_resync_after_staff_roles_change(env):
     assert r.status_code == 409
     r = env.client.post("/discord/channels/staff-resync/apply",
                         json={"actor_id": "999", "actor_name": "Alice", "token": body["token"]})
-    assert r.json() == {"applied": 1, "failed": []}
+    assert r.json() == {"applied": 1, "failed": [], "memo_failed": []}
     assert env.memo[104]["roles"] == [15] and 20 not in ids(g.staff.overwrites)
 
 
@@ -461,3 +461,59 @@ def test_staff_template_without_staff_roles_is_422(env):
     assert preview(env, 101, "staff").status_code == 422
     assert env.client.post("/discord/channels/staff-resync/preview",
                            json={"actor_id": "42"}).status_code == 422
+
+
+# ── Correction tour 1 : R2, R3, acteur obligatoire ───────────────────────────
+
+def test_cannot_add_or_update_overwrite_of_role_above_actor(env):
+    # staff_roles contient Admin (8) : Alice (Modo, 4) ne peut pas l'ajouter ; le propriétaire le peut.
+    env.staff_roles[:] = [env.guild.admin]
+    r = preview(env, 101, "staff")
+    assert r.status_code == 403 and "Impossible de modifier la surcharge du rôle" in r.json()["detail"]
+    assert "Admin" in r.json()["detail"]
+    token = preview(env, 101, "staff", actor=999).json()["token"]
+    assert apply(env, 101, "staff", token, actor=999).status_code == 200
+    # modification (update) d'une surcharge existante du rôle au-dessus : refusée aussi
+    env.guild.general.overwrites[env.guild.admin] = ow(allow=VIEW)
+    r = preview(env, 101, "staff")
+    assert r.status_code == 403 and "Impossible de modifier" in r.json()["detail"]
+
+
+def test_memo_failure_is_isolated_logged_and_reported(env, monkeypatch, caplog):
+    g = env.guild
+    real = channels_api.save_template
+
+    async def flaky(cid, template, roles, applied_by):
+        if cid == 102:
+            raise RuntimeError("base indisponible")
+        await real(cid, template, roles, applied_by)
+
+    monkeypatch.setattr(channels_api, "save_template", flaky)
+    body = preview(env, 100, "public", sync=True).json()
+    with caplog.at_level("ERROR"):
+        r = apply(env, 100, "public", body["token"], sync=True)
+    assert r.status_code == 200
+    assert r.json() == {"applied": 3, "failed": [], "memo_failed": ["102"]}
+    assert g.child1.edits and g.child2.edits           # la boucle a continué
+    assert set(env.memo) == {100, 103}
+    assert any("102" in rec.getMessage() for rec in caplog.records)
+
+
+def test_memo_failed_is_empty_list_when_all_good(env):
+    token = preview(env, 101, "public").json()["token"]
+    assert apply(env, 101, "public", token).json()["memo_failed"] == []
+
+
+def test_patch_and_delete_require_actor_id(env):
+    c = env.client
+    assert c.patch("/discord/channels/101", json={"name": "x", "actor_name": "Alice"}).status_code == 422
+    assert c.request("DELETE", "/discord/channels/105", json={"actor_name": "Alice"}).status_code == 422
+    assert env.guild.general.edits == [] and env.guild.empty_cat in env.guild.channels
+
+
+def test_delete_refused_when_actor_does_not_see_channel(env):
+    r = env.client.request("DELETE", "/discord/channels/104", json={"actor_id": "43", "actor_name": "Bob"})
+    assert r.status_code == 403 and env.guild.staff in env.guild.channels
+    env.guild.staff.hidden_from.add(999)
+    r = env.client.request("DELETE", "/discord/channels/104", json={"actor_id": "999", "actor_name": "P"})
+    assert r.status_code == 200  # propriétaire exempté
