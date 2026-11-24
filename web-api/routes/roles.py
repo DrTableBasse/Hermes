@@ -384,6 +384,32 @@ def _check_created_role(rule: dict, roles: list[dict], actor: dict, *, target_ch
     _require_outranks(actor, homonym["position"])
 
 
+def _check_group(rule: dict, group: list[dict], roles: list[dict], actor: dict) -> None:
+    """Groupe exclusif (I2) : le bot retire aux membres les rôles des règles perdantes du groupe.
+
+    Une règle du groupe peut donc faire retirer le rôle de chacune des autres : l'acteur doit
+    les surclasser toutes. Les seuils ne se comparent qu'entre conditions de même type.
+    """
+    if any(r["condition_type"] != rule["condition_type"] for r in group):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Le groupe « {rule['exclusive_group']} » réunit déjà des règles d'un autre type de "
+                   "condition : un groupe ne compare que des seuils de même type.",
+        )
+    roles_by_id = {r["id"]: r for r in roles}
+    for other in group:
+        if other["role_id"] is not None:
+            role = roles_by_id.get(str(other["role_id"]))
+        else:
+            role = next((r for r in roles if r["name"] == other["create_role_name"]), None)
+        if role is not None and not outranks(actor, role["position"]):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Le groupe « {rule['exclusive_group']} » contient le rôle « {role['name']} », au niveau "
+                       "du vôtre ou au-dessus : une règle de ce groupe pourrait le retirer.",
+            )
+
+
 async def _check_rule(rule: dict, *, rule_id: int | None, role_changed: bool, roles: list[dict],
                       actor: dict, previous_role_id: int | None = None,
                       name_changed: bool = True) -> None:
@@ -405,6 +431,9 @@ async def _check_rule(rule: dict, *, rule_id: int | None, role_changed: bool, ro
             _require_outranks(actor, previous["position"])
 
     others = [dict(r) for r in await db.fetch("SELECT * FROM role_rules ORDER BY id") if r["id"] != rule_id]
+    if rule["exclusive_group"] is not None:
+        _check_group(rule, [r for r in others if r["exclusive_group"] == rule["exclusive_group"]],
+                     roles, actor)
     conflicts = find_conflicts(others + [rule], {r["id"]: r["name"] for r in roles})
     if conflicts:
         raise HTTPException(status_code=422, detail=" ".join(conflicts))

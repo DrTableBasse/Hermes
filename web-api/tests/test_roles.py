@@ -743,3 +743,55 @@ def test_patch_reconcile_on_resolved_achievement_rule(client, fake_db, bot, rule
     assert r.status_code == 200, r.json()
     assert rules["store"][1]["reconcile"] is True
     assert client.patch("/admin/role-rules/1", json={"active": False}).status_code == 200
+
+
+# ── I2 : groupes exclusifs ─────────────────────────────────────────────────
+
+def test_create_rule_in_group_with_role_above_actor_is_403(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="messages", condition_value="10", role_id=500, exclusive_group="staff")
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json={"condition_type": "messages", "condition_value": "1000",
+                                               "role_id": "200", "exclusive_group": "staff"})
+    assert r.status_code == 403
+    assert len(rules["store"]) == 1
+
+
+def test_patch_rule_into_group_with_role_above_actor_is_403(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="messages", condition_value="10", role_id=500, exclusive_group="staff")
+    rules["add"](condition_type="messages", condition_value="1000", role_id=200)
+    session_with({"roles.manage"})
+    r = client.patch("/admin/role-rules/2", json={"exclusive_group": "staff"})
+    assert r.status_code == 403
+    assert rules["store"][2]["exclusive_group"] is None
+
+
+def test_group_owner_is_exempt(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="messages", condition_value="10", role_id=500, exclusive_group="staff")
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True, "role_ids": []}
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json={"condition_type": "messages", "condition_value": "1000",
+                                               "role_id": "200", "exclusive_group": "staff"})
+    assert r.status_code == 200
+
+
+def test_group_below_actor_is_allowed(client, fake_db, bot, rules, session_with):
+    bot["roles"].append({"id": "150", "name": "Bas", "color": 0, "position": 2, "managed": False,
+                         "members": 0, "below_bot": True})
+    rules["add"](condition_type="messages", condition_value="10", role_id=150, exclusive_group="staff")
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json={"condition_type": "messages", "condition_value": "1000",
+                                               "role_id": "200", "exclusive_group": "staff"})
+    assert r.status_code == 200
+
+
+def test_group_mixing_condition_types_is_422(client, fake_db, bot, rules, session_with):
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True, "role_ids": []}
+    rules["add"](condition_type="level", condition_value="10", role_id=500, exclusive_group="staff")
+    rules["add"](condition_type="level", condition_value="20", role_id=400, exclusive_group="staff")
+    session_with({"roles.manage"})
+    r = client.post("/admin/role-rules", json={"condition_type": "messages", "condition_value": "1000",
+                                               "role_id": "200", "exclusive_group": "staff"})
+    assert r.status_code == 422 and "groupe" in r.json()["detail"]
+    r = client.patch("/admin/role-rules/2", json={"condition_type": "messages"})
+    assert r.status_code == 422
+    assert rules["store"][2]["condition_type"] == "level"
