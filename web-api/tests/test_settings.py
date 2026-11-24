@@ -12,12 +12,12 @@ def _login(client, fake_db, row):
 def test_settings_requires_admin(client, fake_db):
     _login(client, fake_db, USER)
     assert client.get("/admin/settings").status_code == 403
-    assert client.put("/admin/settings/bump_role_threshold", json={"value": "5"}).status_code == 403
+    assert client.put("/admin/settings/bump_reminder_delay_minutes", json={"value": "5"}).status_code == 403
 
 
 def test_put_setting_validates(client, fake_db):
     _login(client, fake_db, ADMIN)
-    r = client.put("/admin/settings/bump_role_threshold", json={"value": "abc"})
+    r = client.put("/admin/settings/bump_reminder_delay_minutes", json={"value": "abc"})
     assert r.status_code == 422
     assert not [c for c in fake_db.calls if "insert into bot_settings" in c[1].lower()]
 
@@ -31,12 +31,12 @@ def test_put_setting_reloads_bot(client, fake_db, monkeypatch):
         return {"ok": True}
 
     monkeypatch.setattr(bot_client, "bot_post", fake_post)
-    r = client.put("/admin/settings/bump_role_threshold", json={"value": "30"})
+    r = client.put("/admin/settings/bump_reminder_delay_minutes", json={"value": "30"})
     assert r.status_code == 200
     assert r.json()["value"] == "30"
     assert posted == ["/settings/reload"]
     writes = [c for c in fake_db.calls if "insert into bot_settings" in c[1].lower()]
-    assert writes and writes[0][2][:2] == ("bump_role_threshold", "30")
+    assert writes and writes[0][2][:2] == ("bump_reminder_delay_minutes", "30")
 
 
 def test_get_settings_groups(client, fake_db, monkeypatch):
@@ -52,7 +52,7 @@ def test_get_settings_groups(client, fake_db, monkeypatch):
     data = client.get("/admin/settings").json()
     items = {i["key"]: i for g in data["groups"] for i in g["items"]}
     assert items["welcome_channel"]["resolved"] == {"id": "10", "name": "accueil", "exists": True}
-    assert items["bump_role_threshold"]["resolved"] is None
+    assert items["bump_reminder_delay_minutes"]["resolved"] is None
 
 
 def test_public_settings_only_public(client, fake_db, monkeypatch):

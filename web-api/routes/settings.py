@@ -24,12 +24,13 @@ ADMIN_ONLY_DETAIL = "Réservé aux administrateurs : ce réglage désigne un rô
 
 # Réglages gardés au registre (copie identique côté bot, amorçage de la migration 021) mais sans
 # effet : ni listés ni modifiables. redacteur_role → droits articles.* de la page Accès ;
-# Batman et rôles de niveau → règles automatiques (étape 3, amorcées par la migration 022).
+# Batman et rôles de niveau → règles automatiques (étape 3, amorcées par la migration 022) ;
+# rôle et seuil de bump → règle « bumps » (étape 4, migration 023 ou amorçage du bot).
 _BY_RULES = "Réglage remplacé par les règles automatiques (/admin/regles)"
 SUPERSEDED_SETTINGS = {
     "redacteur_role": "Réglage remplacé par la page Accès (/admin/acces)",
     **{k: _BY_RULES for k in ("role_batman", "role_level_5", "role_level_10", "role_level_20",
-                              "role_level_50", "voice_hours_for_role")},
+                              "role_level_50", "voice_hours_for_role", "bump_role", "bump_role_threshold")},
 }
 
 router = APIRouter(tags=["settings"])

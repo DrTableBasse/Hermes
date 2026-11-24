@@ -44,7 +44,7 @@ CASES = [
     ("delete", "/admin/gallery/1", "gallery.manage", None),
     # settings.py (réglages et lecture Discord)
     ("get", "/admin/settings", "settings.manage", None),
-    ("put", "/admin/settings/bump_role_threshold", "settings.manage", {"value": "5"}),
+    ("put", "/admin/settings/bump_reminder_delay_minutes", "settings.manage", {"value": "5"}),
     ("post", "/admin/settings/ticket_category/create-channel", "settings.manage", None),
     # audit.py
     ("get", "/admin/audit", "moderation.view", None),

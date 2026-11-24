@@ -109,23 +109,28 @@ class BumpTrackerCog(commands.Cog):
 
         new_count = await bump_manager.get_count(bumper_id)
 
-        # Give role if threshold reached
-        threshold = settings.get_int('bump_role_threshold', 20)
-        role = settings.get_role(guild, 'bump_role')
-        role_label = role.name if role else "Bumper Fou"
+        # Rôle de bump : règle automatique « bumps ≥ seuil » appliquée par le moteur
         role_just_given = False
-        if role and new_count >= threshold and role not in member.roles:
+        role_label = "Bumper Fou"
+        progression = None
+        engine = self.bot.get_cog('RoleEngine')
+        if engine:
             try:
-                await member.add_roles(role, reason=f"Bumper Fou — {new_count} bumps")
-                role_just_given = True
-                logger.info("BumpTracker: rôle '%s' attribué à %s", role.name, bumper_id)
+                added, _removed = await engine.evaluate_member(member)
+                rule = await engine.bump_rule()
+                if rule:
+                    threshold = int(rule.condition_value)
+                    role = guild.get_role(rule.role_id)
+                    role_label = role.name if role else "Bumper Fou"
+                    role_just_given = rule.role_id in added
+                    if new_count >= threshold:
+                        progression = f"Rôle **{role_label}** obtenu 🎉 ({new_count} bumps au total)"
+                    else:
+                        progression = f"{new_count}/{threshold} vers le rôle **{role_label}**"
             except Exception as e:
-                logger.warning("BumpTracker: impossible d'ajouter le rôle à %s: %s", bumper_id, e)
-
-        if new_count >= threshold:
-            progression = f"Rôle **{role_label}** obtenu 🎉 ({new_count} bumps au total)"
-        else:
-            progression = f"{new_count}/{threshold} vers le rôle **{role_label}**"
+                logger.warning("BumpTracker: règles de rôles échouées pour %s: %s", bumper_id, e)
+        if progression is None:
+            progression = f"{new_count} bumps au total"
 
         embed = hermes_embed(title="📣 Commande /bump détectée !", color=Colors.BLUE)
         embed.add_field(name="Utilisateur",     value=member.mention,  inline=True)

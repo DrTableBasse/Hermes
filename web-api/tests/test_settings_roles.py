@@ -39,7 +39,7 @@ def test_settings_manage_seul_refuse(client, fake_db, session_with, key, value):
     assert _writes(fake_db) == []
 
 
-@pytest.mark.parametrize("key", ["admin_role", "mod_role", "authorized_roles", "bump_role"])
+@pytest.mark.parametrize("key", ["admin_role", "mod_role", "authorized_roles"])
 def test_admin_peut_regler_les_roles(client, fake_db, session_with, key):
     session_with((), is_admin=True)
     r = client.put(f"/admin/settings/{key}", json={"value": "123"})
@@ -49,7 +49,7 @@ def test_admin_peut_regler_les_roles(client, fake_db, session_with, key):
 
 def test_settings_manage_regle_toujours_les_autres_reglages(client, fake_db, session_with):
     session_with({"settings.manage"})
-    r = client.put("/admin/settings/bump_role_threshold", json={"value": "5"})
+    r = client.put("/admin/settings/bump_reminder_delay_minutes", json={"value": "5"})
     assert r.status_code == 200
 
 
@@ -61,7 +61,7 @@ def test_liste_signale_les_reglages_reserves(client, fake_db, session_with, monk
     session_with({"settings.manage"})
     items = {i["key"]: i for g in client.get("/admin/settings").json()["groups"] for i in g["items"]}
     assert items["admin_role"]["admin_only"] is True
-    assert items["bump_role"]["admin_only"] is True
+    assert items["mod_role"]["admin_only"] is True
     assert items["welcome_channel"]["admin_only"] is False
 
 
@@ -89,7 +89,7 @@ def test_redacteur_role_non_modifiable_meme_admin(client, fake_db, session_with)
 # ── Étape 3, I3 : réglages remplacés par les règles automatiques ────────────
 
 RULE_SUPERSEDED = ("role_batman", "role_level_5", "role_level_10", "role_level_20", "role_level_50",
-                   "voice_hours_for_role")
+                   "voice_hours_for_role", "bump_role", "bump_role_threshold")
 
 
 def test_reglages_remplaces_par_les_regles_absents_de_la_liste(client, fake_db, session_with, monkeypatch):
@@ -100,7 +100,7 @@ def test_reglages_remplaces_par_les_regles_absents_de_la_liste(client, fake_db, 
     session_with((), is_admin=True)
     keys = {i["key"] for g in client.get("/admin/settings").json()["groups"] for i in g["items"]}
     assert keys.isdisjoint(RULE_SUPERSEDED)
-    assert "bump_role" in keys
+    assert "bump_reminder_delay_minutes" in keys
 
 
 @pytest.mark.parametrize("key", RULE_SUPERSEDED)

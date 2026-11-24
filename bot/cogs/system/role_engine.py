@@ -12,6 +12,7 @@ import time
 import discord
 from discord.ext import commands, tasks
 
+from utils import settings
 from utils.audit_events import record
 from utils.database import db_manager
 from utils.grades import load_grades
@@ -338,6 +339,39 @@ class RoleEngine(commands.Cog):
     @reconcile_loop.before_loop
     async def _before_reconcile(self):
         await self.bot.wait_until_ready()
+        await settings.ready.wait()  # réglages bump_role / bump_role_threshold lus en base
+        try:
+            guild = self._guild()
+            if guild is not None:
+                await self.seed_bump_rule(guild)
+        except Exception as e:
+            logger.error("Amorçage de la règle de bump : %s", e, exc_info=True)
+
+    async def seed_bump_rule(self, guild: discord.Guild) -> None:
+        """Rôle de bump → règle ``bumps ≥ seuil`` (mode aperçu), si aucune règle ``bumps`` n'existe.
+
+        Remplace les réglages bump_role / bump_role_threshold (étape 4). Sans rôle résolu, rien
+        n'est créé ; l'insertion est gardée en SQL, donc rejouable à chaque démarrage.
+        """
+        role = settings.get_role(guild, 'bump_role')
+        if role is None:
+            return
+        threshold = settings.get_int('bump_role_threshold', 20)
+        created = await db_manager.fetchval(
+            "INSERT INTO role_rules (condition_type, condition_value, role_id) "
+            "SELECT 'bumps', $2::TEXT, $1::BIGINT "
+            "WHERE NOT EXISTS (SELECT 1 FROM role_rules WHERE condition_type = 'bumps') "
+            "RETURNING id",
+            role.id, str(threshold),
+        )
+        if created is not None:
+            logger.info("Règle de bump créée : %d bumps → '%s'", threshold, role.name)
+            await self.reload()
+
+    async def bump_rule(self) -> Rule | None:
+        """Règle active ``bumps`` (seuil et rôle affichés dans l'annonce du bump)."""
+        return next((r for r in await self._get_rules()
+                     if r.active and r.condition_type == "bumps" and r.role_id), None)
 
 
 async def setup(bot: commands.Bot):
