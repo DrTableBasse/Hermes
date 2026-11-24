@@ -7,8 +7,12 @@ const REDUCED = "(prefers-reduced-motion: reduce)"
 /** Lignes affichées au chargement, puis fenêtre glissante. */
 const INITIAL = 8
 const VISIBLE = 11
-/** Une ligne toutes les 1,9 s, comme la maquette. */
-export const LOG_INTERVAL_MS = 1900
+/** Une ligne toutes les 3 à 5 s, au hasard : un rythme moins mécanique. */
+export const LOG_INTERVAL_MIN_MS = 3000
+export const LOG_INTERVAL_MAX_MS = 5000
+/** Écart moyen : sert à horodater les lignes initiales. */
+const LOG_INTERVAL_MS = (LOG_INTERVAL_MIN_MS + LOG_INTERVAL_MAX_MS) / 2
+const nextDelay = () => LOG_INTERVAL_MIN_MS + Math.random() * (LOG_INTERVAL_MAX_MS - LOG_INTERVAL_MIN_MS)
 
 function subscribeReduced(onChange: () => void) {
   const mq = window.matchMedia?.(REDUCED)
@@ -45,7 +49,7 @@ type AbsurdConsoleProps = {
 }
 
 /**
- * Journal d'activité d'Hermes, inventé et assumé comme tel. Une ligne s'ajoute toutes les 1,9 s ;
+ * Journal d'activité d'Hermes, inventé et assumé comme tel. Une ligne s'ajoute toutes les 3 à 5 s ;
  * survol ou focus mettent en pause (WCAG 2.2.2) ; sous mouvement réduit, le journal reste figé.
  */
 export function AbsurdConsole({ seed, startedAt }: AbsurdConsoleProps) {
@@ -56,14 +60,17 @@ export function AbsurdConsole({ seed, startedAt }: AbsurdConsoleProps) {
 
   useEffect(() => {
     if (reduced || paused) return
-    const id = window.setInterval(() => {
+    let id: number
+    const tick = () => {
       setEntries(prev => {
         const next = prev[prev.length - 1].id + 1
         const entry = { id: next, at: Date.now(), line: sequence[next % sequence.length] }
         return [...prev, entry].slice(-VISIBLE)
       })
-    }, LOG_INTERVAL_MS)
-    return () => window.clearInterval(id)
+      id = window.setTimeout(tick, nextDelay())
+    }
+    id = window.setTimeout(tick, nextDelay())
+    return () => window.clearTimeout(id)
   }, [reduced, paused, sequence])
 
   return (
@@ -88,7 +95,7 @@ export function AbsurdConsole({ seed, startedAt }: AbsurdConsoleProps) {
       <div className="flex h-[290px] flex-col justify-end overflow-hidden px-4 py-3.5 font-mono text-[13px] leading-[1.65] text-[#C8D3E6]">
         <ol className="m-0 list-none p-0">
           {entries.map(e => (
-            <li key={e.id} className="overflow-hidden text-ellipsis whitespace-nowrap motion-safe:animate-log-in">
+            <li key={e.id} className="break-words motion-safe:animate-log-in">
               <time className="text-[#7C86A8]">[{clock.format(e.at)}]</time>{" "}
               <span className="font-bold" style={{ color: LOG_TAG_COLORS[e.line.tag] }}>
                 {e.line.tag}

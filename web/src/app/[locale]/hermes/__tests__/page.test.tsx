@@ -6,7 +6,7 @@ const api = vi.hoisted(() => ({ getHermesStatus: vi.fn(), getGames: vi.fn() }))
 vi.mock("@/lib/api/server", () => api)
 
 import HermesPage from "@/app/[locale]/hermes/page"
-import { LOG_INTERVAL_MS } from "@/components/hermes/absurd-console"
+import { LOG_INTERVAL_MAX_MS, LOG_INTERVAL_MIN_MS } from "@/components/hermes/absurd-console"
 import { BOT_COMMANDS, GAME_COMMAND_COMMENTS } from "@/content/commands"
 import { HERMES_LOGS } from "@/content/hermes-logs"
 
@@ -149,19 +149,31 @@ describe("console d'Hermes", () => {
       expect(line.textContent).toMatch(/^\[\d{2}:\d{2}:\d{2}\] /)
     }
 
-    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MS))
+    // Rien avant le délai minimal, une ligne au plus tard au délai maximal.
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MIN_MS - 1))
+    expect(logLines()).toHaveLength(8)
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MAX_MS - LOG_INTERVAL_MIN_MS + 1))
     expect(logLines()).toHaveLength(9)
-    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MS * 10))
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MAX_MS * 10))
     expect(logLines()).toHaveLength(11)
 
     const console = screen.getByTestId("hermes-console")
     fireEvent.mouseEnter(console)
     const before = logLines().map(l => l.textContent)
-    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MS * 3))
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MAX_MS * 3))
     expect(logLines().map(l => l.textContent)).toEqual(before)
     fireEvent.mouseLeave(console)
-    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MS))
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MAX_MS))
     expect(logLines().map(l => l.textContent)).not.toEqual(before)
+  })
+
+  it("revient à la ligne au lieu de tronquer un message long", async () => {
+    render(await HermesPage())
+    for (const line of logLines()) {
+      expect(line.className).toContain("break-words")
+      expect(line.className).not.toContain("whitespace-nowrap")
+      expect(line.className).not.toContain("text-ellipsis")
+    }
   })
 
   it("reste figée sous mouvement réduit", async () => {
@@ -169,7 +181,7 @@ describe("console d'Hermes", () => {
     vi.useFakeTimers()
     render(await HermesPage())
     const before = logLines().map(l => l.textContent)
-    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MS * 5))
+    act(() => vi.advanceTimersByTime(LOG_INTERVAL_MAX_MS * 5))
     expect(logLines().map(l => l.textContent)).toEqual(before)
     expect(screen.getByTestId("hermes-console").dataset.paused).toBe("true")
   })
