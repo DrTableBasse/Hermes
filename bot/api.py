@@ -626,6 +626,358 @@ async def discord_member_rank(user_id: int):
     }
 
 
+# ── Salons et modèles d'accès (étape 5) ──────────────────────────────────────
+# Le droit « channels.manage » et le réservé admin du modèle « staff » sont vérifiés
+# par web-api ; ici : visibilité du salon pour l'acteur (permissions effectives Discord,
+# propriétaire exempté), rôles R strictement sous l'acteur, pas de retrait de surcharge
+# d'un rôle au-dessus de lui, jeton d'aperçu (409 si l'état a changé).
+
+from utils import channels_api  # noqa: E402
+from utils.channel_templates import TEMPLATES  # noqa: E402
+
+ChannelType = Literal["text", "voice", "forum", "announcement", "category"]
+TemplateName = Literal["public", "role_required", "announcements", "staff"]
+_templates_lock = asyncio.Lock()  # aperçu vérifié et application : pas d'entrelacement
+STALE_PREVIEW = "L'aperçu n'est plus à jour : relancez l'aperçu avant d'appliquer"
+
+
+def _channel_errors(fn):
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except discord.Forbidden:
+            raise HTTPException(status_code=403, detail="Permission refusée — le bot n'a pas les droits "
+                                                        "nécessaires (Gérer les salons, Gérer les rôles)")
+        except discord.NotFound:
+            raise HTTPException(status_code=404, detail="Salon introuvable sur Discord")
+        except discord.HTTPException as e:
+            if e.status == 400:  # nom refusé, position impossible…
+                raise HTTPException(status_code=422, detail=f"Refusé par Discord : {e.text or e.status}")
+            raise HTTPException(status_code=502, detail=f"Erreur Discord : {e.text or e.status}")
+    return wrapper
+
+
+async def _actor(guild: discord.Guild, actor_id: int) -> discord.Member:
+    """Acteur du site ; absent du serveur Discord → 403."""
+    member = guild.get_member(actor_id)
+    if member is None:
+        try:
+            member = await guild.fetch_member(actor_id)
+        except discord.NotFound:
+            raise HTTPException(status_code=403, detail="Vous n'êtes pas membre du serveur Discord")
+    return member
+
+
+def _get_channel(guild: discord.Guild, channel_id: int):
+    channel = guild.get_channel(channel_id)
+    if channel is None or channels_api.channel_type(channel) is None:
+        raise HTTPException(status_code=404, detail="Salon introuvable")
+    return channel
+
+
+def _require_view(guild: discord.Guild, actor: discord.Member, channels: list) -> None:
+    for channel in channels:
+        if not channels_api.can_view(guild, actor, channel):
+            raise HTTPException(status_code=403,
+                                detail=f"Vous ne voyez pas le salon « {channel.name} » dans Discord")
+
+
+def _is_owner(guild: discord.Guild, actor: discord.Member) -> bool:
+    return guild.owner_id == actor.id
+
+
+def _template_roles(guild: discord.Guild, actor: discord.Member, template: str,
+                    role_ids: list[str]) -> list[int]:
+    """Rôles R validés : existants, pas @everyone, strictement sous l'acteur (sauf propriétaire)."""
+    if template not in ("role_required", "announcements"):
+        return []
+    if not role_ids:
+        raise HTTPException(status_code=422, detail="Choisissez au moins un rôle pour ce modèle")
+    roles = []
+    for rid in dict.fromkeys(int(r) for r in role_ids):
+        role = guild.get_role(rid)
+        if role is None:
+            raise HTTPException(status_code=404, detail="Rôle introuvable")
+        if role.is_default():
+            raise HTTPException(status_code=422, detail="@everyone ne peut pas être un rôle requis")
+        if not _is_owner(guild, actor) and role.position >= actor.top_role.position:
+            raise HTTPException(status_code=403,
+                                detail=f"Le rôle « {role.name} » n'est pas sous votre rôle le plus haut")
+        roles.append(rid)
+    return roles
+
+
+def _staff_role_ids(guild: discord.Guild) -> list[int]:
+    from utils import settings
+    return [r.id for r in settings.get_roles(guild, "staff_roles")]
+
+
+def _check_removals(guild: discord.Guild, actor: discord.Member, changes: list[dict]) -> None:
+    """On ne retire pas la surcharge d'un rôle au même niveau ou au-dessus de soi (sauf propriétaire)."""
+    if _is_owner(guild, actor):
+        return
+    for c in changes:
+        if c["action"] != "remove" or c["target_type"] != "role":
+            continue
+        role = guild.get_role(c["target_id"])
+        if role is not None and not role.is_default() and role.position >= actor.top_role.position:
+            raise HTTPException(status_code=403, detail=f"Impossible de retirer la surcharge du rôle "
+                                                        f"« {role.name} », au-dessus de votre rôle le plus haut")
+
+
+async def _build_template_plan(guild, actor, channel, template, role_ids, sync_children):
+    """Plan d'un modèle : ``(entrées par salon, jeton, rôles enregistrés)`` ; contrôles d'accès inclus."""
+    targets = channels_api.targets_of(channel, sync_children)
+    _require_view(guild, actor, targets)
+    roles = _template_roles(guild, actor, template, role_ids)
+    staff = _staff_role_ids(guild)
+    if template == "staff" and not staff:
+        raise HTTPException(status_code=422, detail="Aucun rôle staff n'est réglé (staff_roles)")
+    saved = roles if template != "staff" else staff
+    memo = await channels_api.load_templates()
+    entries = []
+    for ch in targets:
+        previous = list((memo.get(ch.id) or {}).get("roles") or [])
+        try:
+            current, changes = channels_api.channel_plan(guild, ch, template, roles, staff, previous)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        _check_removals(guild, actor, changes)
+        entries.append((ch, current, changes))
+    token = channels_api.combined_token(
+        [(ch.id, cur) for ch, cur, _ in entries],
+        [template, sorted(roles), sorted(staff), bool(sync_children)])
+    return entries, token, saved
+
+
+def _preview_payload(guild, entries, token) -> dict:
+    return {
+        "channels": [{"id": str(ch.id), "name": ch.name, "type": channels_api.channel_type(ch),
+                      "changes": channels_api.describe_changes(guild, changes)}
+                     for ch, _, changes in entries],
+        "count": len(entries),
+        "token": token,
+    }
+
+
+async def _apply_entries(guild, entries, template, saved_roles, actor_id, actor_name) -> dict:
+    """Écrit chaque salon séquentiellement ; continue après un échec, relance si tout échoue."""
+    reason = _site_reason(actor_name)
+    applied, failed, last_error = 0, [], None
+    for ch, _, changes in entries:
+        try:
+            if changes:
+                await ch.edit(overwrites=channels_api.new_overwrites(guild, ch, changes), reason=reason)
+            await channels_api.save_template(ch.id, template, saved_roles, actor_id)
+            applied += 1
+        except discord.HTTPException as e:
+            last_error = e
+            failed.append({"id": str(ch.id), "name": ch.name, "error": e.text or str(e.status)})
+    if entries and applied == 0 and last_error is not None:
+        raise last_error
+    return {"applied": applied, "failed": failed}
+
+
+class ChannelCreateRequest(ActorRequest):
+    name:      str = Field(min_length=1, max_length=100)
+    type:      ChannelType
+    parent_id: Optional[DiscordId] = None
+
+
+class ChannelUpdateRequest(ActorRequest):
+    actor_id:  Optional[DiscordId] = None
+    name:      Optional[str] = Field(default=None, min_length=1, max_length=100)
+    parent_id: Optional[DiscordId] = None  # présent à null : sortir de la catégorie
+    position:  Optional[int] = Field(default=None, ge=0)
+
+
+class ChannelDeleteRequest(ActorRequest):
+    actor_id: Optional[DiscordId] = None
+
+
+class TemplatePreviewRequest(BaseModel):
+    template:      TemplateName
+    roles:         list[DiscordId] = Field(default_factory=list, max_length=25)
+    sync_children: bool = False
+    actor_id:      DiscordId
+
+
+class TemplateApplyRequest(TemplatePreviewRequest, ActorRequest):
+    token: str = Field(min_length=1, max_length=64)
+
+
+class StaffResyncPreviewRequest(BaseModel):
+    actor_id: DiscordId
+
+
+class StaffResyncApplyRequest(StaffResyncPreviewRequest, ActorRequest):
+    token: str = Field(min_length=1, max_length=64)
+
+
+def _tree_item(guild, actor, ch, memo: dict) -> dict:
+    row = memo.get(ch.id)
+    return {
+        "id": str(ch.id), "name": ch.name, "type": channels_api.channel_type(ch),
+        "position": ch.position,
+        "parent_id": str(ch.category_id) if getattr(ch, "category_id", None) else None,
+        "overwrites": len(ch.overwrites),
+        "template": None if row is None else {
+            "template": row["template"], "roles": [str(r) for r in (row["roles"] or [])],
+            "applied_by": str(row["applied_by"]) if row["applied_by"] else None,
+            "applied_at": row["applied_at"].isoformat() if row["applied_at"] else None,
+        },
+        "visible_to_actor": channels_api.can_view(guild, actor, ch),
+    }
+
+
+@app.get("/discord/channels/tree", dependencies=[Depends(_require_token)])
+async def channels_tree(actor_id: int):
+    """Catégories et salons dans l'ordre Discord (liste à plat, ``parent_id`` pour l'arbre)."""
+    guild = _get_guild()
+    actor = await _actor(guild, actor_id)
+    memo = await channels_api.load_templates()
+    return {"channels": [_tree_item(guild, actor, ch, memo)
+                         for ch in channels_api.ordered_channels(guild)
+                         if channels_api.channel_type(ch) is not None],
+            "templates": list(TEMPLATES)}
+
+
+def _parent_category(guild: discord.Guild, parent_id: Optional[str]):
+    if parent_id is None:
+        return None
+    parent = guild.get_channel(int(parent_id))
+    if parent is None or channels_api.channel_type(parent) != "category":
+        raise HTTPException(status_code=404, detail="Catégorie introuvable")
+    return parent
+
+
+@app.post("/discord/channels", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def create_channel(req: ChannelCreateRequest):
+    guild = _get_guild()
+    reason = _site_reason(req.actor_name)
+    if req.type == "category":
+        if req.parent_id is not None:
+            raise HTTPException(status_code=422, detail="Une catégorie ne peut pas être dans une catégorie")
+        channel = await guild.create_category(req.name, reason=reason)
+    else:
+        parent = _parent_category(guild, req.parent_id)
+        if req.type == "voice":
+            channel = await guild.create_voice_channel(req.name, category=parent, reason=reason)
+        elif req.type == "forum":
+            channel = await guild.create_forum(req.name, category=parent, reason=reason)
+        else:
+            channel = await guild.create_text_channel(req.name, category=parent, reason=reason,
+                                                      news=req.type == "announcement")
+    return {"id": str(channel.id), "name": channel.name, "type": req.type,
+            "parent_id": req.parent_id}
+
+
+@app.patch("/discord/channels/{channel_id}", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def update_channel(channel_id: int, req: ChannelUpdateRequest):
+    guild = _get_guild()
+    channel = _get_channel(guild, channel_id)
+    if req.actor_id is not None:
+        _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
+    changes: dict = {}
+    if req.name is not None:
+        changes["name"] = req.name
+    if "parent_id" in req.model_fields_set:
+        if channels_api.channel_type(channel) == "category":
+            raise HTTPException(status_code=422, detail="Une catégorie ne peut pas être dans une catégorie")
+        changes["category"] = _parent_category(guild, req.parent_id)
+    if req.position is not None:
+        changes["position"] = req.position
+    if changes:
+        channel = await channel.edit(**changes, reason=_site_reason(req.actor_name)) or channel
+    return {"id": str(channel.id), "name": channel.name, "position": channel.position,
+            "parent_id": str(channel.category_id) if getattr(channel, "category_id", None) else None}
+
+
+@app.delete("/discord/channels/{channel_id}", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def delete_channel(channel_id: int, req: ChannelDeleteRequest):
+    guild = _get_guild()
+    channel = _get_channel(guild, channel_id)
+    if req.actor_id is not None:
+        _require_view(guild, await _actor(guild, int(req.actor_id)), [channel])
+    if channels_api.channel_type(channel) == "category" and channel.channels:
+        raise HTTPException(status_code=409, detail="Videz d'abord la catégorie : elle contient "
+                                                    f"{len(channel.channels)} salon(s)")
+    await channel.delete(reason=_site_reason(req.actor_name))
+    await channels_api.delete_template(channel_id)
+    return {"ok": True}
+
+
+@app.post("/discord/channels/staff-resync/preview", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def staff_resync_preview(req: StaffResyncPreviewRequest):
+    """Salons mémorisés au modèle « staff » : passage aux rôles ``staff_roles`` actuels."""
+    guild = _get_guild()
+    entries, token = await _staff_resync_plan(guild, await _actor(guild, int(req.actor_id)))
+    return _preview_payload(guild, entries, token)
+
+
+@app.post("/discord/channels/staff-resync/apply", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def staff_resync_apply(req: StaffResyncApplyRequest):
+    guild = _get_guild()
+    actor = await _actor(guild, int(req.actor_id))
+    async with _templates_lock:
+        entries, token = await _staff_resync_plan(guild, actor)
+        if not hmac.compare_digest(token.encode(), req.token.encode()):
+            raise HTTPException(status_code=409, detail=STALE_PREVIEW)
+        return await _apply_entries(guild, entries, "staff", _staff_role_ids(guild),
+                                    actor.id, req.actor_name)
+
+
+async def _staff_resync_plan(guild, actor):
+    staff = _staff_role_ids(guild)
+    if not staff:
+        raise HTTPException(status_code=422, detail="Aucun rôle staff n'est réglé (staff_roles)")
+    memo = await channels_api.load_templates()
+    targets = [ch for cid, row in sorted(memo.items()) if row["template"] == "staff"
+               and (ch := guild.get_channel(cid)) is not None and channels_api.channel_type(ch)]
+    _require_view(guild, actor, targets)
+    entries = []
+    for ch in targets:
+        current, changes = channels_api.channel_plan(guild, ch, "staff", [], staff,
+                                                     list(memo[ch.id]["roles"] or []))
+        _check_removals(guild, actor, changes)
+        entries.append((ch, current, changes))
+    token = channels_api.combined_token([(ch.id, cur) for ch, cur, _ in entries],
+                                        ["staff-resync", sorted(staff)])
+    return entries, token
+
+
+@app.post("/discord/channels/{channel_id}/template/preview", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def template_preview(channel_id: int, req: TemplatePreviewRequest):
+    guild = _get_guild()
+    channel = _get_channel(guild, channel_id)
+    actor = await _actor(guild, int(req.actor_id))
+    entries, token, _ = await _build_template_plan(guild, actor, channel, req.template,
+                                                   req.roles, req.sync_children)
+    return _preview_payload(guild, entries, token)
+
+
+@app.post("/discord/channels/{channel_id}/template/apply", dependencies=[Depends(_require_token)])
+@_channel_errors
+async def template_apply(channel_id: int, req: TemplateApplyRequest):
+    """Applique le modèle prévisualisé ; 409 si l'état des salons a changé depuis l'aperçu."""
+    guild = _get_guild()
+    channel = _get_channel(guild, channel_id)
+    actor = await _actor(guild, int(req.actor_id))
+    async with _templates_lock:
+        entries, token, saved = await _build_template_plan(guild, actor, channel, req.template,
+                                                           req.roles, req.sync_children)
+        if not hmac.compare_digest(token.encode(), req.token.encode()):
+            raise HTTPException(status_code=409, detail=STALE_PREVIEW)
+        return await _apply_entries(guild, entries, req.template, saved, actor.id, req.actor_name)
+
+
 @app.post("/settings/reload", dependencies=[Depends(_require_token)])
 async def settings_reload():
     from utils import settings
