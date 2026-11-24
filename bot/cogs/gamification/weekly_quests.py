@@ -99,11 +99,33 @@ class WeeklyQuestsCog(commands.Cog):
             logger.warning(f"Quest achievement check failed: {e}")
 
     async def grant_pending(self) -> int:
-        """Rattrapage : verse les récompenses des défis actifs terminés mais jamais versées."""
+        """Rattrapage : verse toutes les récompenses en attente (toutes semaines confondues).
+
+        Une notification par membre, pas une par défi. Renvoie le nombre de membres crédités.
+        """
+        xp_cog = self.bot.get_cog('XPCog')
         count = 0
-        for row in await quest_manager.unclaimed_completed():
-            if await self.grant(row['user_id'], dict(row)) is not None:
-                count += 1
+        for user_id in await quest_manager.pending_users():
+            try:
+                xp, n = await quest_manager.claim_all_for(user_id)
+            except Exception as e:
+                logger.warning("quest catch-up error for %s: %s", user_id, e)
+                continue
+            if not n:
+                continue
+            if xp_cog:
+                await xp_cog.award_xp(user_id, xp, 'quest')
+            try:
+                label = "défi terminé" if n == 1 else "défis terminés"
+                await notification_manager.create(
+                    user_id, 'quest_complete',
+                    "Récompenses de défis ajoutées",
+                    f"+{xp} XP pour {n} {label}",
+                )
+            except Exception as e:
+                logger.warning("notify quest catch-up error for %s: %s", user_id, e)
+            await self._check_quest_achievements(user_id)
+            count += 1
         return count
 
     @app_commands.command(name="reset-quests", description="[Admin] Réinitialiser les quêtes de la semaine")
@@ -147,7 +169,7 @@ class WeeklyQuestsCog(commands.Cog):
         try:
             granted = await self.grant_pending()
             if granted:
-                logger.info("Récompenses de défis rattrapées : %s", granted)
+                logger.warning("Récompenses de défis rattrapées pour %s membre(s)", granted)
         except Exception as e:
             logger.warning("Rattrapage des récompenses de défis échoué : %s", e)
 

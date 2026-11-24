@@ -32,14 +32,22 @@ def make_cog(monkeypatch, claimed_ids=None, pending=None):
         claimed.add((user_id, quest_id))
         return 150
 
-    async def unclaimed_completed():
-        return pending or []
+    pending_rows = list(pending or [])  # (user_id, quest_id, xp)
+
+    async def pending_users():
+        return sorted({u for u, q, _ in pending_rows if (u, q) not in claimed})
+
+    async def claim_all_for(user_id):
+        rows = [(q, x) for u, q, x in pending_rows if u == user_id and (u, q) not in claimed]
+        for q, _ in rows:
+            claimed.add((user_id, q))
+        return sum(x for _, x in rows), len(rows)
 
     async def create(user_id, type_, title, description=None, related_id=None):
         notifications.append((user_id, type_, title, description))
 
     monkeypatch.setattr(wq, "quest_manager", types.SimpleNamespace(
-        claim_xp=claim_xp, unclaimed_completed=unclaimed_completed))
+        claim_xp=claim_xp, pending_users=pending_users, claim_all_for=claim_all_for))
     monkeypatch.setattr(wq, "notification_manager", types.SimpleNamespace(create=create))
     xp = FakeXP()
     cog = wq.WeeklyQuestsCog.__new__(wq.WeeklyQuestsCog)  # sans démarrer la tâche planifiée
@@ -66,11 +74,16 @@ def test_reward_is_paid_only_once(monkeypatch):
     assert len(notes) == 1
 
 
-def test_pending_rewards_are_caught_up(monkeypatch):
-    pending = [dict(QUEST, user_id=7), dict(QUEST, user_id=8), dict(QUEST, id=10, user_id=8)]
-    cog, xp, _ = make_cog(monkeypatch, claimed_ids={(8, 10)}, pending=pending)
+def test_pending_rewards_of_all_weeks_are_caught_up_with_one_notice_per_member(monkeypatch):
+    # Membre 7 : deux défis (dont une ancienne semaine) ; membre 8 : un défi déjà versé + un en attente.
+    pending = [(7, 1, 100), (7, 2, 50), (8, 10, 80), (8, 11, 30)]
+    cog, xp, notes = make_cog(monkeypatch, claimed_ids={(8, 10)}, pending=pending)
     assert asyncio.run(cog.grant_pending()) == 2
-    assert sorted(u for u, _, _ in xp.awarded) == [7, 8]
+    assert sorted(xp.awarded) == [(7, 150, "quest"), (8, 30, "quest")]
+    assert sorted(n[3] for n in notes) == ["+150 XP pour 2 défis terminés", "+30 XP pour 1 défi terminé"]
+    # Relancé : plus rien à verser.
+    assert asyncio.run(cog.grant_pending()) == 0
+    assert len(xp.awarded) == 2
 
 
 def test_quest_claim_command_removed():

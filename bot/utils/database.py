@@ -435,14 +435,30 @@ class QuestManager:
             RETURNING q.xp_reward
         """, user_id, quest_id)
 
-    async def unclaimed_completed(self) -> List[Dict]:
-        """Défis actifs terminés dont la récompense n'a pas encore été versée."""
-        return await self.db.fetch("""
-            SELECT uqp.user_id, q.id, q.title, q.icon, q.xp_reward, q.target_value
-            FROM user_quest_progress uqp
-            JOIN weekly_quests q ON q.id = uqp.quest_id
-            WHERE q.is_active = TRUE AND uqp.completed = TRUE AND uqp.xp_claimed = FALSE
+    async def pending_users(self) -> List[int]:
+        """Membres ayant des défis terminés (toutes semaines) dont la récompense n'est pas versée."""
+        rows = await self.db.fetch("""
+            SELECT DISTINCT user_id FROM user_quest_progress
+            WHERE completed = TRUE AND xp_claimed = FALSE
         """)
+        return [r['user_id'] for r in rows]
+
+    async def claim_all_for(self, user_id: int) -> tuple[int, int]:
+        """Marque versées toutes les récompenses en attente d'un membre ; renvoie (XP, nombre).
+
+        Atomique : un second appel concurrent ne récupère rien.
+        """
+        row = await self.db.fetchrow("""
+            WITH c AS (
+                UPDATE user_quest_progress uqp SET xp_claimed = TRUE
+                FROM weekly_quests q
+                WHERE q.id = uqp.quest_id AND uqp.user_id = $1
+                  AND uqp.completed = TRUE AND uqp.xp_claimed = FALSE
+                RETURNING q.xp_reward
+            )
+            SELECT COALESCE(SUM(xp_reward), 0)::int AS xp, COUNT(*)::int AS n FROM c
+        """, user_id)
+        return (row['xp'], row['n']) if row else (0, 0)
 
     async def create_weekly_quests(self, count: int = 8, force: bool = False):
         """Pick random templates with category diversity and create quests for the current week."""
