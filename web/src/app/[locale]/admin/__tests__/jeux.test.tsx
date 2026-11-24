@@ -107,6 +107,30 @@ describe("/admin/jeux : droits", () => {
   })
 })
 
+describe("/admin/jeux : rattachement de rôle et de forum (C1)", () => {
+  it("non-admin : listes de rôles et forums non lues, champs absents du formulaire", async () => {
+    await renderGames([DBD])
+    expect(server.getDiscordRoles).not.toHaveBeenCalled()
+    expect(server.getDiscordChannels).not.toHaveBeenCalled()
+    await click(row("Dead by Daylight").getByRole("button", { name: "Modifier" }))
+    expect(row("Dead by Daylight").queryByLabelText("Rôle Discord")).toBeNull()
+    expect(row("Dead by Daylight").queryByLabelText("Forum Discord")).toBeNull()
+    expect(screen.getByText(/Rattacher un rôle ou un forum existant est réservé aux administrateurs/)).toBeTruthy()
+    expect(screen.queryByText(/se saisissent par identifiant/)).toBeNull()
+  })
+
+  it("admin : rôle choisi dans la liste et envoyé", async () => {
+    server.getSessionUser.mockResolvedValue(me(["games.manage"], true))
+    a.updateGame.mockResolvedValue({ ok: true, bot_reloaded: true })
+    await renderGames([DBD])
+    expect(server.getDiscordRoles).toHaveBeenCalledWith("tok")
+    await click(row("Dead by Daylight").getByRole("button", { name: "Modifier" }))
+    fireEvent.change(row("Dead by Daylight").getByLabelText("Rôle Discord"), { target: { value: "20" } })
+    await click(row("Dead by Daylight").getByRole("button", { name: "Enregistrer" }))
+    expect(a.updateGame).toHaveBeenCalledWith("dbd", { discord_role_id: "20" })
+  })
+})
+
 describe("/admin/jeux : statuts", () => {
   it("provisionné, non provisionné, désactivé, à recréer", async () => {
     await renderGames()

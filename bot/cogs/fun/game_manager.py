@@ -47,6 +47,32 @@ def _color(value) -> int:
         return Colors.BLUE
 
 
+class GameRefused(Exception):
+    """Provisionnement refusé avant toute écriture (message en français, relayé en 409)."""
+
+
+def _same_name(a: str, b: str) -> bool:
+    """Comparaison des homonymes : casse et espaces de bord ignorés."""
+    return a.strip().casefold() == b.strip().casefold()
+
+
+def _named(items, name: str):
+    return next((i for i in items if _same_name(i.name, name)), None)
+
+
+def _unsafe_role_reason(guild: discord.Guild, role: discord.Role) -> str | None:
+    """Pourquoi ``role`` ne peut pas devenir le rôle d'un jeu (distribué par réaction, pingué)."""
+    if role.is_default():
+        return "c'est @everyone"
+    if role.managed:
+        return "il est géré par une intégration"
+    if role.position >= guild.me.top_role.position:
+        return "il n'est pas sous le rôle le plus haut du bot"
+    if role.permissions.value != 0:
+        return "il donne des permissions"
+    return None
+
+
 def _duration(seconds: int) -> str:
     """« 1h », « 30 min », « 45 s » (texte du pied de l'annonce)."""
     if seconds and seconds % 3600 == 0:
@@ -196,23 +222,49 @@ class GameManager(commands.Cog):
                 self._schedule_sync()
         await self._notify_reaction_roles()
 
-    async def provision(self, key: str) -> dict:
-        """Rôle, forum et commande du jeu : réutilisés s'ils existent, créés sinon.
+    async def provision(self, key: str, *, reuse_existing: bool = False) -> dict:
+        """Rôle, forum et commande du jeu : ceux déjà rattachés sont gardés, les manquants créés.
 
+        ``reuse_existing`` (admin seulement, décidé par web-api) : un rôle ou un forum homonyme non
+        rattaché est repris ; sinon, un homonyme fait refuser (``GameRefused``). Jamais un rôle
+        doté de permissions, géré, ``@everyone`` ou au-dessus du bot ; jamais le forum d'un autre jeu.
         Une erreur Discord est relancée ; commandes et message de réactions sont tout de même
         mis en accord avec la base.
         """
         try:
             async with self._lock:
                 try:
-                    return await self._provision(key)
+                    return await self._provision(key, reuse_existing)
                 finally:
                     if self._reconcile_commands():
                         self._schedule_sync()
         finally:
             await self._notify_reaction_roles()
 
-    async def _provision(self, key: str) -> dict:
+    def _reusable(self, guild: discord.Guild, game: Game, reuse_existing: bool):
+        """Rôle et forum existants à garder (``None`` : à créer) ; ``GameRefused`` avant toute écriture."""
+        role = self._role(guild, game.role_id)
+        if role is None:
+            role = _named(guild.roles, game.name)
+            if role is not None and not reuse_existing:
+                raise GameRefused("Un rôle de ce nom existe déjà : demandez à un admin de le rattacher")
+        if role is not None:
+            reason = _unsafe_role_reason(guild, role)
+            if reason:
+                raise GameRefused(f"Le rôle « {role.name} » ne peut pas devenir le rôle d'un jeu : {reason}")
+
+        forum = self._forum(guild, game.forum_id)
+        if forum is None:
+            forum = _named(guild.forums, forum_name(game.key))
+            if forum is not None and not reuse_existing:
+                raise GameRefused("Un forum de ce nom existe déjà : demandez à un admin de le rattacher")
+        if forum is not None:
+            owner = next((g for g in self.games.values() if g.key != game.key and g.forum_id == forum.id), None)
+            if owner:
+                raise GameRefused(f"Le forum « {forum.name} » est déjà le forum du jeu « {owner.name} »")
+        return role, forum
+
+    async def _provision(self, key: str, reuse_existing: bool = False) -> dict:
         await self._load()
         game = self._game(key)
         guild = self._guild()
@@ -220,7 +272,7 @@ class GameManager(commands.Cog):
             raise RuntimeError("Serveur Discord introuvable")
         created: list[str] = []
 
-        role = self._role(guild, game.role_id) or discord.utils.get(guild.roles, name=game.name)
+        role, forum = self._reusable(guild, game, reuse_existing)
         if role is None:
             role = await guild.create_role(
                 name=game.name, color=discord.Color(game.color),
@@ -233,7 +285,6 @@ class GameManager(commands.Cog):
             await self._save(key, discord_role_id=role.id)
             game.role_id = role.id
 
-        forum = self._forum(guild, game.forum_id) or discord.utils.get(guild.forums, name=forum_name(key))
         if forum is None:
             command = f"/{game.command_name}" if game.command_name else "la commande du jeu"
             forum = await guild.create_forum_channel(

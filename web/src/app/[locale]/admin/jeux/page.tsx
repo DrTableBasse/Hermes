@@ -7,10 +7,13 @@ import { getAdminGames, getDiscordChannels, getDiscordRoles } from "@/lib/api/se
 export default async function AdminGamesPage() {
   const gate = await adminGate("games.manage")
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
+  // Rattacher un rôle ou un forum existant est réservé aux admins (web-api refuse sinon) :
+  // les listes ne sont lues que pour eux.
+  const canAttach = gate.isAdmin
   const [data, roleList, channelList] = await Promise.all([
     getAdminGames(gate.token),
-    getDiscordRoles(gate.token),
-    getDiscordChannels(gate.token),
+    canAttach ? getDiscordRoles(gate.token) : null,
+    canAttach ? getDiscordChannels(gate.token) : null,
   ])
   const forbidden = roleList === "forbidden" || channelList === "forbidden"
   const roles = Array.isArray(roleList) ? roleList : null
@@ -27,7 +30,12 @@ export default async function AdminGamesPage() {
         <AdminNote tone="error">Liste des jeux illisible pour l’instant.</AdminNote>
       ) : (
         <>
-          {forbidden ? (
+          {!canAttach ? (
+            <AdminNote>
+              Rattacher un rôle ou un forum existant est réservé aux administrateurs : Hermes crée ceux de chaque
+              nouveau jeu.
+            </AdminNote>
+          ) : forbidden ? (
             <AdminNote>
               Votre accès ne couvre pas les listes de rôles et de forums : ils se saisissent par identifiant.
             </AdminNote>
@@ -40,7 +48,7 @@ export default async function AdminGamesPage() {
               commande échouera tant qu’il ne sera pas revenu.
             </AdminNote>
           )}
-          <GamesAdmin games={data.games} roles={roles} channels={channels} />
+          <GamesAdmin games={data.games} roles={roles} channels={channels} canAttach={canAttach} />
         </>
       )}
     </div>

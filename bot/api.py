@@ -18,6 +18,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
+from cogs.fun.game_manager import GameRefused
 from config import BOT_API_PORT, BOT_API_TOKEN
 
 app  = FastAPI(title="Hermes Bot Internal API", docs_url=None, redoc_url=None)
@@ -666,6 +667,8 @@ def _game_errors(fn):
             return await fn(*args, **kwargs)
         except KeyError:
             raise HTTPException(status_code=404, detail="Jeu inconnu")
+        except GameRefused as e:  # homonyme non rattachable, rôle à permissions, forum d'un autre jeu
+            raise HTTPException(status_code=409, detail=str(e))
         except RuntimeError as e:  # serveur Discord introuvable
             raise HTTPException(status_code=503, detail=str(e) or "Serveur Discord introuvable")
         except discord.Forbidden:
@@ -713,11 +716,16 @@ async def games_resync_permissions():
     return {"forums": await _game_manager().resync_permissions()}
 
 
+class ProvisionRequest(BaseModel):
+    # Reprendre un rôle ou un forum homonyme non rattaché : web-api ne l'autorise qu'aux admins.
+    reuse_existing: bool = False
+
+
 @app.post("/games/{key}/provision", dependencies=[Depends(_require_token)])
 @_game_errors
-async def game_provision(key: GameKey):
+async def game_provision(key: GameKey, req: Optional[ProvisionRequest] = None):
     cog = _game_manager()
-    result = await cog.provision(key)
+    result = await cog.provision(key, reuse_existing=bool(req and req.reuse_existing))
     return {"role_id": str(result["role_id"]), "forum_id": str(result["forum_id"]),
             "command": result["command"], "created": list(result["created"]),
             "status": cog.status(key)}

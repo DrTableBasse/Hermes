@@ -12,7 +12,13 @@ import { ConfirmButton } from "./confirm-button"
 import { botActionErrorText, type Feedback } from "./form"
 import { GameForm, type GameDraft } from "./game-form"
 
-type Props = { games: AdminGame[]; roles: DiscordRole[] | null; channels: DiscordChannel[] | null }
+type Props = {
+  games: AdminGame[]
+  roles: DiscordRole[] | null
+  channels: DiscordChannel[] | null
+  /** Admin seulement : rattacher un rôle ou un forum existant (sinon champs absents). */
+  canAttach?: boolean
+}
 
 /** Retour d'une ligne : `pending` = action Discord en cours (jusqu'à 70 s), la page reste utilisable. */
 type Note = { kind: "ok" | "error" | "pending"; text: string }
@@ -85,7 +91,7 @@ function StatusChips({ g }: { g: AdminGame }) {
  * « Désactiver » archive côté Discord et retire du site, « Réactiver » rétablit. Les actions Discord
  * d'une ligne n'immobilisent que cette ligne.
  */
-export function GamesAdmin({ games: initial, roles, channels }: Props) {
+export function GamesAdmin({ games: initial, roles, channels, canAttach = false }: Props) {
   const [games, setGames] = useState([...initial].sort(byPosition))
   const [open, setOpen] = useState<string | null>(null)
   const [notes, setNotes] = useState<Record<string, Note>>({})
@@ -304,7 +310,7 @@ export function GamesAdmin({ games: initial, roles, channels }: Props) {
                   </p>
                 )}
                 {open === g.key && (
-                  <GameForm initial={toDraft(g)} creating={false} roles={roles} channels={channels} busy={pending} onSubmit={d => void update(g, d)} onCancel={() => setOpen(null)} />
+                  <GameForm initial={toDraft(g)} creating={false} canAttach={canAttach} roles={roles} channels={channels} busy={pending} onSubmit={d => void update(g, d)} onCancel={() => setOpen(null)} />
                 )}
               </Panel>
             )

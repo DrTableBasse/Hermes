@@ -23,6 +23,16 @@ BOT_COMMANDS = ["rang", "blague", "dbd", "warframe", "lol"]
 NEW = {"key": "apex", "name": "Apex Legends", "color": "#AA0000", "emoji": "🎯", "command_name": "apex"}
 
 
+def _role(id, name, position, managed=False, below_bot=True):
+    return {"id": id, "name": name, "color": 0, "position": position, "managed": managed,
+            "members": 0, "below_bot": below_bot}
+
+
+ROLE_LOL = _role("11", "League of Legends", 3)
+ROLE_ADMIN = _role("40", "Admin", 12)       # au-dessus de l'acteur (rang 10)
+ROLE_BOT_MUSIC = _role("20", "Bot Musique", 4, managed=True)
+
+
 @pytest.fixture(autouse=True)
 def _fresh():
     bot_client.clear_cache()
@@ -44,6 +54,11 @@ def bot(monkeypatch):
         ("post", "/games/lol/provision"): {"role_id": "11", "forum_id": "22", "command": "lol",
                                            "created": ["forum"],
                                            "status": {"role": "ok", "forum": "ok", "command": "ok"}},
+        ("get", "/discord/roles"): {"roles": [ROLE_LOL, ROLE_ADMIN, ROLE_BOT_MUSIC]},
+        ("get", "/discord/channels"): {"channels": [{"id": "22", "name": "lol", "type": "forum", "category": None},
+                                                    {"id": "23", "name": "moderation", "type": "forum",
+                                                     "category": None}]},
+        ("get", "/discord/members/1/rank"): {"top_position": 10, "is_owner": False},
     }}
 
     async def fake_bot(method, path, *, timeout=10, **kwargs):
@@ -72,6 +87,9 @@ def bot(monkeypatch):
 @pytest.fixture
 def games_db(fake_db):
     fake_db.on("SELECT key, name FROM site_games", lambda sql, key: LOL if key == "lol" else None)
+    fake_db.on("SELECT discord_role_id, forum_channel_id FROM site_games",
+               lambda sql, key: {"discord_role_id": 11, "forum_channel_id": 22} if key == "lol" else None)
+    fake_db.on("SELECT key FROM site_games WHERE forum_channel_id", None)
     fake_db.on("SELECT key, emoji, command_name FROM site_games",
                lambda sql, key: [r for r in OTHERS + [{"key": "lol", "emoji": "⚔️", "command_name": "lol"}]
                                  if r["key"] != key])
@@ -436,6 +454,134 @@ def test_resync_refusee_journalisee(client, games_db, bot, session_with):
     assert r.status_code == 403
     (row,) = _audit(games_db)
     assert row["success"] is False and row["details"] == {"forums": 6, "error": "Permission refusée"}
+
+
+# ── Correction finale C1 : anti-escalade via games.manage ────────────────────
+
+def _provision_calls(bot):
+    return [c for c in bot["calls"] if c[1].endswith("/provision")]
+
+
+def _unattached(games_db):
+    """lol sans rôle ni forum rattachés (comme un jeu ajouté depuis le site)."""
+    games_db.rules.insert(0, ("select discord_role_id, forum_channel_id from site_games",
+                              {"discord_role_id": None, "forum_channel_id": None}))
+
+
+@pytest.mark.parametrize("field,value", [("discord_role_id", "40"), ("forum_channel_id", "23")])
+def test_non_admin_ne_rattache_ni_role_ni_forum_403(client, games_db, bot, manager, field, value):
+    r = client.post("/admin/games", json={**NEW, field: value})
+    assert r.status_code == 403 and "administrateurs" in r.json()["detail"]
+    r = client.put("/admin/games/lol", json={field: value})
+    assert r.status_code == 403
+    r = client.put("/admin/games/lol", json={field: None})  # détacher, c'est aussi rattacher
+    assert r.status_code == 403
+    assert not _game_writes(games_db)
+
+
+def test_non_admin_valeur_inchangee_acceptee(client, games_db, bot, manager):
+    r = client.put("/admin/games/lol", json={"discord_role_id": "11", "forum_channel_id": "22", "tagline": "x"})
+    assert r.status_code == 200
+
+
+@pytest.mark.parametrize("name", ["League of Legends", "league of legends", " LEAGUE OF LEGENDS  "])
+def test_non_admin_provision_role_homonyme_409(client, games_db, bot, manager, name):
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": [_role("12", name, 2)]}
+    bot["responses"][("get", "/discord/channels")] = {"channels": []}
+    r = client.post("/admin/games/lol/provision")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Un rôle de ce nom existe déjà : demandez à un admin de le rattacher"
+    assert not _provision_calls(bot)
+    (row,) = _audit(games_db)
+    assert (row["action"], row["success"]) == ("game_provision", False)
+
+
+def test_non_admin_provision_forum_homonyme_409(client, games_db, bot, manager):
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": []}
+    bot["responses"][("get", "/discord/channels")] = {"channels": [
+        {"id": "22", "name": "LoL", "type": "forum", "category": None}]}
+    r = client.post("/admin/games/lol/provision")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Un forum de ce nom existe déjà : demandez à un admin de le rattacher"
+    assert not _provision_calls(bot)
+
+
+def test_non_admin_provision_sans_homonyme_cree_sans_reutilisation(client, games_db, bot, manager):
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": [ROLE_ADMIN]}
+    bot["responses"][("get", "/discord/channels")] = {"channels": [
+        {"id": "9", "name": "lol", "type": "text", "category": None}]}  # salon texte : pas un forum
+    assert client.post("/admin/games/lol/provision").status_code == 200
+    (call,) = _provision_calls(bot)
+    assert call[3]["json"] == {"reuse_existing": False}
+
+
+def test_provision_role_deja_rattache_garde(client, games_db, bot, manager):
+    assert client.post("/admin/games/lol/provision").status_code == 200
+    assert _provision_calls(bot)[0][3]["json"] == {"reuse_existing": False}
+
+
+def test_provision_role_a_creer_exige_de_la_place_sous_l_acteur(client, games_db, bot, manager):
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": []}
+    bot["responses"][("get", "/discord/members/1/rank")] = {"top_position": 1, "is_owner": False}
+    assert client.post("/admin/games/lol/provision").status_code == 403
+    assert not _provision_calls(bot)
+
+
+def test_admin_reutilise_un_homonyme_sous_lui(client, games_db, bot, session_with):
+    session_with(is_admin=True)
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": [_role("12", "league of legends", 2)]}
+    assert client.post("/admin/games/lol/provision").status_code == 200
+    assert _provision_calls(bot)[0][3]["json"] == {"reuse_existing": True}
+
+
+@pytest.mark.parametrize("homonym", [_role("12", "League of Legends", 12),
+                                     _role("12", "League of Legends", 10),
+                                     _role("12", "League of Legends", 4, managed=True),
+                                     _role("12", "League of Legends", 4, below_bot=False)])
+def test_admin_homonyme_au_dessus_de_lui_403(client, games_db, bot, session_with, homonym):
+    session_with(is_admin=True)
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": [homonym]}
+    assert client.post("/admin/games/lol/provision").status_code == 403
+    assert not _provision_calls(bot)
+
+
+def test_proprietaire_exempte(client, games_db, bot, session_with):
+    session_with(is_admin=True)
+    _unattached(games_db)
+    bot["responses"][("get", "/discord/roles")] = {"roles": [_role("12", "League of Legends", 12)]}
+    bot["responses"][("get", "/discord/members/1/rank")] = {"top_position": 1, "is_owner": True}
+    assert client.post("/admin/games/lol/provision").status_code == 200
+
+
+@pytest.mark.parametrize("role_id,status", [("40", 403), ("20", 403), ("99", 422), ("11", 200)])
+def test_admin_rattache_un_role_sous_lui_seulement(client, games_db, bot, session_with, role_id, status):
+    session_with(is_admin=True)
+    _unattached(games_db)
+    r = client.put("/admin/games/lol", json={"discord_role_id": role_id})
+    assert r.status_code == status
+    assert bool(_game_writes(games_db)) is (status == 200)
+
+
+def test_admin_rattache_un_role_a_la_creation(client, games_db, bot, session_with):
+    session_with(is_admin=True)
+    assert client.post("/admin/games", json={**NEW, "discord_role_id": "40"}).status_code == 403
+    assert client.post("/admin/games", json={**NEW, "discord_role_id": "11"}).status_code == 201
+
+
+def test_admin_forum_deja_rattache_a_un_autre_jeu_409(client, games_db, bot, session_with):
+    session_with(is_admin=True)
+    _unattached(games_db)
+    games_db.rules.insert(0, ("select key from site_games where forum_channel_id",
+                              lambda sql, forum, key: "dbd" if forum == 23 else None))
+    r = client.put("/admin/games/lol", json={"forum_channel_id": "23"})
+    assert r.status_code == 409 and "dbd" in r.json()["detail"]
+    assert client.put("/admin/games/lol", json={"forum_channel_id": "24"}).status_code == 200
 
 
 def test_actions_de_jeu_classees_game():

@@ -29,7 +29,7 @@ except ImportError:
     finally:
         del sys.modules["prometheus_client"]
 
-from tests.test_game_manager import FakeTree, row  # noqa: E402,F401
+from tests.test_game_manager import FakeRole, FakeTree, row  # noqa: E402,F401
 from tests.test_game_manager import make  # noqa: E402,F401  (fixture)
 
 TOKEN = "jeton-de-test"
@@ -134,6 +134,24 @@ def test_provision_cree_role_et_forum(env):
                     "created": ["role", "forum"],
                     "status": {"role": "ok", "forum": "ok", "command": "ok"}}
     assert e.db.rows["war-dogs"]["provisioned"] is True
+
+
+def test_provision_homonyme_409_sauf_reutilisation_demandee(env):
+    e = env()
+    e.guild.roles.append(FakeRole(300, "war dogs"))
+    r = e.http.post("/games/war-dogs/provision")
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Un rôle de ce nom existe déjà : demandez à un admin de le rattacher"
+    assert e.guild.created_roles == [] and e.db.rows["war-dogs"]["provisioned"] is False
+    r = e.http.post("/games/war-dogs/provision", json={"reuse_existing": True})
+    assert r.status_code == 200 and r.json()["role_id"] == "300"
+
+
+def test_provision_role_a_permissions_409(env):
+    e = env()
+    e.guild.roles.append(FakeRole(300, "War Dogs", permissions=discord.Permissions(administrator=True).value))
+    r = e.http.post("/games/war-dogs/provision", json={"reuse_existing": True})
+    assert r.status_code == 409 and "donne des permissions" in r.json()["detail"]
 
 
 def test_provision_deuxieme_clic_ne_cree_rien(env):

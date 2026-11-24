@@ -34,9 +34,13 @@ def run(coro_fn):
 # ── Faux Discord ─────────────────────────────────────────────────────────────
 
 class FakeRole:
-    def __init__(self, id, name):
-        self.id, self.name = id, name
+    def __init__(self, id, name, position=1, managed=False, permissions=0):
+        self.id, self.name, self.position, self.managed = id, name, position, managed
+        self.permissions = discord.Permissions(permissions)
         self.mention = f"<@&{id}>"
+
+    def is_default(self):
+        return self.name == "@everyone"
 
     def __repr__(self):
         return f"Role({self.name})"
@@ -69,8 +73,9 @@ class FakeGuild:
         self.roles = list(roles)
         self.forums = list(forums)
         self.channels = list(channels)
-        self.default_role = FakeRole(GUILD, "@everyone")
-        self.me = FakeRole(1, "Hermes")
+        self.default_role = FakeRole(GUILD, "@everyone", position=0)
+        self.me = FakeRole(1, "Hermes", position=50)
+        self.me.top_role = self.me
         self.created_roles = []
         self.created_forums = []
         self._next = 5000
@@ -299,7 +304,7 @@ def test_provision_reutilise_un_role_homonyme_et_cree_le_forum(make):
         e.guild.roles.append(staff)
         e.guild.channels.append(FakeCategory(500))
         await e.gm.cog_load()
-        result = await e.gm.provision("war-dogs")
+        result = await e.gm.provision("war-dogs", reuse_existing=True)
         return e, result, staff
 
     e, result, staff = run(scenario)
@@ -327,7 +332,7 @@ def test_provision_reutilise_le_forum_homonyme_sans_toucher_ses_surcharges(make)
         e = war_dogs_setup(make)
         e.guild.forums.append(FakeForum(400, "war-dogs", overwrites={"existant": "intact"}))
         await e.gm.cog_load()
-        return e, await e.gm.provision("war-dogs")
+        return e, await e.gm.provision("war-dogs", reuse_existing=True)
 
     e, result = run(scenario)
     assert result["created"] == ["role"] and result["forum_id"] == 400
@@ -705,6 +710,7 @@ NOTIF = ["⭐", "📺", "🎭"]
 def reaction_env(e, messages=()):
     rr = object.__new__(rr_module.ReactionRoles)  # sans démarrer la tâche _setup
     rr.bot, rr.message_id, rr._refresh_lock = e.bot, None, asyncio.Lock()
+    rr._unsafe_warned = set()
     channel = FakeTextChannel(800, messages)
     for m in channel.messages:
         m.author = e.bot.user
@@ -920,3 +926,142 @@ def test_role_cree_par_provision_prend_la_couleur_du_jeu(make):
     e = run(scenario)
     (role,) = e.guild.created_roles
     assert role.color == discord.Color(0xA12D2F)
+
+
+# ── Correction finale C1 : anti-escalade du provisionnement et des réactions ─
+
+@pytest.mark.parametrize("name", ["War Dogs", "war dogs", "  WAR DOGS "])
+def test_provision_sans_reutilisation_refuse_un_role_homonyme(make, name):
+    async def scenario():
+        e = war_dogs_setup(make, roles=[FakeRole(300, name)])
+        await e.gm.cog_load()
+        with pytest.raises(gm_module.GameRefused) as exc:
+            await e.gm.provision("war-dogs")
+        return e, exc.value
+
+    e, error = run(scenario)
+    assert "un rôle de ce nom existe déjà" in str(error).lower()
+    assert e.guild.created_roles == [] and e.guild.created_forums == []
+    assert e.db.rows["war-dogs"]["discord_role_id"] is None
+
+
+def test_provision_sans_reutilisation_refuse_un_forum_homonyme(make):
+    async def scenario():
+        e = war_dogs_setup(make)
+        e.guild.forums.append(FakeForum(400, "War-Dogs"))
+        await e.gm.cog_load()
+        with pytest.raises(gm_module.GameRefused) as exc:
+            await e.gm.provision("war-dogs")
+        return e, exc.value
+
+    e, error = run(scenario)
+    assert "un forum de ce nom existe déjà" in str(error).lower()
+    assert e.guild.created_forums == [] and e.db.rows["war-dogs"]["forum_channel_id"] is None
+
+
+@pytest.mark.parametrize("role", [
+    FakeRole(300, "War Dogs", permissions=discord.Permissions(administrator=True).value),
+    FakeRole(300, "War Dogs", permissions=discord.Permissions(manage_roles=True).value),
+    FakeRole(300, "War Dogs", managed=True),
+    FakeRole(300, "War Dogs", position=60),  # au-dessus du bot
+    FakeRole(300, "War Dogs", position=50),  # au niveau du bot
+])
+@pytest.mark.parametrize("attached", [False, True])
+def test_provision_ne_reutilise_jamais_un_role_dangereux(make, role, attached):
+    """Même pour un admin (réutilisation permise) et même rattaché par identifiant."""
+    async def scenario():
+        e = war_dogs_setup(make, roles=[role])
+        if attached:
+            e.db.rows["war-dogs"]["discord_role_id"] = role.id
+        await e.gm.cog_load()
+        with pytest.raises(gm_module.GameRefused):
+            await e.gm.provision("war-dogs", reuse_existing=True)
+        return e
+
+    e = run(scenario)
+    assert e.guild.created_roles == [] and e.guild.created_forums == []
+    assert e.db.rows["war-dogs"]["provisioned"] is False
+
+
+def test_provision_ne_reutilise_jamais_everyone(make):
+    async def scenario():
+        e = war_dogs_setup(make)
+        e.db.rows["war-dogs"]["discord_role_id"] = GUILD
+        e.guild.roles.append(e.guild.default_role)
+        await e.gm.cog_load()
+        with pytest.raises(gm_module.GameRefused):
+            await e.gm.provision("war-dogs", reuse_existing=True)
+
+    run(scenario)
+
+
+@pytest.mark.parametrize("by_id", [False, True])
+def test_provision_refuse_un_forum_deja_rattache_a_un_autre_jeu(make, by_id):
+    async def scenario():
+        e = war_dogs_setup(make)
+        await e.gm.cog_load()  # lol rattaché au forum 201 « lol »
+        if by_id:
+            e.db.rows["war-dogs"]["forum_channel_id"] = 201
+        else:
+            e.guild.forums.append(FakeForum(401, "war-dogs"))
+            e.db.rows["lol"]["forum_channel_id"] = 401
+        with pytest.raises(gm_module.GameRefused) as exc:
+            await e.gm.provision("war-dogs", reuse_existing=True)
+        return e, exc.value
+
+    e, error = run(scenario)
+    assert "déjà le forum du jeu" in str(error)
+    assert e.db.rows["war-dogs"]["provisioned"] is False
+    assert e.guild.created_roles == []  # tout est vérifié avant la première création
+
+
+def test_jeux_historiques_non_affectes(make):
+    """Les 6 jeux rattachés par nom au démarrage (rôles sans permissions) : re-provision possible
+    sans réutilisation explicite, réactions données."""
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        results = [await e.gm.provision(k) for k, *_ in LEGACY]
+        rr, _ = reaction_env(e)
+        roles = [rr._role_for(e.guild, em) for *_, em in LEGACY]
+        return e, results, roles
+
+    e, results, roles = run(scenario)
+    assert all(r["created"] == [] for r in results)
+    assert [r.id for r in roles] == [100 + i for i in range(len(LEGACY))]
+    assert e.guild.created_roles == [] and e.guild.created_forums == []
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"permissions": discord.Permissions(administrator=True).value},
+    {"permissions": discord.Permissions(kick_members=True).value},
+    {"managed": True},
+])
+def test_reactions_ne_donnent_jamais_un_role_a_permissions(make, caplog, kwargs):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        bad = FakeRole(100, "Dead by Daylight", **kwargs)
+        e.guild.roles[0] = bad
+        rr, _ = reaction_env(e)
+        rr.message_id = 700
+        member = N(id=5, added=[], removed=[])
+
+        async def add_roles(role, reason=None):
+            member.added.append(role.id)
+
+        async def remove_roles(role, reason=None):
+            member.removed.append(role.id)
+        member.add_roles, member.remove_roles = add_roles, remove_roles
+        e.guild.get_member = lambda uid: member if uid == 5 else None
+        for _ in range(2):
+            await rr.on_raw_reaction_add(N(message_id=700, user_id=5, guild_id=GUILD, emoji="🔪"))
+        await rr.on_raw_reaction_remove(N(message_id=700, user_id=5, guild_id=GUILD, emoji="🔪"))
+        await rr.on_raw_reaction_add(N(message_id=700, user_id=5, guild_id=GUILD, emoji="⚔️"))
+        return member
+
+    with caplog.at_level("WARNING"):
+        member = run(scenario)
+    assert member.added == [101] and member.removed == []
+    warnings = [r for r in caplog.records if "Dead by Daylight" in r.getMessage()]
+    assert len(warnings) == 1  # averti une seule fois

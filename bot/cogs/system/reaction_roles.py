@@ -64,6 +64,7 @@ class ReactionRoles(commands.Cog):
         self.message_id: int | None = None
         self.channel_id: int | None = None
         self._refresh_lock = asyncio.Lock()
+        self._unsafe_warned: set[int] = set()
         self._setup.start()
 
     def cog_unload(self):
@@ -191,7 +192,15 @@ class ReactionRoles(commands.Cog):
             return discord.utils.get(guild.roles, name=name)
         for game_emoji, _, role_id in self._games() or []:
             if game_emoji == emoji:
-                return guild.get_role(role_id) if role_id else None
+                role = guild.get_role(role_id) if role_id else None
+                if role is not None and (role.managed or role.is_default() or role.permissions.value != 0):
+                    # Filet de sécurité (C1) : un rôle de jeu ne donne jamais de droits.
+                    if role.id not in self._unsafe_warned:
+                        self._unsafe_warned.add(role.id)
+                        logger.warning("ReactionRoles: rôle « %s » (%s) non attribué par réaction : "
+                                       "il est géré ou donne des permissions", role.name, role.id)
+                    return None
+                return role
         return None
 
     @commands.Cog.listener()

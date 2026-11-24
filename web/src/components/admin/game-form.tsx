@@ -58,6 +58,8 @@ export function validateGame(d: GameDraft, creating: boolean): string | null {
 type Props = {
   initial: GameDraft
   creating: boolean
+  /** Rôle et forum existants rattachables (admin seulement). */
+  canAttach?: boolean
   roles: DiscordRole[] | null
   channels: DiscordChannel[] | null
   busy: boolean
@@ -67,9 +69,10 @@ type Props = {
 
 /**
  * Champs d'un jeu. Création : nom, émoji, couleur, commande (proposée depuis le nom), accroche, visuel ;
- * rôle et forum viennent du provisionnement. Modification : rôle, forum et position en plus.
+ * rôle et forum viennent du provisionnement. Modification : position en plus, et rôle et forum
+ * pour un admin (`canAttach`).
  */
-export function GameForm({ initial, creating, roles, channels, busy, onSubmit, onCancel }: Props) {
+export function GameForm({ initial, creating, canAttach = false, roles, channels, busy, onSubmit, onCancel }: Props) {
   const ids = useId()
   const [d, setD] = useState(initial)
   // Clé et commande suivent le nom tant qu'elles n'ont pas été saisies à la main.
@@ -190,7 +193,7 @@ export function GameForm({ initial, creating, roles, channels, busy, onSubmit, o
           {[...(d.tagline ?? "").trim()].length} / {TAGLINE_MAX}
         </span>
       </div>
-      {!creating && (
+      {!creating && canAttach && (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-1.5">
             <label htmlFor={f("role")} className={LABEL}>Rôle Discord</label>

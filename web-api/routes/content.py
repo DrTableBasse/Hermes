@@ -13,11 +13,13 @@ from pydantic import BaseModel
 
 import bot_client
 import database as db
+from actor_rank import actor_rank
 from bot_client import bot_get, cached
 from game_rules import NOTIFICATION_EMOJIS, validate_command_name, validate_emoji
 from limiter import limiter
 from middleware.auth_middleware import get_current_user, require_permission
 from routes import admin
+from routes.roles import _require_manageable, _require_outranks
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["content"])
@@ -45,6 +47,11 @@ GAME_RESYNC_TIMEOUT = 60.0
 GAME_CHECK_TIMEOUT = 5.0
 RESYNC_ADMIN_ONLY = ("Réservé aux administrateurs : les forums de jeux sont ouverts aux rôles "
                      "« staff_roles », qui donnent des droits")
+ATTACH_ADMIN_ONLY = ("Réservé aux administrateurs : rattacher un rôle ou un forum existant permet de le "
+                     "distribuer par réaction ou de l'ouvrir")
+ROLE_HOMONYM = "Un rôle de ce nom existe déjà : demandez à un admin de le rattacher"
+FORUM_HOMONYM = "Un forum de ce nom existe déjà : demandez à un admin de le rattacher"
+ATTACH_FIELDS = ("discord_role_id", "forum_channel_id")
 
 
 def _has_control(text: str) -> bool:
@@ -223,11 +230,12 @@ async def _game_bot(method: str, path: str, *, timeout: float, **kwargs) -> dict
 
 
 async def _game_write(action: str, user: dict, game: dict, method: str, path: str, *,
-                      timeout: float = GAME_ACTION_TIMEOUT, details: Optional[dict] = None) -> dict:
+                      timeout: float = GAME_ACTION_TIMEOUT, details: Optional[dict] = None,
+                      json: Optional[dict] = None) -> dict:
     """Action Discord d'un jeu via le bot ; un échec est journalisé (``success=false``) puis relayé."""
     details = {"key": game["key"], **(details or {})}
     try:
-        return await _game_bot(method, path, timeout=timeout)
+        return await _game_bot(method, path, timeout=timeout, **({"json": json} if json is not None else {}))
     except HTTPException as e:
         await admin._log(action, int(user["sub"]), details={**details, "error": str(e.detail)},
                          success=False, target_name=game["name"])
@@ -271,6 +279,79 @@ def _unique_violation(exc: asyncpg.UniqueViolationError, fields: dict):
     if "command_name" in (getattr(exc, "constraint_name", None) or ""):
         _bad(f"La commande /{fields.get('command_name')} existe déjà.")
     raise HTTPException(409, "Un jeu porte déjà cette clé")
+
+
+# ── Anti-escalade (C1) : rôle et forum d'un jeu ──────────────────────────────
+# Le rôle d'un jeu est distribué à quiconque réagit et pingué par /<jeu> ; son forum est ouvert
+# à ce rôle. Rattacher un rôle ou un forum existant est donc réservé aux admins (comme
+# ``staff_roles``), et la cible réelle passe l'anti-escalade de l'étape 3 (``routes/roles.py``).
+
+def _same_name(a: str, b: str) -> bool:
+    return a.strip().casefold() == b.strip().casefold()
+
+
+async def _attachments(key: Optional[str]) -> dict:
+    """Rôle et forum rattachés au jeu ``key`` (``None`` à la création)."""
+    row = await db.fetchrow(
+        "SELECT discord_role_id, forum_channel_id FROM site_games WHERE key = $1", key) if key else None
+    return {f: (row or {}).get(f) for f in ATTACH_FIELDS}
+
+
+async def _forum_owner(forum_id: int, key: str) -> Optional[str]:
+    return await db.fetchval(
+        "SELECT key FROM site_games WHERE forum_channel_id = $1 AND key <> $2", forum_id, key)
+
+
+async def _check_attach(user: dict, key: str, fields: dict, current: dict) -> None:
+    """Rattachement manuel d'un rôle ou d'un forum : admin seulement, rôle sous l'acteur, forum libre."""
+    changed = {f: fields[f] for f in ATTACH_FIELDS if f in fields and fields[f] != current.get(f)}
+    if not changed:
+        return
+    if not user.get("is_admin"):
+        raise HTTPException(403, ATTACH_ADMIN_ONLY)
+    role_id = changed.get("discord_role_id")
+    if role_id is not None:
+        roles = (await admin._bot("get", "/discord/roles"))["roles"]
+        role = next((r for r in roles if r["id"] == str(role_id)), None)
+        if role is None:
+            _bad("Rôle introuvable sur le serveur")
+        _require_manageable(await actor_rank(user), role)
+    forum_id = changed.get("forum_channel_id")
+    if forum_id is not None:
+        owner = await _forum_owner(forum_id, key)
+        if owner:
+            raise HTTPException(409, f"Ce forum est déjà celui du jeu « {owner} »")
+
+
+async def _check_provision(user: dict, game: dict) -> bool:
+    """Cible réelle du provisionnement (rôle et forum gardés, homonymes ou créés), avant l'appel au bot.
+
+    Renvoie ``reuse_existing`` pour le bot : un homonyme non rattaché n'est repris que par un admin.
+    """
+    is_admin = bool(user.get("is_admin"))
+    current = await _attachments(game["key"])
+    roles = (await admin._bot("get", "/discord/roles"))["roles"]
+    channels = (await admin._bot("get", "/discord/channels"))["channels"]
+    actor = await actor_rank(user)
+    attached = current["discord_role_id"] and any(r["id"] == str(current["discord_role_id"]) for r in roles)
+    if not attached:
+        homonym = next((r for r in roles if _same_name(r["name"], game["name"])), None)
+        if homonym is None:
+            _require_outranks(actor, 1)  # le rôle sera créé tout en bas
+        elif not is_admin:
+            raise HTTPException(409, ROLE_HOMONYM)
+        else:
+            _require_manageable(actor, homonym)
+    forums = [c for c in channels if c.get("type") == "forum"]
+    if not (current["forum_channel_id"] and any(c["id"] == str(current["forum_channel_id"]) for c in forums)):
+        homonym = next((c for c in forums if _same_name(c["name"], game["key"])), None)
+        if homonym is not None:
+            if not is_admin:
+                raise HTTPException(409, FORUM_HOMONYM)
+            owner = await _forum_owner(int(homonym["id"]), game["key"])
+            if owner:
+                raise HTTPException(409, f"Ce forum est déjà celui du jeu « {owner} »")
+    return is_admin
 
 
 async def _game(key: str) -> dict:
@@ -321,6 +402,7 @@ async def create_game(body: dict, user: dict = Depends(get_current_user)):
     fields = _clean_game(body, partial=False)
     if await db.fetchval("SELECT 1 FROM site_games WHERE key = $1", key):
         raise HTTPException(409, "Un jeu porte déjà cette clé")
+    await _check_attach(user, key, fields, {})
     await _check_unique(key, fields)
     position = fields.get("position")
     if position is None:
@@ -348,6 +430,8 @@ async def update_game(body: dict, key: str = Path(pattern=KEY_PATTERN),
     game = await _game(key)
     if not fields:
         return {"ok": True, "bot_reloaded": True}
+    if any(f in fields for f in ATTACH_FIELDS):
+        await _check_attach(user, key, fields, await _attachments(key))
     await _check_unique(key, fields)
     sets = ", ".join(f"{col} = ${i}" for i, col in enumerate(fields, start=2))  # colonnes : liste blanche
     try:
@@ -387,10 +471,21 @@ async def reactivate_game(key: str = Path(pattern=KEY_PATTERN), user: dict = Dep
 
 @router.post("/admin/games/{key}/provision")
 async def provision_game(key: str = Path(pattern=KEY_PATTERN), user: dict = Depends(get_current_user)):
-    """Rôle, forum et commande du jeu : réutilisés s'ils existent, créés sinon (idempotent)."""
+    """Rôle, forum et commande du jeu : ceux rattachés sont gardés, les manquants créés (idempotent).
+
+    Un rôle ou un forum homonyme non rattaché n'est repris que par un admin (409 sinon) ; anti-escalade
+    sur le rôle réellement visé.
+    """
     require_permission(user, "games.manage")
     game = await _game(key)
-    result = await _game_write("game_provision", user, game, "post", f"/games/{key}/provision")
+    try:
+        reuse = await _check_provision(user, game)
+    except HTTPException as e:
+        await admin._log("game_provision", int(user["sub"]), details={"key": key, "error": str(e.detail)},
+                         success=False, target_name=game["name"])
+        raise
+    result = await _game_write("game_provision", user, game, "post", f"/games/{key}/provision",
+                               json={"reuse_existing": reuse})
     await admin._log("game_provision", int(user["sub"]), target_name=game["name"], details={
         "key": key, "created": result.get("created", []), "role_id": result.get("role_id"),
         "forum_id": result.get("forum_id"), "command": result.get("command")})
