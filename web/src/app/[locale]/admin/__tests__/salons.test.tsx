@@ -167,11 +167,35 @@ describe("arborescence", () => {
     expect(screen.queryByRole("list", { name: "Salons de « JEUX »" })).toBeNull()
   })
 
-  it("salon invisible pour l’acteur : grisé, « vous ne voyez pas ce salon », aucune action", async () => {
+  it("salon invisible pour l’acteur : entièrement masqué, nom absent du DOM", async () => {
     await renderPage()
-    const item = tree().getAllByRole("listitem").find(li => li.textContent?.includes("staff-secret"))!
-    expect(item.textContent).toMatch(/vous ne voyez pas ce salon/)
-    expect(within(item).queryAllByRole("button")).toEqual([])
+    expect(document.body.textContent).not.toMatch(/staff-secret/)
+    expect(document.body.textContent).not.toMatch(/vous ne voyez pas ce salon/)
+  })
+
+  it("salon visible dans une catégorie masquée : affiché hors catégorie", async () => {
+    await renderPage({
+      ...OVERVIEW,
+      channels: [
+        channel("10", "accueil", "text", null),
+        channel("50", "secrète", "category", null, { visible_to_actor: false }),
+        channel("51", "visible-dedans", "text", "50"),
+      ],
+    })
+    expect(document.body.textContent).not.toMatch(/secrète/)
+    expect(tree().getByRole("button", { name: "Renommer « visible-dedans »" })).toBeTruthy()
+    // Parent absent de la liste (déjà retiré par l’API) : même traitement.
+    cleanup()
+    await renderPage({ ...OVERVIEW, channels: [channel("51", "visible-dedans", "text", "50")] })
+    expect(tree().getByRole("button", { name: "Renommer « visible-dedans »" })).toBeTruthy()
+  })
+
+  it("catégorie vide : aucun aria-controls vers un identifiant inexistant", async () => {
+    await renderPage({ ...OVERVIEW, channels: [...OVERVIEW.channels, channel("60", "VIDE", "category", null)] })
+    const controlled = Array.from(document.querySelectorAll("[aria-controls]"))
+    expect(controlled.length).toBeGreaterThan(0)
+    for (const el of controlled) expect(document.getElementById(el.getAttribute("aria-controls")!)).not.toBeNull()
+    expect(screen.getByRole("button", { name: "Replier « VIDE »" }).hasAttribute("aria-controls")).toBe(false)
   })
 })
 

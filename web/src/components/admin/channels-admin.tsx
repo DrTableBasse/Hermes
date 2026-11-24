@@ -21,10 +21,14 @@ const TYPE_LABELS: Record<ChannelKind, string> = {
 type PanelKind = "access" | "rename" | "move" | "delete"
 type Open = { id: string; kind: PanelKind } | null
 
-/** Salons sans catégorie, puis chaque catégorie et ses salons (ordre Discord de l'arbre). */
-function group(channels: ManagedChannel[]) {
+/** Salons sans catégorie, puis chaque catégorie et ses salons (ordre Discord de l'arbre).
+ *  Les salons invisibles pour l'acteur sont masqués ; un salon dont la catégorie est absente
+ *  (masquée) passe « hors catégorie ». */
+function group(all: ManagedChannel[]) {
+  const channels = all.filter(c => c.visible_to_actor)
+  const categoryIds = new Set(channels.filter(c => c.type === "category").map(c => c.id))
   return {
-    loose: channels.filter(c => c.type !== "category" && !c.parent_id),
+    loose: channels.filter(c => c.type !== "category" && !(c.parent_id && categoryIds.has(c.parent_id))),
     categories: channels
       .filter(c => c.type === "category")
       .map(category => ({ category, children: channels.filter(c => c.parent_id === category.id) })),
@@ -77,14 +81,6 @@ export function ChannelsAdmin({ initial }: { initial: ChannelsOverview }) {
     const isOpen = (kind: PanelKind) => open?.id === channel.id && open.kind === kind
     const panelId = `panel-${channel.id}`
     const name = `${channelPrefix(channel.type)}${channel.name}`
-    if (!channel.visible_to_actor) {
-      return (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm text-muted">
-          <span>{name}</span>
-          <span>vous ne voyez pas ce salon</span>
-        </div>
-      )
-    }
     return (
       <>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 text-sm">
@@ -134,7 +130,7 @@ export function ChannelsAdmin({ initial }: { initial: ChannelsOverview }) {
             {open.kind === "move" && (
               <MoveForm
                 channel={channel}
-                categories={categories.map(c => c.category).filter(c => c.visible_to_actor)}
+                categories={categories.map(c => c.category)}
                 onDone={async text => {
                   setOpen(null)
                   await announce(text)
@@ -198,7 +194,7 @@ export function ChannelsAdmin({ initial }: { initial: ChannelsOverview }) {
       {creating && (
         <CreateForm
           id={createId}
-          categories={categories.map(c => c.category).filter(c => c.visible_to_actor)}
+          categories={categories.map(c => c.category)}
           onCancel={() => setCreating(false)}
           onDone={async text => {
             setCreating(false)
@@ -220,7 +216,7 @@ export function ChannelsAdmin({ initial }: { initial: ChannelsOverview }) {
                 <button
                   type="button"
                   aria-expanded={!folded}
-                  aria-controls={listId}
+                  aria-controls={children.length > 0 ? listId : undefined}
                   aria-label={`${folded ? "Déplier" : "Replier"} « ${category.name} »`}
                   onClick={() =>
                     setCollapsed(s => {
