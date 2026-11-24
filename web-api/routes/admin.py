@@ -70,6 +70,12 @@ KIND_OF_ACTION: dict[str, str] = {
     "game_archive": "game",
     "game_reactivate": "game",
     "game_resync_permissions": "game",
+    # Salons et modèles d'accès (routes/channels.py)
+    "channel_create": "channel",
+    "channel_update": "channel",
+    "channel_delete": "channel",
+    "channel_template_apply": "permission",
+    "channel_staff_resync": "permission",
 }
 
 

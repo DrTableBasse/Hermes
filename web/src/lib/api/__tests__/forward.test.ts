@@ -25,4 +25,16 @@ describe("proxyTimeoutFor", () => {
     expect(proxyTimeoutFor("application/json", "admin/games/dbd", "PUT")).toBe(PROXY_TIMEOUT_MS)
     expect(proxyTimeoutFor(null, "admin/stats", "GET")).toBe(PROXY_TIMEOUT_MS)
   })
+  it("salons : application d'un modèle et resynchronisation staff → délai long des jeux", () => {
+    expect(proxyTimeoutFor("application/json", "admin/channels/123/template/apply", "POST")).toBe(GAMES_TIMEOUT_MS)
+    expect(proxyTimeoutFor("application/json", "admin/channels/staff-resync/apply", "POST")).toBe(GAMES_TIMEOUT_MS)
+  })
+  it("salons : aperçus, lectures et édition → délai court", () => {
+    expect(proxyTimeoutFor("application/json", "admin/channels/123/template/preview", "POST")).toBe(PROXY_TIMEOUT_MS)
+    expect(proxyTimeoutFor("application/json", "admin/channels/staff-resync/preview", "POST")).toBe(PROXY_TIMEOUT_MS)
+    expect(proxyTimeoutFor(null, "admin/channels", "GET")).toBe(PROXY_TIMEOUT_MS)
+    expect(proxyTimeoutFor("application/json", "admin/channels", "POST")).toBe(PROXY_TIMEOUT_MS)
+    expect(proxyTimeoutFor("application/json", "admin/channels/123", "DELETE")).toBe(PROXY_TIMEOUT_MS)
+    expect(proxyTimeoutFor("application/json", "admin/channels/123/template/apply", "GET")).toBe(PROXY_TIMEOUT_MS)
+  })
 })
