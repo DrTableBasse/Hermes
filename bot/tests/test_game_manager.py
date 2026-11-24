@@ -480,8 +480,8 @@ def test_resync_permissions_reecrit_tous_les_forums(make):
         await e.gm.archive("overwatch")
         return e, await e.gm.resync_permissions()
 
-    e, count = run(scenario)
-    assert count == 6
+    e, result = run(scenario)
+    assert result == {"forums": 6, "failed": []}
     for forum in e.guild.forums:
         (ows,) = forum.edits
         assert ows[e.guild.default_role].view_channel is False
@@ -1065,3 +1065,94 @@ def test_reactions_ne_donnent_jamais_un_role_a_permissions(make, caplog, kwargs)
     assert member.added == [101] and member.removed == []
     warnings = [r for r in caplog.records if "Dead by Daylight" in r.getMessage()]
     assert len(warnings) == 1  # averti une seule fois
+
+
+# ── Correction finale I2 : aperçu détaillé du resync ; T3-1 : resync complet ─
+
+def real_overwrites(guild):
+    """Remplace les surcharges fictives des forums historiques par des surcharges Discord."""
+    for forum in guild.forums:
+        forum.overwrites = {guild.default_role: discord.PermissionOverwrite(view_channel=False)}
+
+def test_apercu_du_resync_liste_les_surcharges_retirees_ou_modifiees(make):
+    async def scenario():
+        e = make()
+        settings._cache.update({"staff_roles": "77"})
+        staff, guest, modo = FakeRole(77, "Staff"), FakeRole(78, "Invité"), FakeRole(79, "Modération")
+        e.guild.roles.extend([staff, guest, modo])
+        await e.gm.cog_load()
+        real_overwrites(e.guild)
+        lol = e.guild.get_channel(201)
+        lol_role = e.guild.get_role(101)
+        lol.overwrites = {
+            e.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            lol_role: discord.PermissionOverwrite(view_channel=True),   # sera complété
+            guest: discord.PermissionOverwrite(view_channel=True),      # sera retiré
+            modo: discord.PermissionOverwrite(view_channel=True, manage_threads=True),  # retiré
+        }
+        before = {f.id: dict(f.overwrites) for f in e.guild.forums}
+        return e, await e.gm.resync_preview(), before
+
+    e, preview, before = run(scenario)
+    assert [p["key"] for p in preview] == [k for k, *_ in LEGACY]
+    # Lecture seule : aucune surcharge écrite.
+    assert all(f.edits == [] and f.permission_calls == [] for f in e.guild.forums)
+    assert {f.id: f.overwrites for f in e.guild.forums} == before
+    lol = next(p for p in preview if p["key"] == "lol")
+    assert lol["forum"] == "lol" and lol["forum_id"] == "201" and lol["game"] == "League of Legends"
+    changes = {c["target"]: c for c in lol["changes"]}
+    assert changes["Invité"] == {"target": "Invité", "kind": "role", "change": "removed",
+                                 "before": {"allow": ["view_channel"], "deny": []}, "after": None}
+    assert changes["Modération"]["change"] == "removed"
+    assert changes["Modération"]["before"]["allow"] == ["manage_threads", "view_channel"]
+    modified = changes["League of Legends"]
+    assert modified["change"] == "modified"
+    assert modified["before"] == {"allow": ["view_channel"], "deny": []}
+    assert modified["after"]["allow"] == ["send_messages", "send_messages_in_threads", "view_channel"]
+    assert changes["Staff"]["change"] == "added" and changes["Staff"]["before"] is None
+    assert changes["Hermes"]["change"] == "added"
+    assert "@everyone" not in changes  # déjà conforme : non listé
+
+
+def test_apercu_ignore_les_jeux_sans_forum(make):
+    async def scenario():
+        guild = legacy_guild()
+        guild.forums = [f for f in guild.forums if f.name != "lol"]
+        e = make(guild=guild)
+        await e.gm.cog_load()
+        real_overwrites(guild)
+        return await e.gm.resync_preview()
+
+    keys = [p["key"] for p in run(scenario)]
+    assert "lol" not in keys and "war-dogs" not in keys and len(keys) == 5
+
+
+def test_resync_continue_apres_un_forum_en_echec(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+
+        async def refused(*args, **kwargs):
+            raise forbidden()
+        e.guild.get_channel(201).edit = refused
+        return e, await e.gm.resync_permissions()
+
+    e, result = run(scenario)
+    assert result["forums"] == 5
+    assert result["failed"] == [{"key": "lol", "forum": "lol", "error": "permission refusée"}]
+    assert all(len(f.edits) == 1 for f in e.guild.forums if f.id != 201)
+
+
+def test_resync_tous_en_echec_erreur_relancee(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+
+        async def refused(*args, **kwargs):
+            raise forbidden()
+        for f in e.guild.forums:
+            f.edit = refused
+        await e.gm.resync_permissions()
+
+    with pytest.raises(discord.Forbidden):
+        run(scenario)

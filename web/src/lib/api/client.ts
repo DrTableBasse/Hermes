@@ -32,6 +32,8 @@ import type {
   CommandToggle,
   DailyActivity,
   Endorsements,
+  ForumResyncFailure,
+  ForumResyncPreview,
   GameDiscordStatus,
   GameInput,
   GameProvisionResult,
@@ -207,9 +209,12 @@ export const api = {
     reactivateGame: (key: string) =>
       request<{ ok: boolean; status: GameDiscordStatus | null }>(`/admin/games/${seg(key)}/reactivate`, send("POST")),
     provisionGame: (key: string) => request<GameProvisionResult>(`/admin/games/${seg(key)}/provision`, send("POST")),
-    gameForumsPreview: () => request<{ forums: number }>("/admin/games/resync-permissions"),
+    gameForumsPreview: () => request<{ forums: number; details: ForumResyncPreview[] }>("/admin/games/resync-permissions"),
     resyncGameForums: (confirmForums: number) =>
-      request<{ ok: boolean; forums: number }>("/admin/games/resync-permissions", send("POST", { confirm_forums: confirmForums })),
+      request<{ ok: boolean; forums: number; failed: ForumResyncFailure[] }>(
+        "/admin/games/resync-permissions",
+        send("POST", { confirm_forums: confirmForums }),
+      ),
     updateGrade: (slug: string, data: GradeInput) => request<Ok>(`/admin/grades/${seg(slug)}`, send("PUT", data)),
     updatePage: (slug: string, data: PageInput) =>
       request<Ok>(`/admin/pages/${seg(slug)}`, send("PUT", data)),

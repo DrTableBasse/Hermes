@@ -29,7 +29,7 @@ except ImportError:
     finally:
         del sys.modules["prometheus_client"]
 
-from tests.test_game_manager import FakeRole, FakeTree, row  # noqa: E402,F401
+from tests.test_game_manager import FakeRole, FakeTree, real_overwrites, row  # noqa: E402,F401
 from tests.test_game_manager import make  # noqa: E402,F401  (fixture)
 
 TOKEN = "jeton-de-test"
@@ -235,7 +235,7 @@ def test_archive_inconnu_404(env):
 
 def test_resync_permissions_compte_les_forums(env):
     e = env()
-    assert e.http.post("/games/resync-permissions").json() == {"forums": 6}
+    assert e.http.post("/games/resync-permissions").json() == {"forums": 6, "failed": []}
     assert all(len(f.edits) == 1 for f in e.guild.forums)
 
 
@@ -247,7 +247,21 @@ def test_resync_permissions_refus_discord_traduit(env):
 
     e.guild.forums[0].edit = refused
     r = e.http.post("/games/resync-permissions")
-    assert r.status_code == 403
+    assert r.status_code == 200  # les autres forums sont tout de même réécrits
+    assert r.json() == {"forums": 5, "failed": [{"key": "dbd", "forum": "dbd", "error": "permission refusée"}]}
+    for forum in e.guild.forums:
+        forum.edit = refused
+    assert e.http.post("/games/resync-permissions").status_code == 403
+
+
+def test_apercu_du_resync_en_lecture_seule(env):
+    e = env()
+    real_overwrites(e.guild)
+    body = e.http.get("/games/resync-preview").json()
+    assert body["forums"] == 6 and len(body["details"]) == 6
+    assert body["forums"] == e.http.get("/games/status").json()["resync_forums"]
+    assert all(f.edits == [] for f in e.guild.forums)
+    assert e.http.get("/games/resync-preview", headers={"Authorization": "Bearer faux"}).status_code == 401
 
 
 def test_synchronisation_regroupee_via_l_api(env):

@@ -28,6 +28,9 @@ def _role(id, name, position, managed=False, below_bot=True):
             "members": 0, "below_bot": below_bot}
 
 
+PREVIEW_LOL = {"key": "lol", "game": "League of Legends", "forum_id": "22", "forum": "lol", "changes": [
+    {"target": "Invité", "kind": "role", "change": "removed",
+     "before": {"allow": ["view_channel"], "deny": []}, "after": None}]}
 ROLE_LOL = _role("11", "League of Legends", 3)
 ROLE_ADMIN = _role("40", "Admin", 12)       # au-dessus de l'acteur (rang 10)
 ROLE_BOT_MUSIC = _role("20", "Bot Musique", 4, managed=True)
@@ -48,7 +51,8 @@ def bot(monkeypatch):
         ("get", "/games/status"): {"loaded": True, "resync_forums": 6, "games": {
             "lol": {"role": "ok", "forum": "ok", "command": "ok"},
             "war-dogs": {"role": "missing", "forum": "missing", "command": "none"}}},
-        ("post", "/games/resync-permissions"): {"forums": 6},
+        ("post", "/games/resync-permissions"): {"forums": 6, "failed": []},
+        ("get", "/games/resync-preview"): {"forums": 1, "details": [PREVIEW_LOL]},
         ("post", "/games/lol/archive"): {"status": {"role": "ok", "forum": "ok", "command": "none"}},
         ("post", "/games/lol/unarchive"): {"status": {"role": "ok", "forum": "ok", "command": "ok"}},
         ("post", "/games/lol/provision"): {"role_id": "11", "forum_id": "22", "command": "lol",
@@ -420,18 +424,32 @@ def test_provision_erreurs_relayees_et_journalisees(client, games_db, bot, manag
 # ── Resynchronisation des permissions ────────────────────────────────────────
 
 def test_resync_apercu(client, games_db, bot, session_with):
+    """Lecture seule : forums concernés et surcharges retirées ou modifiées, sans aucune écriture."""
     session_with(is_admin=True)
-    assert client.get("/admin/games/resync-permissions").json() == {"forums": 6}
+    assert client.get("/admin/games/resync-permissions").json() == {"forums": 1, "details": [PREVIEW_LOL]}
+    call = next(c for c in bot["calls"] if c[1] == "/games/resync-preview")
+    assert call[0] == "get" and call[2] == content.GAME_CHECK_TIMEOUT
+    assert not [c for c in bot["calls"] if c[0] == "post"] and not _audit(games_db)
 
 
 def test_resync_confirmee(client, games_db, bot, session_with):
     session_with(is_admin=True)
     r = client.post("/admin/games/resync-permissions", json={"confirm_forums": 6})
-    assert r.status_code == 200 and r.json() == {"ok": True, "forums": 6}
+    assert r.status_code == 200 and r.json() == {"ok": True, "forums": 6, "failed": []}
     call = next(c for c in bot["calls"] if c[1] == "/games/resync-permissions")
     assert call[2] == content.GAME_RESYNC_TIMEOUT
     (row,) = _audit(games_db)
     assert (row["kind"], row["action"], row["details"]) == ("game", "game_resync_permissions", {"forums": 6})
+
+
+def test_resync_partielle_signalee_et_journalisee(client, games_db, bot, session_with):
+    session_with(is_admin=True)
+    failed = [{"key": "lol", "forum": "lol", "error": "permission refusée"}]
+    bot["responses"][("post", "/games/resync-permissions")] = {"forums": 5, "failed": failed}
+    r = client.post("/admin/games/resync-permissions", json={"confirm_forums": 6})
+    assert r.status_code == 200 and r.json() == {"ok": False, "forums": 5, "failed": failed}
+    (row,) = _audit(games_db)
+    assert row["success"] is False and row["details"] == {"forums": 5, "failed": failed}
 
 
 def test_resync_nombre_change_409_sans_ecriture(client, games_db, bot, session_with):

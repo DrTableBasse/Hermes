@@ -384,9 +384,62 @@ describe("Réglages : rôles du staff", () => {
     expect(screen.getByText("@Staff, @Modération", { selector: "span" })).toBeTruthy()
   })
 
+  const PREVIEW = {
+    forums: 2,
+    details: [
+      {
+        key: "lol", game: "League of Legends", forum_id: "201", forum: "lol", changes: [
+          { target: "Invité", kind: "role", change: "removed", before: { allow: ["view_channel"], deny: [] }, after: null },
+          {
+            target: "League of Legends", kind: "role", change: "modified",
+            before: { allow: ["view_channel"], deny: [] },
+            after: { allow: ["send_messages", "view_channel"], deny: [] },
+          },
+          { target: "Staff", kind: "role", change: "added", before: null, after: { allow: ["view_channel"], deny: [] } },
+        ],
+      },
+      { key: "dbd", game: "Dead by Daylight", forum_id: "200", forum: "dbd", changes: [] },
+    ],
+  }
+
+  it("aperçu : chaque forum et, pour chacun, les surcharges retirées ou modifiées (avant → après)", async () => {
+    a.gameForumsPreview.mockResolvedValue(PREVIEW)
+    await renderSettings(true)
+    await click(screen.getByRole("button", { name: "Mettre à jour les forums" }))
+    const ask = within(screen.getByRole("group", { name: "Confirmer la mise à jour des forums" }))
+    expect(ask.getByText("Réécrire les permissions de 2 forums de jeux ?")).toBeTruthy()
+    const lol = within(ask.getByRole("listitem", { name: "#lol (League of Legends)" }))
+    expect(lol.getByText("@Invité : surcharge retirée (voir le salon → aucune)")).toBeTruthy()
+    expect(lol.getByText("@League of Legends : surcharge modifiée (voir le salon → écrire, voir le salon)")).toBeTruthy()
+    expect(lol.getByText("@Staff : surcharge ajoutée (aucune → voir le salon)")).toBeTruthy()
+    expect(within(ask.getByRole("listitem", { name: "#dbd (Dead by Daylight)" })).getByText("Déjà à jour.")).toBeTruthy()
+    expect(a.resyncGameForums).not.toHaveBeenCalled()
+  })
+
+  it("réécriture partielle : forums en échec signalés", async () => {
+    a.gameForumsPreview.mockResolvedValue(PREVIEW)
+    a.resyncGameForums.mockResolvedValue({ ok: false, forums: 1, failed: [{ key: "lol", forum: "lol", error: "permission refusée" }] })
+    await renderSettings(true)
+    await click(screen.getByRole("button", { name: "Mettre à jour les forums" }))
+    await click(screen.getByRole("button", { name: "Confirmer" }))
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Permissions réécrites : 1 forum de jeux. Échec pour #lol (permission refusée) : relance pour réessayer.",
+    )
+  })
+
+  it("liste du staff modifiée non enregistrée : mise à jour des forums bloquée", async () => {
+    await renderSettings(true)
+    const group = within(screen.getByRole("group", { name: "Rôles du staff" }))
+    fireEvent.click(group.getByRole("checkbox", { name: "@Modération" }))
+    expect((screen.getByRole("button", { name: "Mettre à jour les forums" }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByText(/Enregistre d’abord la nouvelle liste/)).toBeTruthy()
+    fireEvent.click(group.getByRole("checkbox", { name: "@Modération" }))
+    expect((screen.getByRole("button", { name: "Mettre à jour les forums" }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it("mettre à jour les forums : aperçu du nombre, confirmation de ce nombre, résultat", async () => {
-    a.gameForumsPreview.mockResolvedValue({ forums: 6 })
-    a.resyncGameForums.mockResolvedValue({ ok: true, forums: 6 })
+    a.gameForumsPreview.mockResolvedValue({ forums: 6, details: [] })
+    a.resyncGameForums.mockResolvedValue({ ok: true, forums: 6, failed: [] })
     await renderSettings(true)
     await click(screen.getByRole("button", { name: "Mettre à jour les forums" }))
     expect(a.resyncGameForums).not.toHaveBeenCalled()
@@ -398,7 +451,7 @@ describe("Réglages : rôles du staff", () => {
   })
 
   it("nombre changé entre l’aperçu et la confirmation (409) : message de l’API", async () => {
-    a.gameForumsPreview.mockResolvedValue({ forums: 6 })
+    a.gameForumsPreview.mockResolvedValue({ forums: 6, details: [] })
     a.resyncGameForums.mockRejectedValue(
       new client.ApiError(409, "Le nombre a changé : 5 forum(s) de jeux concerné(s). Vérifiez puis confirmez à nouveau."),
     )

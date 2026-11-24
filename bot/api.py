@@ -713,7 +713,16 @@ async def games_taken(exclude: Optional[str] = None):
 @app.post("/games/resync-permissions", dependencies=[Depends(_require_token)])
 @_game_errors
 async def games_resync_permissions():
-    return {"forums": await _game_manager().resync_permissions()}
+    """Réécrit les forums de jeux ; ``failed`` : forums restés en échec (les autres sont faits)."""
+    return await _game_manager().resync_permissions()
+
+
+@app.get("/games/resync-preview", dependencies=[Depends(_require_token)])
+@_game_errors
+async def games_resync_preview():
+    """Lecture seule : forums concernés et surcharges retirées / modifiées / ajoutées (avant → après)."""
+    details = await _game_manager().resync_preview()
+    return {"forums": len(details), "details": details}
 
 
 class ProvisionRequest(BaseModel):

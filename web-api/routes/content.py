@@ -509,9 +509,12 @@ class ResyncConfirm(BaseModel):
 
 @router.get("/admin/games/resync-permissions")
 async def resync_preview(user: dict = Depends(get_current_user)):
-    """Aperçu : nombre de forums de jeux dont les permissions seraient réécrites."""
+    """Aperçu en lecture seule : forums de jeux concernés et, pour chacun, les surcharges retirées,
+    modifiées ou ajoutées (avant → après). ``forums`` est le nombre à confirmer."""
     _require_admin(user)
-    return {"forums": await _resync_count()}
+    preview = await _game_bot("get", "/games/resync-preview", timeout=GAME_CHECK_TIMEOUT)
+    details = preview.get("details") if isinstance(preview.get("details"), list) else []
+    return {"forums": int(preview.get("forums") or 0), "details": details}
 
 
 @router.post("/admin/games/resync-permissions")
@@ -532,8 +535,12 @@ async def resync_permissions(body: ResyncConfirm, user: dict = Depends(get_curre
         await admin._log("game_resync_permissions", actor_id, success=False,
                          details={"forums": count, "error": str(e.detail)})
         raise
-    await admin._log("game_resync_permissions", actor_id, details={"forums": result.get("forums")})
-    return {"ok": True, "forums": result.get("forums")}
+    failed = result.get("failed") or []
+    details = {"forums": result.get("forums")}
+    if failed:  # réécriture partielle : les forums listés gardent leurs anciennes surcharges
+        details["failed"] = failed
+    await admin._log("game_resync_permissions", actor_id, details=details, success=not failed)
+    return {"ok": not failed, "forums": result.get("forums"), "failed": failed}
 
 
 # ── Pages ─────────────────────────────────────────────────────────────────────

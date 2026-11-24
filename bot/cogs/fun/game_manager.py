@@ -73,6 +73,34 @@ def _unsafe_role_reason(guild: discord.Guild, role: discord.Role) -> str | None:
     return None
 
 
+# discord.py nomme certaines permissions par leur ancien alias en itérant une surcharge.
+_PERMISSION_ALIASES = {"read_messages": "view_channel", "manage_permissions": "manage_roles"}
+
+
+def _overwrite_summary(overwrite: discord.PermissionOverwrite | None) -> dict | None:
+    """``{"allow": [...], "deny": [...]}`` (noms de permissions discord.py, triés) ou ``None``."""
+    if overwrite is None:
+        return None
+    allow = sorted(_PERMISSION_ALIASES.get(n, n) for n, value in overwrite if value is True)
+    deny = sorted(_PERMISSION_ALIASES.get(n, n) for n, value in overwrite if value is False)
+    return {"allow": allow, "deny": deny}
+
+
+def _target_label(target) -> tuple[str, str]:
+    """Nom affichable et nature (``role`` / ``member``) de la cible d'une surcharge."""
+    kind = "member" if isinstance(target, (discord.Member, discord.User)) else "role"
+    name = getattr(target, "display_name", None) if kind == "member" else None
+    return (name or getattr(target, "name", None) or str(getattr(target, "id", target))), kind
+
+
+def _discord_error_text(error: discord.HTTPException) -> str:
+    if isinstance(error, discord.Forbidden):
+        return "permission refusée"
+    if isinstance(error, discord.NotFound):
+        return "forum introuvable"
+    return f"erreur Discord {error.status}"
+
+
 def _duration(seconds: int) -> str:
     """« 1h », « 30 min », « 45 s » (texte du pied de l'annonce)."""
     if seconds and seconds % 3600 == 0:
@@ -339,26 +367,65 @@ class GameManager(commands.Cog):
             await self._notify_reaction_roles()
         return self.status(key)
 
-    async def resync_permissions(self) -> int:
-        """Réécrit les surcharges de tous les forums de jeux ; renvoie le nombre de forums traités."""
+    def _resync_targets(self, guild: discord.Guild):
+        """``(jeu, forum, surcharges voulues)`` des forums que ``resync_permissions`` réécrit."""
+        staff = settings.get_roles(guild, "staff_roles")
+        for game in self.games.values():
+            forum = self._forum(guild, game.forum_id) if game.provisioned else None
+            if forum is None:
+                continue
+            yield game, forum, forum_overwrites(guild.default_role, self._role(guild, game.role_id),
+                                                staff, guild.me, game.archived)
+
+    async def resync_preview(self) -> list[dict]:
+        """Lecture seule : par forum de jeu, les surcharges retirées, modifiées ou ajoutées (avant → après)."""
         async with self._lock:
             await self._load()
             guild = self._guild()
             if guild is None:
                 raise RuntimeError("Serveur Discord introuvable")
-            staff = settings.get_roles(guild, "staff_roles")
-            count = 0
-            for game in self.games.values():
-                forum = self._forum(guild, game.forum_id) if game.provisioned else None
-                if forum is None:
+            plan = []
+            for game, forum, desired in self._resync_targets(guild):
+                current = dict(forum.overwrites)
+                changes = []
+                for target in [*current, *(t for t in desired if t not in current)]:
+                    before, after = current.get(target), desired.get(target)
+                    if before is not None and after is not None and before == after:
+                        continue
+                    name, kind = _target_label(target)
+                    changes.append({
+                        "target": name, "kind": kind,
+                        "change": "added" if before is None else "removed" if after is None else "modified",
+                        "before": _overwrite_summary(before), "after": _overwrite_summary(after),
+                    })
+                plan.append({"key": game.key, "game": game.name, "forum_id": str(forum.id),
+                             "forum": forum.name, "changes": changes})
+            return plan
+
+    async def resync_permissions(self) -> dict:
+        """Réécrit les surcharges de tous les forums de jeux, sans s'arrêter au premier échec.
+
+        Renvoie ``{"forums": réécrits, "failed": [{"key", "forum", "error"}]}`` ; si tous échouent,
+        la dernière erreur Discord est relancée (traduite par l'API).
+        """
+        async with self._lock:
+            await self._load()
+            guild = self._guild()
+            if guild is None:
+                raise RuntimeError("Serveur Discord introuvable")
+            count, failed, last_error = 0, [], None
+            for game, forum, desired in self._resync_targets(guild):
+                try:
+                    await forum.edit(overwrites=desired, reason="Permissions des forums de jeux resynchronisées")
+                except discord.HTTPException as e:
+                    logger.warning("Resync du forum %s (jeu %s) en échec : %s", forum.name, game.key, e)
+                    failed.append({"key": game.key, "forum": forum.name, "error": _discord_error_text(e)})
+                    last_error = e
                     continue
-                await forum.edit(
-                    overwrites=forum_overwrites(guild.default_role, self._role(guild, game.role_id),
-                                                staff, guild.me, game.archived),
-                    reason="Permissions des forums de jeux resynchronisées",
-                )
                 count += 1
-            return count
+            if failed and count == 0:
+                raise last_error
+            return {"forums": count, "failed": failed}
 
     def status(self, key: str) -> dict:
         """``{"role", "forum", "command"}`` : ``ok`` / ``missing`` (``none`` : pas de commande attendue)."""

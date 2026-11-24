@@ -842,6 +842,34 @@ export interface AdminGamesResponse {
 }
 
 /** `POST /admin/games/{key}/provision` : `created` vide = rôle et forum réutilisés. */
+/** Surcharge de permissions d'un forum (noms discord.py) : `GET /admin/games/resync-permissions`. */
+export interface ForumOverwrite {
+  allow: string[]
+  deny: string[]
+}
+
+/** Aperçu en lecture seule de la réécriture d'un forum de jeu : surcharges retirées, modifiées, ajoutées. */
+export interface ForumResyncPreview {
+  key: string
+  game: string
+  forum_id: Snowflake
+  forum: string
+  changes: Array<{
+    target: string
+    kind: "role" | "member"
+    change: "removed" | "modified" | "added"
+    before: ForumOverwrite | null
+    after: ForumOverwrite | null
+  }>
+}
+
+/** Forum resté en échec lors d'une réécriture partielle. */
+export interface ForumResyncFailure {
+  key: string
+  forum: string
+  error: string
+}
+
 export interface GameProvisionResult {
   role_id: Snowflake
   forum_id: Snowflake

@@ -273,7 +273,7 @@ export function SettingField({ item, channels, roles, onChannelCreated, readOnly
           <p className="m-0 text-muted">Liste Discord indisponible (bot muet) : saisis l’identifiant.</p>
         ) : null}
       </div>
-      {item.key === "staff_roles" && <ForumsResync />}
+      {item.key === "staff_roles" && <ForumsResync blocked={!unchanged} />}
       </>
       )}
     </form>
