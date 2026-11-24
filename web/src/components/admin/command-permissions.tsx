@@ -174,7 +174,7 @@ function CommandRow({ command, roles }: { command: CommandPermission; roles: Ser
                     ✕
                   </button>
                 ) : (
-                  command.editable && <span className="text-xs text-muted">(rôle au-dessus du vôtre)</span>
+                  command.editable && <span className="text-xs text-muted">(rôle au niveau du vôtre ou au-dessus)</span>
                 )}
               </li>
             )

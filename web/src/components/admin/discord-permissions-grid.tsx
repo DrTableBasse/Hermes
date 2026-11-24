@@ -25,7 +25,7 @@ function roleLockLabel(role: DiscordPermissionRole, actor: Actor): string | null
   if (role.editable) return null
   if (role.is_default) return "réservé au propriétaire"
   if (role.managed) return "rôle d’intégration"
-  if (!actor.is_owner && role.position >= actor.top_position) return "rôle au-dessus du vôtre"
+  if (!actor.is_owner && role.position >= actor.top_position) return "rôle au niveau du vôtre ou au-dessus"
   return "rôle au-dessus d’Hermes"
 }
 

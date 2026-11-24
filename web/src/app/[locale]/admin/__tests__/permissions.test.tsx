@@ -175,7 +175,7 @@ describe("onglet Discord", () => {
     const select = screen.getByRole("combobox", { name: "Rôle" }) as HTMLSelectElement
     expect(select.value).toBe("400")
     expect([...select.options].map(o => o.textContent)).toEqual([
-      "Chef — rôle au-dessus du vôtre",
+      "Chef — rôle au niveau du vôtre ou au-dessus",
       "Modérateur",
       "Bot Musique — rôle d’intégration",
       "@everyone — réservé au propriétaire",
@@ -199,7 +199,7 @@ describe("onglet Discord", () => {
     await renderPage()
     const select = screen.getByRole("combobox", { name: "Rôle" })
     for (const [id, text] of [
-      ["900", /rôle au-dessus du vôtre.*pas sous votre rôle le plus haut/],
+      ["900", /rôle au niveau du vôtre ou au-dessus.*pas sous votre rôle le plus haut/],
       ["300", /rôle d’intégration.*géré par une intégration/],
       ["1", /réservé au propriétaire.*@everyone/],
     ] as const) {
@@ -413,7 +413,7 @@ describe("onglet Hermes", () => {
     openHermes()
     const kick = region("/kick")
     expect(kick.queryByRole("button", { name: "Retirer Chef" })).toBeNull()
-    expect(kick.getByText("(rôle au-dessus du vôtre)")).toBeTruthy()
+    expect(kick.getByText("(rôle au niveau du vôtre ou au-dessus)")).toBeTruthy()
     expect(kick.getByText("Administrateurs et : Chef, Rôle supprimé (555)")).toBeTruthy()
     fireEvent.click(kick.getByRole("button", { name: "Retirer Rôle supprimé (555)" }))
     await act(async () => {
