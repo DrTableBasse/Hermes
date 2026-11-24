@@ -23,8 +23,14 @@ ADMIN_ONLY_SETTINGS = frozenset(
 ADMIN_ONLY_DETAIL = "Réservé aux administrateurs : ce réglage désigne un rôle qui donne des droits"
 
 # Réglages gardés au registre (copie identique côté bot, amorçage de la migration 021) mais sans
-# effet : ni listés ni modifiables. redacteur_role → droits articles.* de la page Accès.
-SUPERSEDED_SETTINGS = {"redacteur_role": "Réglage remplacé par la page Accès (/admin/acces)"}
+# effet : ni listés ni modifiables. redacteur_role → droits articles.* de la page Accès ;
+# Batman et rôles de niveau → règles automatiques (étape 3, amorcées par la migration 022).
+_BY_RULES = "Réglage remplacé par les règles automatiques (/admin/regles)"
+SUPERSEDED_SETTINGS = {
+    "redacteur_role": "Réglage remplacé par la page Accès (/admin/acces)",
+    **{k: _BY_RULES for k in ("role_batman", "role_level_5", "role_level_10", "role_level_20",
+                              "role_level_50", "voice_hours_for_role")},
+}
 
 router = APIRouter(tags=["settings"])
 
