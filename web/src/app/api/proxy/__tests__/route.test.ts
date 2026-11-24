@@ -5,7 +5,7 @@ import { NextRequest } from "next/server"
 const h = vi.hoisted(() => ({ refresh: vi.fn<(token: string) => Promise<void>>(async () => {}) }))
 vi.mock("@/lib/role-refresh", () => ({ refreshRolesInBackground: (t: string) => void h.refresh(t) }))
 
-import { GET, POST } from "../[...path]/route"
+import { DELETE, GET, POST } from "../[...path]/route"
 import { TRANSCRIPT_CSP } from "@/lib/security-headers"
 
 const fetchMock = vi.fn()
@@ -91,6 +91,29 @@ describe("route proxy vers web-api", () => {
     expect(fetchMock.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
     expect(res.status).toBe(504)
     expect((await res.json()).detail).toMatch(/ne répond pas/)
+  })
+
+  describe("délai selon la route relayée", () => {
+    async function timeoutFor(method: "GET" | "POST" | "DELETE", path: string, headers: Record<string, string> = {}) {
+      const spy = vi.spyOn(AbortSignal, "timeout")
+      fetchMock.mockResolvedValue(new Response("{}"))
+      const req = new NextRequest(`http://localhost:3000/api/proxy/${path}`, { method, headers })
+      const handlers = { GET, POST, DELETE }
+      await handlers[method](req, { params: Promise.resolve({ path: path.split("/") }) })
+      const ms = spy.mock.calls[0][0]
+      spy.mockRestore()
+      return ms
+    }
+
+    it("provision d'un jeu : 70 s", async () => {
+      expect(await timeoutFor("POST", "admin/games/dbd/provision")).toBe(70_000)
+    })
+    it("liste des jeux : 15 s", async () => {
+      expect(await timeoutFor("GET", "admin/games")).toBe(15_000)
+    })
+    it("envoi multipart : 120 s", async () => {
+      expect(await timeoutFor("POST", "tickets/7/reply", { "content-type": "multipart/form-data; boundary=x" })).toBe(120_000)
+    })
   })
 
   it("répond aussi 504 sur une erreur réseau", async () => {

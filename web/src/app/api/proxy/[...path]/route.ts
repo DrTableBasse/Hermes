@@ -52,7 +52,7 @@ async function proxy(
   const init: RequestInit & { duplex?: string } = {
     method:  req.method,
     headers: fwdHeaders,
-    signal:  AbortSignal.timeout(proxyTimeoutFor(contentType)),
+    signal:  AbortSignal.timeout(proxyTimeoutFor(contentType, path.join('/'), req.method)),
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     init.body   = req.body
