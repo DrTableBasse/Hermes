@@ -111,12 +111,12 @@ afterEach(() => {
 })
 
 describe("sections Rôles et Règles", () => {
-  it("roles.manage ouvre « Rôles » et « Règles » ; members.roles seul n’ouvre aucune section", () => {
+  it("roles.manage ouvre « Rôles » et « Règles » ; members.roles seul ouvre « Rôles »", () => {
     expect(allowedSections(["roles.manage"]).map(s => [s.href, s.label])).toEqual([
       ["/admin/roles", "Rôles"],
       ["/admin/regles", "Règles"],
     ])
-    expect(allowedSections(["members.roles"])).toEqual([])
+    expect(allowedSections(["members.roles"]).map(s => s.href)).toEqual(["/admin/roles"])
   })
 
   it("navigation : liens « Rôles » et « Règles » visibles avec roles.manage seulement", async () => {
@@ -125,6 +125,14 @@ describe("sections Rôles et Règles", () => {
     const nav = within(screen.getByRole("navigation", { name: "Administration" }))
     expect(nav.getAllByRole("link").map(a => a.textContent)).toEqual(["Rôles", "Règles"])
     cleanup()
+    server.getSessionUser.mockResolvedValue(me(["members.roles"]))
+    render(await AdminLayout({ children: <p>contenu</p> }))
+    expect(
+      within(screen.getByRole("navigation", { name: "Administration" }))
+        .getAllByRole("link")
+        .map(a => a.textContent),
+    ).toEqual(["Rôles"])
+    cleanup()
     server.getSessionUser.mockResolvedValue(me(["moderation.view"]))
     render(await AdminLayout({ children: <p>contenu</p> }))
     expect(screen.queryByRole("link", { name: "Rôles" })).toBeNull()
@@ -132,12 +140,22 @@ describe("sections Rôles et Règles", () => {
 })
 
 describe("page /admin/roles", () => {
-  it("sans roles.manage : 403, la liste des rôles n’est pas lue", async () => {
-    server.getSessionUser.mockResolvedValue(me(["members.roles"]))
+  it("sans roles.manage ni members.roles : 403, la liste des rôles n’est pas lue", async () => {
+    server.getSessionUser.mockResolvedValue(me(["moderation.view"]))
     render(await AdminRolesPage())
     expect(screen.getByText("Erreur 403")).toBeTruthy()
-    expect(screen.getByText(/Gérer les rôles/)).toBeTruthy()
+    expect(screen.getByText(/Gérer les rôles.*ou.*Donner ou retirer des rôles/)).toBeTruthy()
     expect(server.getAdminRoles).not.toHaveBeenCalled()
+  })
+
+  it("members.roles seul : rôles et attribution en lot, sans création, modification ni suppression", async () => {
+    server.getSessionUser.mockResolvedValue(me(["members.roles"]))
+    render(await AdminRolesPage())
+    expect(screen.getByRole("table", { name: "Rôles du serveur" })).toBeTruthy()
+    expect(screen.getByRole("region", { name: "Attribuer en lot" })).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Nouveau rôle" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Supprimer" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^Modifier/ })).toBeNull()
   })
 
   it("API muette : message d’erreur, aucun tableau", async () => {

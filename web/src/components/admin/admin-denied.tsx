@@ -21,7 +21,9 @@ function deniedText(gate: Exclude<AdminGate, { kind: "ok" }>): { code: string; t
       return {
         code: "Erreur 403",
         title: "Zone réservée à l’administration",
-        body: gate.permission
+        body: gate.anyOf
+          ? `Cette page demande le droit ${gate.anyOf.map(p => `« ${PERMISSIONS[p]} »`).join(" ou ")}, que ton compte n’a pas. Si c’est une erreur, demande-le à un admin ; il prend effet sous 10 minutes.`
+          : gate.permission
           ? `Cette page demande le droit « ${PERMISSIONS[gate.permission]} », que ton compte n’a pas. Si c’est une erreur, demande-le à un admin ; il prend effet sous 10 minutes.`
           : "Ton compte n’a aucun droit d’administration sur le site. Si c’est une erreur, demande-le à un admin puis reconnecte-toi.",
       }

@@ -2,6 +2,7 @@ import type { SitePermission } from "@/lib/permissions"
 
 /**
  * Sections de l'administration et droit exigé par chacune (celui des routes web-api qu'elle lit).
+ * `alsoBy` : autres droits qui ouvrent aussi la section (n'importe lequel suffit).
  * Module neutre (ni client ni serveur) : importable par les pages serveur comme par la navigation client.
  */
 export const ADMIN_SECTIONS = [
@@ -16,17 +17,28 @@ export const ADMIN_SECTIONS = [
   { href: "/admin/jeux", label: "Jeux", permission: "games.manage" },
   { href: "/admin/contenus", label: "Contenus", permission: "content.edit" },
   { href: "/admin/analytique", label: "Analytique", permission: "analytics.view" },
-  { href: "/admin/roles", label: "Rôles", permission: "roles.manage" },
+  // `members.roles` seul : attribution en lot (R14) ; création, modification et suppression masquées.
+  { href: "/admin/roles", label: "Rôles", permission: "roles.manage", alsoBy: ["members.roles"] },
   { href: "/admin/regles", label: "Règles", permission: "roles.manage" },
   { href: "/admin/acces", label: "Accès", permission: "permissions.manage" },
-] as const satisfies ReadonlyArray<{ href: string; label: string; permission: SitePermission }>
+] as const satisfies ReadonlyArray<{
+  href: string
+  label: string
+  permission: SitePermission
+  alsoBy?: readonly SitePermission[]
+}>
 
 export type AdminSection = (typeof ADMIN_SECTIONS)[number]
+
+/** Droits dont l'un suffit à ouvrir la section. */
+export function sectionPermissions(section: AdminSection): readonly SitePermission[] {
+  return "alsoBy" in section ? [section.permission, ...section.alsoBy] : [section.permission]
+}
 
 /** Sections que ces droits ouvrent, dans l'ordre de la navigation. */
 export function allowedSections(permissions: readonly string[]): AdminSection[] {
   const has = new Set(permissions)
-  return ADMIN_SECTIONS.filter(s => has.has(s.permission))
+  return ADMIN_SECTIONS.filter(s => sectionPermissions(s).some(p => has.has(p)))
 }
 
 /** Au moins une section de l'administration est ouverte (entrée « Admin » du menu, cadre /admin). */

@@ -40,6 +40,17 @@ describe("adminGate(permission)", () => {
     expect(await adminGate("moderation.view")).toEqual({ kind: "forbidden", permission: "moderation.view" })
   })
 
+  it("liste de droits : l’un d’eux suffit ; refus → droits possibles nommés", async () => {
+    getSessionUser.mockResolvedValue(member(["members.roles"]))
+    expect((await adminGate(["roles.manage", "members.roles"])).kind).toBe("ok")
+    getSessionUser.mockResolvedValue(member(["tickets.manage"]))
+    expect(await adminGate(["roles.manage", "members.roles"])).toEqual({
+      kind: "forbidden",
+      permission: "roles.manage",
+      anyOf: ["roles.manage", "members.roles"],
+    })
+  })
+
   it("un autre droit, même large, ne remplace pas celui demandé", async () => {
     const all = Object.keys(PERMISSIONS).filter(k => k !== "settings.manage")
     getSessionUser.mockResolvedValue(member(all))

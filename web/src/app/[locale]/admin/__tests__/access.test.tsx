@@ -26,7 +26,7 @@ vi.mock("@/lib/admin-role", () => ({ readAdminRoleRef: async () => ({ id: "0" })
 
 import AdminLayout from "@/app/[locale]/admin/layout"
 import AccessPage from "@/app/[locale]/admin/acces/page"
-import { ADMIN_SECTIONS } from "@/lib/admin-sections"
+import { ADMIN_SECTIONS, sectionPermissions } from "@/lib/admin-sections"
 import AdminHome from "@/app/[locale]/admin/page"
 import AnalyticsPage from "@/app/[locale]/admin/analytique/page"
 import CommandsPage from "@/app/[locale]/admin/commandes/page"
@@ -153,8 +153,10 @@ describe("accès à /admin", () => {
     expect(screen.queryByText("Erreur 403")).toBeNull()
   })
 
-  it.each(PAGE_RIGHTS)("page %s (%s) : 403 avec tous les droits sauf %s, aucune lecture admin", async (name, _href, right) => {
-    api.getSessionUser.mockResolvedValue(withRights(ALL.filter(p => p !== right)))
+  it.each(PAGE_RIGHTS)("page %s (%s) : 403 avec tous les droits sauf %s, aucune lecture admin", async (name, href, right) => {
+    // Une section qu'un autre droit ouvre aussi (« Rôles » : members.roles) : on les retire tous.
+    const opening: readonly string[] = sectionPermissions(ADMIN_SECTIONS.find(s => s.href === href)!)
+    api.getSessionUser.mockResolvedValue(withRights(ALL.filter(p => !opening.includes(p))))
     render(await PAGES.find(([n]) => n === name)![1]())
     expect(screen.getByText("Erreur 403")).toBeTruthy()
     const label = PERMISSIONS[right as keyof typeof PERMISSIONS]

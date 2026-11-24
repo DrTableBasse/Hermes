@@ -27,12 +27,14 @@ function lockReason(role: ManagedRole, actor: RolesOverview["actor"]): string | 
 
 type Props = {
   initial: RolesOverview
+  /** Droit `roles.manage` : création, modification et suppression proposées. */
+  canManage: boolean
   /** Droit `members.roles` : attribution en lot proposée. */
   canBulk: boolean
 }
 
 /** Rôles du serveur : création, modification, suppression (nombre de membres confirmé), lots. */
-export function RolesAdmin({ initial, canBulk }: Props) {
+export function RolesAdmin({ initial, canManage, canBulk }: Props) {
   const [overview, setOverview] = useState(initial)
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<ManagedRole | null>(null)
@@ -98,18 +100,20 @@ export function RolesAdmin({ initial, canBulk }: Props) {
   return (
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          size="sm"
-          aria-expanded={creating}
-          aria-controls={creating ? createId : undefined}
-          onClick={() => {
-            setCreating(c => !c)
-            setEditing(null)
-          }}
-        >
-          <Plus aria-hidden="true" className="size-4" />
-          Nouveau rôle
-        </Button>
+        {canManage && (
+          <Button
+            size="sm"
+            aria-expanded={creating}
+            aria-controls={creating ? createId : undefined}
+            onClick={() => {
+              setCreating(c => !c)
+              setEditing(null)
+            }}
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Nouveau rôle
+          </Button>
+        )}
         <p role="status" aria-label="Rôles" className="m-0 text-sm text-green">
           {success}
         </p>
@@ -120,7 +124,7 @@ export function RolesAdmin({ initial, canBulk }: Props) {
         )}
       </div>
 
-      {creating && (
+      {canManage && creating && (
         <RoleForm
           id={createId}
           title="Nouveau rôle"
@@ -138,7 +142,7 @@ export function RolesAdmin({ initial, canBulk }: Props) {
             <tr>
               <th scope="col" className="px-4 py-3 font-semibold">Rôle</th>
               <th scope="col" className="px-4 py-3 font-semibold">Membres</th>
-              <th scope="col" className="px-4 py-3 font-semibold">Actions</th>
+              {canManage && <th scope="col" className="px-4 py-3 font-semibold">Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -153,7 +157,7 @@ export function RolesAdmin({ initial, canBulk }: Props) {
                     </span>
                   </th>
                   <td className="px-4 py-3 tabular-nums">{plural(role.members, "membre")}</td>
-                  <td className="px-4 py-3">
+                  {canManage && <td className="px-4 py-3">
                     {lock ? (
                       <span className="text-muted">{lock}</span>
                     ) : (
@@ -182,7 +186,7 @@ export function RolesAdmin({ initial, canBulk }: Props) {
                         </ConfirmButton>
                       </span>
                     )}
-                  </td>
+                  </td>}
                 </tr>
               )
             })}
@@ -190,7 +194,7 @@ export function RolesAdmin({ initial, canBulk }: Props) {
         </table>
       </div>
 
-      {editing && (
+      {canManage && editing && (
         <RoleForm
           key={editing.id}
           title={`Modifier « ${editing.name} »`}

@@ -4,9 +4,12 @@ import { SectionHeading } from "@/components/ui/section-heading"
 import { adminGate } from "@/lib/admin-gate"
 import { getAdminRoles } from "@/lib/api/server"
 
-/** Rôles du serveur (`/admin/roles`, droit `roles.manage`) ; attribution en lot avec `members.roles`. */
+/**
+ * Rôles du serveur (`/admin/roles`) : gestion avec `roles.manage`, attribution en lot avec
+ * `members.roles` ; l'un des deux ouvre la page (R14).
+ */
 export default async function AdminRolesPage() {
-  const gate = await adminGate("roles.manage")
+  const gate = await adminGate(["roles.manage", "members.roles"])
   if (gate.kind !== "ok") return <AdminDenied gate={gate} />
   const data = await getAdminRoles(gate.token)
 
@@ -20,7 +23,11 @@ export default async function AdminRolesPage() {
       {!data ? (
         <AdminNote tone="error">Rôles illisibles pour l’instant : le site ou Hermes ne répond pas. Réessaie dans un moment.</AdminNote>
       ) : (
-        <RolesAdmin initial={data} canBulk={gate.permissions.includes("members.roles")} />
+        <RolesAdmin
+          initial={data}
+          canManage={gate.permissions.includes("roles.manage")}
+          canBulk={gate.permissions.includes("members.roles")}
+        />
       )}
     </div>
   )
