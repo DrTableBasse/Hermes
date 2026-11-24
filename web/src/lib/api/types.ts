@@ -1033,3 +1033,87 @@ export interface RoleRuleApplyInput {
   remove_previous_role_id?: Snowflake
   confirm_previous_members?: number
 }
+
+// ── Salons et modèles d'accès : /admin/channels (étape 5) ───────────────────
+
+export type ChannelKind = "text" | "voice" | "forum" | "announcement" | "category"
+export type ChannelTemplateName = "public" | "role_required" | "announcements" | "staff"
+
+/** Salon de l'arbre (ordre Discord : salons sans catégorie, puis chaque catégorie suivie des siens). */
+export interface ManagedChannel {
+  id: Snowflake
+  name: string
+  type: ChannelKind
+  position: number
+  parent_id: Snowflake | null
+  /** Nombre de surcharges de permissions du salon. */
+  overwrites: number
+  /** Dernier modèle appliqué depuis le site (`null` : aucun). */
+  template: { template: ChannelTemplateName; roles: Snowflake[]; applied_by: string | null; applied_at: string | null } | null
+  /** L'acteur voit le salon dans Discord (propriétaire : toujours). */
+  visible_to_actor: boolean
+}
+
+export interface ChannelRole {
+  id: Snowflake
+  name: string
+  color: number
+  position: number
+  managed: boolean
+  /** Utilisable comme rôle d'un modèle : strictement sous l'acteur (ou acteur propriétaire). */
+  assignable: boolean
+}
+
+export interface ChannelsOverview {
+  channels: ManagedChannel[]
+  /** Modèles proposés (« staff » : admins seulement). */
+  templates: ChannelTemplateName[]
+  roles: ChannelRole[]
+  actor: { top_position: number; is_owner: boolean; permissions: string[]; is_admin: boolean }
+  /** Admin : salons « Staff » appliqués avec d'autres rôles que les `staff_roles` actuels. */
+  staff_resync: { pending: number; channel_ids: Snowflake[]; staff_roles_set: boolean } | null
+}
+
+export interface ChannelInput {
+  name: string
+  type: ChannelKind
+  parent_id?: Snowflake
+}
+
+/** `parent_id: null` : sortir de la catégorie ; absent : inchangé. */
+export interface ChannelUpdateInput {
+  name?: string
+  parent_id?: Snowflake | null
+  position?: number
+}
+
+export type OverwriteBits = { allow: string[]; deny: string[] }
+
+export interface OverwriteChange {
+  target_id: Snowflake
+  target_type: "role" | "member"
+  target_name: string
+  action: "add" | "update" | "remove"
+  before: OverwriteBits | null
+  after: OverwriteBits | null
+}
+
+export interface TemplatePreviewResult {
+  channels: Array<{ id: Snowflake; name: string; type: ChannelKind; changes: OverwriteChange[] }>
+  /** Nombre de salons concernés (catégorie + salons si synchronisée). */
+  count: number
+  token: string
+}
+
+export interface TemplateInput {
+  template: ChannelTemplateName
+  roles: Snowflake[]
+  sync_children: boolean
+}
+
+export interface TemplateApplyResult {
+  applied: number
+  failed: Array<{ id: Snowflake; name: string; error: string }>
+  /** Salons modifiés sur Discord dont la mémorisation a échoué (resynchronisation Staff impossible). */
+  memo_failed: Snowflake[]
+}

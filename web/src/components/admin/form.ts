@@ -55,3 +55,14 @@ export function botActionErrorText(error: unknown): string {
   }
   return adminErrorText(error)
 }
+
+/**
+ * Erreur d'une action sur les salons : comme `botActionErrorText` (« Erreur Discord : … » gardé),
+ * mais un délai dépassé (504, web-api ou proxy) dit que l'action se termine peut-être encore.
+ */
+export function channelActionErrorText(error: unknown): string {
+  if (error instanceof ApiError && error.status === 504) {
+    return "L’action se termine peut-être encore : rechargez la page dans un instant pour voir l’état des salons."
+  }
+  return botActionErrorText(error)
+}

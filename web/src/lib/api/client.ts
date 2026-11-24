@@ -4,6 +4,12 @@
  */
 import type {
   AccessUpdateResult,
+  ChannelInput,
+  ChannelsOverview,
+  ChannelUpdateInput,
+  TemplateApplyResult,
+  TemplateInput,
+  TemplatePreviewResult,
   BulkRolesInput,
   ManagedRole,
   MemberRole,
@@ -220,6 +226,25 @@ export const api = {
       request<Ok>(`/admin/pages/${seg(slug)}`, send("PUT", data)),
     updateStaffProfile: (userId: Snowflake, data: StaffProfileInput) =>
       request<Ok>(`/admin/staff/${seg(userId)}`, send("PUT", data)),
+    channels: () => request<ChannelsOverview>("/admin/channels"),
+    createChannel: (data: ChannelInput) =>
+      request<{ id: Snowflake; name: string; type: string; parent_id: Snowflake | null }>("/admin/channels", send("POST", data)),
+    updateChannel: (id: Snowflake, data: ChannelUpdateInput) =>
+      request<{ id: Snowflake; name: string; position: number; parent_id: Snowflake | null }>(
+        `/admin/channels/${seg(id)}`,
+        send("PATCH", data),
+      ),
+    /** `confirmName` : nom du salon retapé (comparé exactement, après espaces retirés). */
+    deleteChannel: (id: Snowflake, confirmName: string) =>
+      request<Ok>(`/admin/channels/${seg(id)}`, send("DELETE", { confirm_name: confirmName })),
+    previewChannelTemplate: (id: Snowflake, data: TemplateInput) =>
+      request<TemplatePreviewResult>(`/admin/channels/${seg(id)}/template/preview`, send("POST", data)),
+    /** Jusqu'à ~40 s côté web-api (écriture salon par salon) ; 409 si l'aperçu n'est plus à jour. */
+    applyChannelTemplate: (id: Snowflake, data: TemplateInput & { token: string }) =>
+      request<TemplateApplyResult>(`/admin/channels/${seg(id)}/template/apply`, send("POST", data)),
+    previewStaffResync: () => request<TemplatePreviewResult>("/admin/channels/staff-resync/preview", send("POST")),
+    applyStaffResync: (token: string) =>
+      request<TemplateApplyResult>("/admin/channels/staff-resync/apply", send("POST", { token })),
     setGalleryHidden: (id: number, hidden: boolean) =>
       request<{ id: number; hidden: boolean }>(`/admin/gallery/${seg(id)}`, send("PATCH", { hidden })),
     deleteGalleryItem: (id: number) => request<void>(`/admin/gallery/${seg(id)}`, send("DELETE")),

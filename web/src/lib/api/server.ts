@@ -7,6 +7,7 @@ import type {
   AdminGalleryItem,
   AdminGamesResponse,
   AdminStats,
+  ChannelsOverview,
   AnalyticsData,
   CommandsResponse,
   DiscordChannel,
@@ -314,6 +315,9 @@ export const getDiscordRoles = (token: string) => discordList<DiscordRole>("/adm
 
 /** Rôles gérables et rang de l'acteur (`roles.manage` ou `members.roles`). */
 export const getAdminRoles = (token: string) => apiGetOrNull<RolesOverview>("/admin/roles", { token })
+
+/** Arbre des salons, modèles, rôles et rang de l'acteur (`channels.manage`) ; `null` si illisible. */
+export const getAdminChannels = (token: string) => apiGetOrNull<ChannelsOverview>("/admin/channels", { token })
 
 /** Règles automatiques de rôles (`roles.manage`) ; `null` si illisibles. */
 export async function getRoleRules(token: string): Promise<RoleRule[] | null> {

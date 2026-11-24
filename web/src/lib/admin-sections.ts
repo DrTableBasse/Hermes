@@ -20,6 +20,7 @@ export const ADMIN_SECTIONS = [
   // `members.roles` seul : attribution en lot (R14) ; création, modification et suppression masquées.
   { href: "/admin/roles", label: "Rôles", permission: "roles.manage", alsoBy: ["members.roles"] },
   { href: "/admin/regles", label: "Règles", permission: "roles.manage" },
+  { href: "/admin/salons", label: "Salons", permission: "channels.manage" },
   { href: "/admin/acces", label: "Accès", permission: "permissions.manage" },
 ] as const satisfies ReadonlyArray<{
   href: string
