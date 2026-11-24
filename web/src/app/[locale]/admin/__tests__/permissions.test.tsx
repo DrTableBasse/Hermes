@@ -443,6 +443,57 @@ describe("onglet Hermes", () => {
     expect(blague.queryByRole("button", { name: "Enregistrer" })).toBeNull()
   })
 
+  it("reload_failed : « Réessayer » renvoie la liste enregistrée, l’avertissement disparaît au succès", async () => {
+    client.api.admin.putCommandPermissions.mockResolvedValueOnce({
+      command: "blague",
+      role_ids: ["400"],
+      changed: true,
+      reload_failed: true,
+    })
+    await renderPage()
+    openHermes()
+    const blague = region("/blague")
+    fireEvent.change(blague.getByRole("combobox"), { target: { value: "400" } })
+    fireEvent.click(blague.getByRole("button", { name: "Restreindre à ce rôle" }))
+    await act(async () => {
+      fireEvent.click(blague.getByRole("button", { name: "Enregistrer" }))
+    })
+    expect(blague.getByRole("alert")).toBeTruthy()
+
+    let finish: (v: unknown) => void = () => {}
+    client.api.admin.putCommandPermissions.mockReturnValueOnce(new Promise(r => (finish = r)))
+    await act(async () => {
+      fireEvent.click(blague.getByRole("button", { name: "Réessayer" }))
+    })
+    expect(client.api.admin.putCommandPermissions).toHaveBeenLastCalledWith("blague", ["400"])
+    expect((blague.getByRole("button", { name: "Nouvelle tentative…" }) as HTMLButtonElement).disabled).toBe(true)
+
+    await act(async () => {
+      finish({ command: "blague", role_ids: ["400"], changed: false, reload_failed: false })
+    })
+    expect(blague.queryByRole("alert")).toBeNull()
+    expect(blague.queryByRole("button", { name: "Réessayer" })).toBeNull()
+  })
+
+  it("reload_failed : si le réessai échoue encore, l’avertissement et le bouton restent", async () => {
+    client.api.admin.putCommandPermissions
+      .mockResolvedValueOnce({ command: "blague", role_ids: ["400"], changed: true, reload_failed: true })
+      .mockResolvedValueOnce({ command: "blague", role_ids: ["400"], changed: false, reload_failed: true })
+    await renderPage()
+    openHermes()
+    const blague = region("/blague")
+    fireEvent.change(blague.getByRole("combobox"), { target: { value: "400" } })
+    fireEvent.click(blague.getByRole("button", { name: "Restreindre à ce rôle" }))
+    await act(async () => {
+      fireEvent.click(blague.getByRole("button", { name: "Enregistrer" }))
+    })
+    await act(async () => {
+      fireEvent.click(blague.getByRole("button", { name: "Réessayer" }))
+    })
+    expect(blague.getByRole("alert").textContent).toMatch(/réessayez ou redémarrez/)
+    expect(blague.getByRole("button", { name: "Réessayer" })).toBeTruthy()
+  })
+
   it("erreur de l’API (403) : détail affiché, brouillon conservé", async () => {
     client.api.admin.putCommandPermissions.mockRejectedValue(
       new client.ApiError(403, "Le rôle « Modérateur » est au niveau du vôtre ou au-dessus : impossible de le modifier"),

@@ -87,6 +87,7 @@ function CommandRow({ command, roles }: { command: CommandPermission; roles: Ser
   const [draft, setDraft] = useState<Entry[]>(initialEntries)
   const [pick, setPick] = useState("")
   const [saving, setSaving] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [success, setSuccess] = useState("")
   const [warning, setWarning] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -114,12 +115,13 @@ function CommandRow({ command, roles }: { command: CommandPermission; roles: Ser
     clearFeedback()
   }
 
-  async function save() {
+  /** Enregistre `entries` ; sans changement, le serveur relance seulement le rechargement du bot. */
+  async function save(entries: Entry[] = draft) {
     setSaving(true)
     clearFeedback()
     try {
-      const res = await api.admin.putCommandPermissions(command.name, draft.map(e => e.id))
-      const kept = res.role_ids.map(id => draft.find(e => e.id === id) ?? { id, name: byId.get(id)?.name ?? id, deleted: false })
+      const res = await api.admin.putCommandPermissions(command.name, entries.map(e => e.id))
+      const kept = res.role_ids.map(id => entries.find(e => e.id === id) ??{ id, name: byId.get(id)?.name ?? id, deleted: false })
       setSaved(kept)
       setDraft(kept)
       if (res.reload_failed) setWarning(RELOAD_FAILED_TEXT)
@@ -128,7 +130,13 @@ function CommandRow({ command, roles }: { command: CommandPermission; roles: Ser
       setError(botActionErrorText(err))
     } finally {
       setSaving(false)
+      setRetrying(false)
     }
+  }
+
+  function retry() {
+    setRetrying(true)
+    void save(saved)
   }
 
   return (
@@ -229,10 +237,20 @@ function CommandRow({ command, roles }: { command: CommandPermission; roles: Ser
       <p role="status" className="m-0 text-sm text-green">
         {success}
       </p>
-      {warning && (
-        <p role="alert" className="m-0 text-sm text-orange">
-          {warning}
-        </p>
+      {(warning || retrying) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="alert" className="m-0 text-sm text-orange">
+            {warning || RELOAD_FAILED_TEXT}
+          </p>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={retry}
+            className={buttonVariants({ variant: "ghost", size: "sm" })}
+          >
+            {retrying ? "Nouvelle tentative…" : "Réessayer"}
+          </button>
+        </div>
       )}
       {error && (
         <p role="alert" className="m-0 text-sm text-orange">
