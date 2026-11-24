@@ -20,12 +20,14 @@ from utils.constants import cogs_names
 from utils import runtime  # noqa: F401 — fixe STARTED_AT au démarrage du processus
 from utils.database import init_database, voice_manager, message_stats_manager, db_manager, achievement_manager, command_stats_manager
 from utils.command_manager import init_command_status_table
+from utils import command_permissions
 from utils.audit_events import record_command
 from utils.embed_style import hermes_embed, Colors
 
 console = Console()
 intents  = discord.Intents.all()
-bot      = commands.Bot(command_prefix='!', intents=intents)
+bot      = commands.Bot(command_prefix='!', intents=intents,
+                        tree_cls=command_permissions.HermesCommandTree)
 _first_ready = True
 
 
@@ -89,6 +91,13 @@ async def on_ready():
     except Exception as e:
         console.print(f"[red]❌ DB: {e}[/red]")
         return
+
+    # Rôles autorisés des commandes : lus avant la première commande (et avant les cogs).
+    try:
+        count = await command_permissions.reload()
+        console.print(f"[green]✅ Rôles autorisés des commandes chargés ({count} commandes restreintes)[/green]")
+    except Exception as e:
+        console.print(f"[yellow]⚠️ Rôles autorisés des commandes: {e} (migration 025 appliquée ?)[/yellow]")
 
     # Réglages du serveur : amorçage depuis l'environnement puis chargement (avant les cogs)
     from utils import settings

@@ -291,6 +291,61 @@ async def toggle_command(req: CommandToggleRequest):
     return {"success": ok}
 
 
+# ── Rôles autorisés par commande (étape 6) ──────────────────────────────────
+
+def _is_native_check(check) -> bool:
+    """Contrôle posé par ``app_commands.checks.has_permissions``."""
+    return "has_permissions" in getattr(check, "__qualname__", "")
+
+
+def _leaves(cmd) -> list:
+    """Commandes exécutables d'une commande ou d'un groupe (sous-groupes compris)."""
+    if isinstance(cmd, discord.app_commands.Group):
+        return [leaf for sub in cmd.commands for leaf in _leaves(sub)]
+    return [cmd]
+
+
+def _catalog_entry(cmd) -> dict:
+    from utils import command_permissions
+    leaves = _leaves(cmd)
+    return {
+        "name": cmd.name,
+        "description": getattr(cmd, "description", "") or "",
+        "admin_only": bool(leaves) and all(command_permissions.is_admin_only(c) for c in leaves),
+        "native_protected": getattr(cmd, "default_permissions", None) is not None or any(
+            _is_native_check(chk) for c in leaves for chk in getattr(c, "checks", [])),
+    }
+
+
+@app.get("/commands/catalog", dependencies=[Depends(_require_token)])
+async def commands_catalog():
+    """Commandes racines (globales et de serveur, jeux compris), triées par nom.
+
+    ``admin_only`` : toutes ses commandes portent ``@administration_only`` ;
+    ``native_protected`` : l'une d'elles exige une permission Discord native.
+    """
+    bot = _get_bot()
+    guild = discord.Object(id=int(os.getenv('GUILD_ID', '0')))
+    seen: dict[str, dict] = {}
+    for cmd in [*bot.tree.get_commands(), *bot.tree.get_commands(guild=guild)]:
+        if isinstance(cmd, (discord.app_commands.Command, discord.app_commands.Group)):
+            seen.setdefault(cmd.name, _catalog_entry(cmd))
+    return {"commands": [seen[name] for name in sorted(seen)]}
+
+
+@app.post("/command-permissions/reload", dependencies=[Depends(_require_token)])
+async def command_permissions_reload():
+    """Relit ``command_permissions`` ; en échec, 503 et l'ancienne liste reste appliquée."""
+    from utils import command_permissions
+    try:
+        count = await command_permissions.reload()
+    except Exception as e:
+        logging.getLogger(__name__).warning("Rechargement des rôles autorisés en échec : %s", e)
+        raise HTTPException(status_code=503,
+                            detail="Rôles autorisés des commandes illisibles : l'ancienne liste reste appliquée")
+    return {"ok": True, "restricted": count}
+
+
 # ── Discord & réglages ────────────────────────────────────────────────────────
 
 class EnsureChannelRequest(BaseModel):
@@ -443,6 +498,102 @@ async def remove_member_role(user_id: int, role_id: int, req: ActorRequest):
     member = await _get_member(guild, user_id)
     await member.remove_roles(role, reason=_site_reason(req.actor_name))
     return {"ok": True}
+
+
+# ── Permissions des rôles (étape 6) ──────────────────────────────────────────
+# Le droit « permissions.manage » est vérifié par web-api (qui journalise) ; ici,
+# l'anti-escalade. Pour tous : rôle existant, non géré par une intégration, sous le bot
+# (@everyone excepté, toujours sous le bot). Sauf propriétaire : @everyone interdit, rôle
+# strictement sous l'acteur, seules les permissions que l'acteur possède (permissions
+# effectives du serveur, « Administrateur » = toutes) ; activer « Administrateur » :
+# propriétaire seul, avec ``confirm_administrator``.
+
+from utils.permission_catalog import FAMILIES, escalation_error  # noqa: E402
+
+CATALOG_MASK = 0  # bits de toutes les permissions du catalogue
+for _family, _perms in FAMILIES:
+    for _flag, _label in _perms:
+        CATALOG_MASK |= getattr(discord.Permissions, _flag).flag
+ADMINISTRATOR = discord.Permissions(administrator=True).value
+
+
+class RolePermissionsRequest(ActorRequest):
+    actor_id:              DiscordId
+    permissions:           int = Field(ge=0)
+    confirm_administrator: bool = False
+
+
+def _role_permissions_payload(r: discord.Role) -> dict:
+    return {"id": str(r.id), "name": r.name, "position": r.position, "managed": r.managed,
+            "is_default": r.is_default(), "permissions": r.permissions.value}
+
+
+def _role_errors(fn):
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await fn(*args, **kwargs)
+        except discord.Forbidden:
+            raise HTTPException(status_code=403, detail="Permission refusée — le bot n'a pas les droits "
+                                                        "nécessaires (Gérer les rôles)")
+        except discord.NotFound:
+            raise HTTPException(status_code=404, detail="Rôle introuvable sur Discord")
+        except discord.HTTPException as e:
+            if e.status == 400:
+                raise HTTPException(status_code=422, detail=f"Refusé par Discord : {e.text or e.status}")
+            raise HTTPException(status_code=502, detail=f"Erreur Discord : {e.text or e.status}")
+    return wrapper
+
+
+@app.get("/discord/roles/permissions", dependencies=[Depends(_require_token)])
+async def discord_roles_permissions(actor_id: int):
+    """Rôles (dont @everyone, du plus haut au plus bas) et leurs permissions ; rang de l'acteur et du bot."""
+    guild = _get_guild()
+    actor = await _actor(guild, actor_id)
+    return {
+        "roles": [_role_permissions_payload(r) for r in sorted(guild.roles, key=lambda r: -r.position)],
+        "actor": {"permissions": actor.guild_permissions.value,
+                  "top_position": actor.top_role.position,
+                  "is_owner": _is_owner(guild, actor)},
+        "bot": {"top_position": _bot_top_position(guild)},
+    }
+
+
+@app.patch("/discord/roles/{role_id}/permissions", dependencies=[Depends(_require_token)])
+@_role_errors
+async def update_role_permissions(role_id: int, req: RolePermissionsRequest):
+    """Remplace les permissions du rôle ; les bits hors catalogue déjà posés sont conservés."""
+    guild = _get_guild()
+    actor = await _actor(guild, int(req.actor_id))
+    owner = _is_owner(guild, actor)
+    role = guild.get_role(role_id)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Rôle introuvable")
+    if req.permissions & ~CATALOG_MASK:
+        raise HTTPException(status_code=422, detail="Permission inconnue")
+    if role.is_default() and not owner:
+        raise HTTPException(status_code=403,
+                            detail="Seul le propriétaire du serveur peut modifier les permissions de @everyone")
+    if role.managed:
+        raise HTTPException(status_code=403,
+                            detail="Ce rôle est géré par une intégration et ne peut pas être modifié")
+    if not role.is_default() and role.position >= _bot_top_position(guild):
+        raise HTTPException(status_code=403, detail="Ce rôle n'est pas sous le rôle le plus haut du bot")
+    if not owner and role.position >= actor.top_role.position:
+        raise HTTPException(status_code=403, detail="Ce rôle n'est pas sous votre rôle le plus haut")
+
+    before = role.permissions.value
+    after = req.permissions | (before & ~CATALOG_MASK)
+    error = escalation_error(actor.guild_permissions.value, owner, before, after)
+    if error:
+        raise HTTPException(status_code=403, detail=error)
+    if after & ADMINISTRATOR and not before & ADMINISTRATOR and not req.confirm_administrator:
+        raise HTTPException(status_code=422,
+                            detail="Activer « Administrateur » demande une confirmation explicite")
+    if after != before:
+        role = await role.edit(permissions=discord.Permissions(after),
+                               reason=_site_reason(req.actor_name)) or role
+    return {"role": _role_permissions_payload(role), "before": before, "after": after}
 
 
 # ── Travaux en arrière-plan (lots, application de règle) ─────────────────────
