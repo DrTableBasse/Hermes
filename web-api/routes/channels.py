@@ -191,14 +191,18 @@ def _staff_resync_status(channels: list[dict], roles: list[dict], stored: dict) 
 @router.get("/channels")
 async def list_channels(user: dict = Depends(get_current_user)):
     """Arbre des salons (ordre Discord), rôles utilisables comme R, rang de l'acteur et, pour un
-    admin, les salons « staff » à resynchroniser."""
+    admin, les salons « staff » à resynchroniser.
+
+    Un salon ou une catégorie que l'acteur ne voit pas sur Discord est retiré de la réponse (nom
+    compris) ; le propriétaire voit tout."""
     require_permission(user, "channels.manage")
     tree = await _tree(user)
     actor = await actor_rank(user)
     roles = await _roles()
     is_admin = bool(user.get("is_admin"))
+    visible = [c for c in tree["channels"] if actor["is_owner"] or c.get("visible_to_actor")]
     return {
-        "channels": tree["channels"],
+        "channels": visible,
         "templates": [t for t in tree["templates"] if is_admin or t != "staff"],
         "roles": [{"id": r["id"], "name": r["name"], "color": r["color"], "position": r["position"],
                    "managed": r["managed"], "assignable": outranks(actor, r["position"])} for r in roles],

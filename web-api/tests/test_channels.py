@@ -1,5 +1,6 @@
 """Salons et modèles d'accès (étape 5, tâche 3) : droits, anti-escalade, relais du bot, journal."""
 import json
+import sys
 
 import httpx
 import pytest
@@ -141,13 +142,27 @@ def test_list_channels_passes_actor_and_marks_assignable_roles(client, mod, bot)
     assert r.status_code == 200
     data = r.json()
     assert bot["calls"][0][3] == {"actor_id": "1"}
-    assert [c["id"] for c in data["channels"]] == ["10", "20", "21", "30"]
-    assert data["channels"][3]["visible_to_actor"] is False
+    assert [c["id"] for c in data["channels"]] == ["10", "20", "21"]  # « staff-only » invisible : masqué
     assert {r["id"]: r["assignable"] for r in data["roles"]} == {"800": False, "500": False,
                                                                   "400": False, "200": True}
     assert data["templates"] == ["public", "role_required", "announcements"]  # « staff » : admins
     assert data["actor"]["is_admin"] is False and data["actor"]["top_position"] == 5
     assert data["staff_resync"] is None
+
+
+def test_list_channels_hides_every_channel_invisible_to_actor(client, mod, bot, monkeypatch):
+    # Catégorie invisible, salon visible dedans : la catégorie disparaît (nom compris), le salon reste.
+    monkeypatch.setattr(sys.modules[__name__], "TREE",
+                        [TREE[0], _ch("20", "Jeux-secrets", "category", visible=False), *TREE[2:]])
+    r = client.get("/admin/channels")
+    assert [c["id"] for c in r.json()["channels"]] == ["10", "21"]
+    assert "staff-only" not in r.text and "Jeux-secrets" not in r.text
+
+
+def test_list_channels_owner_sees_everything(client, mod, bot):
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True}
+    data = client.get("/admin/channels").json()
+    assert [c["id"] for c in data["channels"]] == ["10", "20", "21", "30"]
 
 
 def test_list_channels_admin_sees_staff_template_and_pending_resync(client, fake_db, bot, session_with):
