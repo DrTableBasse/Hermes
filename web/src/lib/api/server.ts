@@ -2,6 +2,8 @@ import "server-only"
 
 import type {
   AccessOverview,
+  CommandPermissionsOverview,
+  DiscordPermissionsOverview,
   AchievementCatalog,
   ActiveQuest,
   AdminGalleryItem,
@@ -309,6 +311,14 @@ export const getDiscordChannels = (token: string) =>
 
 /** Rôles et droits d'accès au site (`permissions.manage`). */
 export const getAdminAccess = (token: string) => apiGetOrNull<AccessOverview>("/admin/access", { token })
+
+/** Permissions Discord des rôles et capacités de l'acteur (`permissions.manage`) ; `null` si illisible. */
+export const getDiscordPermissions = (token: string) =>
+  apiGetOrNull<DiscordPermissionsOverview>("/admin/permissions/discord", { token })
+
+/** Listes blanches des commandes Hermes (`permissions.manage`) ; `null` si illisibles. */
+export const getCommandPermissions = (token: string) =>
+  apiGetOrNull<CommandPermissionsOverview>("/admin/permissions/commands", { token })
 
 /** Rôles du serveur. */
 export const getDiscordRoles = (token: string) => discordList<DiscordRole>("/admin/discord/roles", "roles", token)

@@ -793,6 +793,64 @@ export interface AccessUpdateResult {
   permissions: string[]
 }
 
+/** Rôle de `GET /admin/permissions/discord` (même forme dans la réponse du PUT). */
+export interface DiscordPermissionRole {
+  id: Snowflake
+  name: string
+  position: number
+  managed: boolean
+  /** @everyone. */
+  is_default: boolean
+  /** Drapeaux du catalogue (`PERMISSION_FAMILIES`) accordés au rôle. */
+  permissions: string[]
+  editable: boolean
+  /** Raison rédigée par l'API quand le rôle n'est pas modifiable. */
+  refusal: string | null
+  /** Drapeaux que l'acteur peut basculer seul sur ce rôle (`[]` si non modifiable). */
+  editable_flags: string[]
+}
+
+/** `GET /admin/permissions/discord` : rôles du plus haut au plus bas, @everyone compris. */
+export interface DiscordPermissionsOverview {
+  families: Array<{ family: string; permissions: Array<{ key: string; label: string }> }>
+  roles: DiscordPermissionRole[]
+  actor: { is_owner: boolean; top_position: number; permissions: string[]; is_admin: boolean }
+}
+
+/** `PUT /admin/permissions/discord/{role_id}`. */
+export interface DiscordPermissionsUpdateResult {
+  changed: boolean
+  role: DiscordPermissionRole
+}
+
+/** Commande Hermes et sa liste blanche de rôles. */
+export interface CommandPermission {
+  name: string
+  description: string
+  /** Réservée aux admins (`@administration_only`) : liste vide = administrateurs seulement. */
+  admin_only: boolean
+  /** Protégée aussi par une permission Discord native. */
+  native_protected: boolean
+  /** Liste blanche ; rôle supprimé de Discord : `name: null, deleted: true`. */
+  roles: Array<{ id: Snowflake; name: string | null; deleted: boolean }>
+  editable: boolean
+}
+
+/** `GET /admin/permissions/commands`. */
+export interface CommandPermissionsOverview {
+  commands: CommandPermission[]
+  roles: Array<{ id: Snowflake; name: string; color: number; position: number; assignable: boolean }>
+  actor: { is_owner: boolean; top_position: number; is_admin: boolean }
+}
+
+/** `PUT /admin/permissions/commands/{name}` ; `reload_failed` : enregistré, bot pas encore à jour. */
+export interface CommandPermissionsUpdateResult {
+  command: string
+  role_ids: Snowflake[]
+  changed: boolean
+  reload_failed: boolean
+}
+
 /** `PUT /admin/settings/{key}` ; `value` vide : réglage effacé, le défaut s'applique. */
 export interface SettingPutResult {
   key: string

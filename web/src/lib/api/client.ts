@@ -4,6 +4,8 @@
  */
 import type {
   AccessUpdateResult,
+  CommandPermissionsUpdateResult,
+  DiscordPermissionsUpdateResult,
   ChannelInput,
   ChannelsOverview,
   ChannelUpdateInput,
@@ -169,6 +171,13 @@ export const api = {
     auditFacets: () => request<AuditFacets>("/admin/audit/facets"),
     putAccess: (roleId: Snowflake, permissions: string[]) =>
       request<AccessUpdateResult>(`/admin/access/${seg(roleId)}`, send("PUT", { permissions })),
+    putRolePermissions: (roleId: Snowflake, permissions: string[], confirmAdministrator: boolean) =>
+      request<DiscordPermissionsUpdateResult>(
+        `/admin/permissions/discord/${seg(roleId)}`,
+        send("PUT", { permissions, confirm_administrator: confirmAdministrator }),
+      ),
+    putCommandPermissions: (name: string, roleIds: Snowflake[]) =>
+      request<CommandPermissionsUpdateResult>(`/admin/permissions/commands/${seg(name)}`, send("PUT", { role_ids: roleIds })),
     roles: () => request<RolesOverview>("/admin/roles"),
     createRole: (data: RoleInput) => request<ManagedRole>("/admin/roles", send("POST", data)),
     updateRole: (roleId: Snowflake, data: Partial<RoleInput>) =>

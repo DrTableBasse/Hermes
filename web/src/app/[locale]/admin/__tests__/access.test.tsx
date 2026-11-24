@@ -17,7 +17,8 @@ const api = vi.hoisted(() => {
     "getSessionUser", "getAdminStats", "getAdminCommands", "getAdminSettings", "getDiscordChannels",
     "getDiscordRoles", "getAdminGames", "getAdminGallery", "getQuestTemplates", "getActiveQuests",
     "getAnalytics", "getPageFresh", "getGradesFresh", "getTickets", "getStaff", "getGames", "getAdminAccess",
-    "getAdminRoles", "getRoleRules", "getAchievementCatalog", "getAdminChannels",
+    "getAdminRoles", "getRoleRules", "getAchievementCatalog", "getAdminChannels", "getDiscordPermissions",
+    "getCommandPermissions",
   ]
   return Object.fromEntries(names.map(n => [n, vi.fn()]))
 })
@@ -26,6 +27,7 @@ vi.mock("@/lib/admin-role", () => ({ readAdminRoleRef: async () => ({ id: "0" })
 
 import AdminLayout from "@/app/[locale]/admin/layout"
 import AccessPage from "@/app/[locale]/admin/acces/page"
+import PermissionsPage from "@/app/[locale]/admin/permissions/page"
 import { ADMIN_SECTIONS, sectionPermissions } from "@/lib/admin-sections"
 import AdminHome from "@/app/[locale]/admin/page"
 import AnalyticsPage from "@/app/[locale]/admin/analytique/page"
@@ -58,6 +60,7 @@ const PAGES: Array<[string, () => Promise<ReactElement>]> = [
   ["règles", () => RulesPage()],
   ["salons", () => ChannelsPage()],
   ["accès", () => AccessPage()],
+  ["permissions", () => PermissionsPage()],
 ]
 
 // Correspondance page → droit (celui des routes web-api que la page lit ; tâche 3).
@@ -77,6 +80,7 @@ const PAGE_RIGHTS: Array<[string, string, string]> = [
   ["règles", "/admin/regles", "roles.manage"],
   ["salons", "/admin/salons", "channels.manage"],
   ["accès", "/admin/acces", "permissions.manage"],
+  ["permissions", "/admin/permissions", "permissions.manage"],
 ]
 const ALL = Object.keys(PERMISSIONS).sort()
 const withRights = (permissions: string[]) => ({ user_id: "100", is_admin: false, is_redacteur: false, permissions })
@@ -139,7 +143,7 @@ describe("accès à /admin", () => {
     render(await AdminLayout({ children: <p>contenu</p> }))
     expect(screen.getByText("contenu")).toBeTruthy()
     const nav = screen.getByRole("navigation", { name: "Administration" })
-    expect(nav.querySelectorAll("a")).toHaveLength(15)
+    expect(nav.querySelectorAll("a")).toHaveLength(16)
     expect(screen.getByRole("link", { name: "Jeux" }).getAttribute("aria-current")).toBe("page")
     expect(screen.getByRole("link", { name: "Réglages" }).getAttribute("aria-current")).toBeNull()
   })
