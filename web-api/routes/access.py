@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 import database as db
-from middleware.auth_middleware import effective_permissions, get_current_user, require_permission
+from actor_rank import actor_rank, outranks
+from middleware.auth_middleware import get_current_user, require_permission
 from permissions import PERMISSIONS
 from routes import admin
 
@@ -23,7 +24,7 @@ def check_escalation(actor: dict, role_position: int, before: set[str], after: s
     """Message de refus, ou ``None`` si l'acteur peut passer le rôle de ``before`` à ``after``."""
     if actor["is_owner"]:
         return None
-    if role_position >= actor["top_position"]:
+    if not outranks(actor, role_position):
         return "Ce rôle est au niveau du vôtre ou au-dessus : vous ne pouvez pas modifier ses accès"
     lacking = sorted((before ^ after) - set(actor["permissions"]))
     if lacking:
@@ -31,33 +32,14 @@ def check_escalation(actor: dict, role_position: int, before: set[str], after: s
     return None
 
 
-async def _actor(user: dict) -> dict:
-    """Rang Discord de l'acteur ; absent du serveur → aucun rôle éditable."""
-    try:
-        rank = await admin._bot("get", f"/discord/members/{user['sub']}/rank")
-    except HTTPException as e:
-        if e.status_code != 404:
-            raise
-        rank = {"top_position": 0, "is_owner": False}
-    return {
-        "top_position": int(rank["top_position"]),
-        "is_owner": bool(rank["is_owner"]),
-        "permissions": effective_permissions(user),
-    }
-
-
 async def _roles() -> list[dict]:
     return (await admin._bot("get", "/discord/roles"))["roles"]
-
-
-def _editable(actor: dict, position: int) -> bool:
-    return actor["is_owner"] or position < actor["top_position"]
 
 
 @router.get("/access")
 async def get_access(user: dict = Depends(get_current_user)):
     require_permission(user, "permissions.manage")
-    actor = await _actor(user)
+    actor = await actor_rank(user)
     roles = await _roles()
     grants: dict[str, list[str]] = {}
     for row in await db.fetch(
@@ -72,7 +54,7 @@ async def get_access(user: dict = Depends(get_current_user)):
                 "id": r["id"], "name": r["name"], "color": r["color"],
                 "position": r["position"], "managed": r["managed"],
                 "permissions": sorted(grants.get(r["id"], [])),
-                "editable": _editable(actor, r["position"]),
+                "editable": outranks(actor, r["position"]),
             }
             for r in roles
         ],
@@ -92,7 +74,7 @@ async def put_access(role_id: int, body: AccessUpdate, user: dict = Depends(get_
     if role is None:
         raise HTTPException(status_code=404, detail="Rôle introuvable")
 
-    actor = await _actor(user)
+    actor = await actor_rank(user)
     before = {
         row["permission"]
         for row in await db.fetch("SELECT permission FROM site_permissions WHERE discord_role_id = $1", role_id)

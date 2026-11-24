@@ -28,8 +28,9 @@ def _bot_headers():
 
 async def _bot(method: str, path: str, **kwargs):
     async with httpx.AsyncClient(timeout=10) as client:
-        r = await getattr(client, method)(f"{BOT_API_URL}{path}",
-                                          headers=_bot_headers(), **kwargs)
+        # request() plutôt que get()/delete()… : httpx refuse un corps JSON sur client.delete().
+        r = await client.request(method.upper(), f"{BOT_API_URL}{path}",
+                                 headers=_bot_headers(), **kwargs)
         if r.status_code >= 400:
             try:
                 detail = r.json().get("detail", r.text)
@@ -51,6 +52,17 @@ KIND_OF_ACTION: dict[str, str] = {
     "quest_template_delete": "content",
     "quest_deploy": "content",
     "update": "site_access",  # droits d'un rôle sur le site (routes/access.py)
+    # Rôles et règles (routes/roles.py)
+    "role_create": "role",
+    "role_update": "role",
+    "role_delete": "role",
+    "member_role_add": "member_role",
+    "member_role_remove": "member_role",
+    "member_role_bulk": "member_role",
+    "role_rule_create": "setting",
+    "role_rule_update": "setting",
+    "role_rule_delete": "setting",
+    "role_rule_apply": "setting",
 }
 
 
