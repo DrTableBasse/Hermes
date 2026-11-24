@@ -40,7 +40,6 @@ export const BOT_COMMANDS: readonly BotCommand[] = [
   { name: "voicetime", group: "progression", comment: "Le temps passé en vocal par un membre. Au chronomètre près." },
   { name: "streak", group: "progression", comment: "Ta série de jours en vocal. Un jour manqué et tout s’écroule. Pas de pression." },
   { name: "quests", group: "progression", comment: "Tes défis de la semaine. Je suis ta progression de près. Très près." },
-  { name: "quest-claim", group: "progression", comment: "Réclame l’XP d’un défi terminé. Je vérifie avant de payer." },
   { name: "achievements", group: "progression", comment: "Les succès débloqués d’un membre. Certains sont secrets. Je ne dirai rien." },
 
   // ── Jeux et détente (les commandes d'appel des jeux viennent de `gameCommands`) ──

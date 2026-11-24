@@ -510,11 +510,6 @@ export interface Quest {
   [key: string]: unknown
 }
 
-export interface QuestClaim {
-  success: boolean
-  xp_reward: number
-}
-
 export interface Notification {
   id: number
   user_id: Snowflake

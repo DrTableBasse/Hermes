@@ -119,7 +119,7 @@ describe("WeeklyQuests", () => {
     expect(items[0].textContent).toContain("+80 XP")
     expect(items[0].textContent).toContain("Terminée")
     expect(items[1].textContent).toContain("18 sur 30")
-    expect(items[2].textContent).toContain("Récompense récupérée")
+    expect(items[2].textContent).toContain("Récompense ajoutée à ton XP")
     expect(screen.getAllByRole("progressbar")[1].getAttribute("aria-valuenow")).toBe("60")
   })
 

@@ -50,7 +50,6 @@ import type {
   Notification,
   Ok,
   PageInput,
-  QuestClaim,
   Quest,
   QuestTemplate,
   QuestTemplateInput,
@@ -290,7 +289,6 @@ export const api = {
   },
   quests: {
     list: () => request<{ quests: Quest[] }>("/quests"),
-    claim: (questId: number) => request<QuestClaim>(`/quests/${seg(questId)}/claim`, send("POST")),
   },
   comments: {
     list: (articleId: number) => request<{ comments: ArticleComment[] }>(`/comments/article/${seg(articleId)}`),

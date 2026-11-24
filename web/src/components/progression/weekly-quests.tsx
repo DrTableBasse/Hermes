@@ -11,7 +11,7 @@ type WeeklyQuestsProps = {
 }
 
 function statusText(q: Quest): string {
-  if (q.status === "claimed") return "Récompense récupérée"
+  if (q.status === "claimed") return "Récompense ajoutée à ton XP"
   if (q.status === "completed") return "Terminée, bien joué"
   return `${formatNumber(q.current_progress)} sur ${formatNumber(q.target_value)}`
 }

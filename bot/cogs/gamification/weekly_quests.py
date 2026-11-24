@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from datetime import date, time, timezone
+from typing import Optional
 from utils.database import quest_manager, db_manager, notification_manager
 from utils.command_manager import command_enabled
 from utils.decorators import administration_only
@@ -28,7 +29,7 @@ class WeeklyQuestsCog(commands.Cog):
 
         embed = hermes_embed(
             title="📋  Défis de la semaine",
-            description="Complète les défis pour gagner de l'XP bonus !",
+            description="Complète les défis : l'XP bonus est ajouté automatiquement !",
             color=Colors.BLUE,
         )
 
@@ -42,11 +43,9 @@ class WeeklyQuestsCog(commands.Cog):
                 bar = progress_bar(q['progress'], q['target_value'], length=8)
                 status = "✅" if q['completed'] else "⏳"
                 if q['xp_claimed']:
-                    xp_tag = " *(XP réclamé)*"
-                elif q['completed']:
-                    xp_tag = f" **(+{q['xp_reward']} XP)**"
+                    xp_tag = f" *(+{q['xp_reward']} XP gagnés)*"
                 else:
-                    xp_tag = ""
+                    xp_tag = f" · +{q['xp_reward']} XP"
                 embed.add_field(
                     name=f"{status} {q['icon']} {q['title']}{xp_tag}",
                     value=f"{q['description']}\n{bar}  ·  {q['progress']}/{q['target_value']}",
@@ -55,55 +54,57 @@ class WeeklyQuestsCog(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="quest-claim", description="Réclamer l'XP d'un défi complété")
-    @command_enabled(guild_specific=True)
-    async def quest_claim(self, interaction: discord.Interaction, quest_id: int):
-        xp = await quest_manager.claim_xp(interaction.user.id, quest_id)
+    async def notify(self, user_id: int, quest: dict):
+        """Défi terminé : la récompense est versée tout de suite, sans action du membre."""
+        await self.grant(user_id, quest)
+
+    async def grant(self, user_id: int, quest: dict) -> Optional[int]:
+        """Verse l'XP d'un défi terminé (une seule fois) puis prévient le membre."""
+        try:
+            xp = await quest_manager.claim_xp(user_id, quest['id'])
+        except Exception as e:
+            logger.warning("quest claim error for %s / %s: %s", user_id, quest.get('id'), e)
+            return None
         if xp is None:
-            await interaction.response.send_message(
-                embed=hermes_embed(
-                    description="❌ Ce défi n'est pas disponible, pas encore complété, ou déjà réclamé.",
-                    color=Colors.RED,
-                ),
-                ephemeral=True,
-            )
-            return
+            return None  # déjà versée
         xp_cog = self.bot.get_cog('XPCog')
         if xp_cog:
-            await xp_cog.award_xp(interaction.user.id, xp, 'quest')
-        await interaction.response.send_message(
-            embed=hermes_embed(
-                description=f"✅ **+{xp} XP** réclamés pour ce défi !",
-                color=Colors.GREEN,
-            ),
-            ephemeral=True,
-        )
-        # Achievement quests_completed
-        try:
-            from utils.database import achievement_manager, db_manager
-            notifier = self.bot.get_cog('AchievementsNotifier')
-            if notifier:
-                total = await db_manager.fetchval(
-                    "SELECT COUNT(*) FROM user_quest_progress WHERE user_id = $1 AND xp_claimed = TRUE",
-                    interaction.user.id,
-                ) or 0
-                unlocked = await achievement_manager.check_and_unlock(
-                    interaction.user.id, 'quests_completed', int(total)
-                )
-                for a in unlocked:
-                    await notifier.notify(interaction.user.id, a['id'])
-        except Exception as e:
-            logger.warning(f"Quest achievement check failed: {e}")
-
-    async def notify(self, user_id: int, quest: dict):
+            await xp_cog.award_xp(user_id, xp, 'quest')
         try:
             await notification_manager.create(
                 user_id, 'quest_complete',
                 f"Défi complété : {quest['title']}",
-                f"+{quest['xp_reward']} XP disponibles — /quest-claim {quest['id']}",
+                f"+{xp} XP ajoutés automatiquement",
             )
         except Exception as e:
             logger.warning("notify quest error for %s: %s", user_id, e)
+        await self._check_quest_achievements(user_id)
+        return xp
+
+    async def _check_quest_achievements(self, user_id: int):
+        try:
+            from utils.database import achievement_manager
+            notifier = self.bot.get_cog('AchievementsNotifier')
+            if notifier:
+                total = await db_manager.fetchval(
+                    "SELECT COUNT(*) FROM user_quest_progress WHERE user_id = $1 AND xp_claimed = TRUE",
+                    user_id,
+                ) or 0
+                unlocked = await achievement_manager.check_and_unlock(
+                    user_id, 'quests_completed', int(total)
+                )
+                for a in unlocked:
+                    await notifier.notify(user_id, a['id'])
+        except Exception as e:
+            logger.warning(f"Quest achievement check failed: {e}")
+
+    async def grant_pending(self) -> int:
+        """Rattrapage : verse les récompenses des défis actifs terminés mais jamais versées."""
+        count = 0
+        for row in await quest_manager.unclaimed_completed():
+            if await self.grant(row['user_id'], dict(row)) is not None:
+                count += 1
+        return count
 
     @app_commands.command(name="reset-quests", description="[Admin] Réinitialiser les quêtes de la semaine")
     @administration_only()
@@ -143,6 +144,12 @@ class WeeklyQuestsCog(commands.Cog):
         # Create quests for the current week if none exist yet
         await quest_manager.create_weekly_quests()
         logger.info("Weekly quests initialized on startup")
+        try:
+            granted = await self.grant_pending()
+            if granted:
+                logger.info("Récompenses de défis rattrapées : %s", granted)
+        except Exception as e:
+            logger.warning("Rattrapage des récompenses de défis échoué : %s", e)
 
 
 async def setup(bot):

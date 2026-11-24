@@ -9,7 +9,6 @@ vi.mock("next/headers", () => ({
 
 const api = vi.hoisted(() => ({ getSessionUser: vi.fn(), getWeeklyQuests: vi.fn() }))
 vi.mock("@/lib/api/server", () => api)
-vi.mock("@/lib/api/client", () => ({ api: { quests: { claim: vi.fn() } } }))
 
 import QuestsPage from "@/app/[locale]/quetes/page"
 
@@ -42,12 +41,13 @@ afterEach(() => {
 })
 
 describe("page /quetes", () => {
-  it("liste les quêtes avec leur avancement et propose la récompense de celle qui est terminée", async () => {
+  it("liste les quêtes avec leur avancement sans bouton de réclamation (récompense automatique)", async () => {
     render(await QuestsPage())
     expect(screen.getByRole("heading", { level: 1, name: "Défis de la semaine" })).toBeTruthy()
     expect(screen.getAllByRole("listitem")).toHaveLength(2)
     expect(screen.getByText("20 sur 50")).toBeTruthy()
-    expect(screen.getAllByRole("button", { name: "Réclamer la récompense" })).toHaveLength(1)
+    expect(screen.queryByRole("button")).toBeNull()
+    expect(screen.getByText("Terminé : Hermes ajoute la récompense à ton XP")).toBeTruthy()
     expect(api.getWeeklyQuests).toHaveBeenCalledWith("tok")
   })
 

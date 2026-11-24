@@ -423,17 +423,26 @@ class QuestManager:
         """, user_id, date.today())
 
     async def claim_xp(self, user_id: int, quest_id: int) -> Optional[int]:
-        row = await self.db.fetchrow("""
-            SELECT uqp.xp_claimed, q.xp_reward FROM user_quest_progress uqp
+        """Marque la récompense d'un défi terminé comme versée et renvoie son XP.
+
+        Atomique : un seul appel concurrent obtient l'XP ; les autres reçoivent None.
+        """
+        return await self.db.fetchval("""
+            UPDATE user_quest_progress uqp SET xp_claimed = TRUE
+            FROM weekly_quests q
+            WHERE q.id = uqp.quest_id AND uqp.user_id = $1 AND uqp.quest_id = $2
+              AND uqp.completed = TRUE AND uqp.xp_claimed = FALSE
+            RETURNING q.xp_reward
+        """, user_id, quest_id)
+
+    async def unclaimed_completed(self) -> List[Dict]:
+        """Défis actifs terminés dont la récompense n'a pas encore été versée."""
+        return await self.db.fetch("""
+            SELECT uqp.user_id, q.id, q.title, q.icon, q.xp_reward, q.target_value
+            FROM user_quest_progress uqp
             JOIN weekly_quests q ON q.id = uqp.quest_id
-            WHERE uqp.user_id = $1 AND uqp.quest_id = $2 AND uqp.completed = TRUE
-        """, user_id, quest_id)
-        if not row or row['xp_claimed']:
-            return None
-        await self.db.execute("""
-            UPDATE user_quest_progress SET xp_claimed = TRUE WHERE user_id = $1 AND quest_id = $2
-        """, user_id, quest_id)
-        return row['xp_reward']
+            WHERE q.is_active = TRUE AND uqp.completed = TRUE AND uqp.xp_claimed = FALSE
+        """)
 
     async def create_weekly_quests(self, count: int = 8, force: bool = False):
         """Pick random templates with category diversity and create quests for the current week."""

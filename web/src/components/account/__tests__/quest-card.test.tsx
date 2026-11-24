@@ -1,9 +1,6 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { cleanup, render, screen } from "@testing-library/react"
+import { afterEach, describe, expect, it } from "vitest"
 import type { Quest } from "@/lib/api/types"
-
-const client = vi.hoisted(() => ({ api: { quests: { claim: vi.fn() } } }))
-vi.mock("@/lib/api/client", () => client)
 
 import { QuestCard } from "@/components/account/quest-card"
 import { StreakBadge } from "@/components/account/streak-badge"
@@ -24,11 +21,8 @@ const quest = (over: Partial<Quest> = {}): Quest => ({
   ...over,
 })
 
-const claim = client.api.quests.claim
-
 afterEach(() => {
   cleanup()
-  vi.clearAllMocks()
 })
 
 const renderCard = (q: Quest) =>
@@ -39,25 +33,10 @@ const renderCard = (q: Quest) =>
   )
 
 describe("QuestCard", () => {
-  it("quête terminée : réclamer appelle l'API avec l'identifiant puis affiche « Récompense réclamée »", async () => {
-    claim.mockResolvedValue({ success: true, xp_reward: 1500 })
+  it("quête terminée : récompense versée automatiquement, aucun bouton à cliquer", () => {
     renderCard(quest())
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Réclamer la récompense" }))
-    })
-    expect(claim).toHaveBeenCalledWith(4)
-    expect(screen.getByText("Récompense réclamée")).toBeTruthy()
+    expect(screen.getByText("Terminé : Hermes ajoute la récompense à ton XP")).toBeTruthy()
     expect(screen.queryByRole("button")).toBeNull()
-  })
-
-  it("échec de la réclamation : alerte, bouton conservé pour réessayer", async () => {
-    claim.mockRejectedValue(new Error("500"))
-    renderCard(quest())
-    await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Réclamer la récompense" }))
-    })
-    expect(screen.getByRole("alert").textContent).toMatch(/pas pu valider/)
-    expect(screen.getByRole("button", { name: "Réclamer la récompense" })).toBeTruthy()
   })
 
   it("quête en cours : progression, pas de bouton", () => {
@@ -67,9 +46,9 @@ describe("QuestCard", () => {
     expect(screen.queryByRole("button")).toBeNull()
   })
 
-  it("quête déjà réclamée : pas de bouton", () => {
+  it("récompense versée : message de confirmation, pas de bouton", () => {
     renderCard(quest({ status: "claimed" }))
-    expect(screen.getByText("Récompense réclamée")).toBeTruthy()
+    expect(screen.getByText("Récompense ajoutée à ton XP")).toBeTruthy()
     expect(screen.queryByRole("button")).toBeNull()
   })
 
