@@ -136,3 +136,13 @@ def test_surcharges_jeu_archive():
 def test_surcharges_sans_role_ni_staff_ni_bot():
     ows = forum_overwrites(EVERYONE, None, [], None, archived=False)
     assert list(ows) == [EVERYONE]
+
+
+def test_dangerous_permissions_pure():
+    import discord
+    from utils.games import has_dangerous_permissions
+    assert not has_dangerous_permissions(discord.Permissions(6479531585))
+    assert not has_dangerous_permissions(discord.Permissions(0))
+    for name in ("administrator", "manage_roles", "mention_everyone", "view_guild_insights",
+                 "moderate_members", "manage_webhooks"):
+        assert has_dangerous_permissions(discord.Permissions(**{name: True})), name

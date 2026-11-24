@@ -24,6 +24,21 @@ LEGACY_FORUM_NAMES: dict[str, str] = {
 }
 
 
+# Permissions qui interdisent de confier un rôle à un jeu (distribué par réaction, pingué).
+# Les permissions anodines (voir, écrire, réagir…) ne bloquent pas.
+DANGEROUS_PERMISSIONS = (
+    "administrator", "manage_guild", "manage_roles", "manage_channels", "manage_messages",
+    "manage_webhooks", "manage_nicknames", "manage_expressions", "manage_events",
+    "manage_threads", "kick_members", "ban_members", "moderate_members", "mention_everyone",
+    "view_audit_log", "view_guild_insights",
+)
+
+
+def has_dangerous_permissions(permissions: discord.Permissions) -> bool:
+    """Vrai si ``permissions`` contient au moins une permission de ``DANGEROUS_PERMISSIONS``."""
+    return any(getattr(permissions, name) for name in DANGEROUS_PERMISSIONS)
+
+
 def forum_name(key: str) -> str:
     """Nom du forum d'un jeu : ancien nom pour les six jeux historiques, sinon sa clé."""
     return LEGACY_FORUM_NAMES.get(key, key)

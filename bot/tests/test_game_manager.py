@@ -1156,3 +1156,47 @@ def test_resync_tous_en_echec_erreur_relancee(make):
 
     with pytest.raises(discord.Forbidden):
         run(scenario)
+
+
+BENIGN = 6479531585  # annonces globales / streams : voir, écrire, réagir… sans droit de gestion
+
+
+def test_permissions_anodines_acceptees_par_reactions_et_provision(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        e.guild.roles[0] = FakeRole(100, "Dead by Daylight", permissions=BENIGN)
+        rr, _ = reaction_env(e)
+        role = rr._role_for(e.guild, LEGACY[0][-1])
+        result = await e.gm.provision(LEGACY[0][0])
+        return role, result
+
+    role, result = run(scenario)
+    assert role is not None and role.id == 100
+    assert result["created"] == []
+
+
+@pytest.mark.parametrize("perm", ["manage_roles", "administrator"])
+def test_permission_dangereuse_refusee_par_reactions(make, perm):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        e.guild.roles[0] = FakeRole(100, "Dead by Daylight",
+                                    permissions=discord.Permissions(**{perm: True}).value)
+        rr, _ = reaction_env(e)
+        return rr._role_for(e.guild, LEGACY[0][-1])
+
+    assert run(scenario) is None
+
+
+def test_roles_de_notification_toujours_distribues(make):
+    async def scenario():
+        e = make()
+        await e.gm.cog_load()
+        e.guild.roles.extend(FakeRole(900 + i, n, permissions=BENIGN)
+                             for i, n in enumerate(rr_module.NOTIFICATION_ROLES.values()))
+        rr, _ = reaction_env(e)
+        return [rr._role_for(e.guild, em) for em in rr_module.NOTIFICATION_ROLES]
+
+    roles = run(scenario)
+    assert [r.id for r in roles] == [900, 901, 902]

@@ -22,7 +22,7 @@ from utils import settings
 from utils.command_manager import command_enabled
 from utils.database import db_manager
 from utils.embed_style import Colors, hermes_embed
-from utils.games import DEFAULT_LFG_COOLDOWN, forum_name, forum_overwrites
+from utils.games import DEFAULT_LFG_COOLDOWN, forum_name, forum_overwrites, has_dangerous_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def _unsafe_role_reason(guild: discord.Guild, role: discord.Role) -> str | None:
         return "il est géré par une intégration"
     if role.position >= guild.me.top_role.position:
         return "il n'est pas sous le rôle le plus haut du bot"
-    if role.permissions.value != 0:
+    if has_dangerous_permissions(role.permissions):
         return "il donne des permissions"
     return None
 
