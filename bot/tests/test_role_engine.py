@@ -115,8 +115,10 @@ class FakeDB:
         if "UPDATE role_rules SET role_id" in sql:
             role_id, rule_id = args
             for r in self.rules:
-                if r["id"] == rule_id:
+                if r["id"] == rule_id and r["role_id"] is None:
                     r["role_id"] = role_id
+                    if "create_role_name = NULL" in sql:
+                        r["create_role_name"] = r["create_role_color"] = None
 
 
 @pytest.fixture
@@ -284,6 +286,22 @@ def test_achievement_unlock_reuses_existing_role_with_same_name(env, monkeypatch
     assert e.guild.created == []
     assert e.db.rules[0]["role_id"] == 77
     assert member.calls == [("add", 77)]
+
+
+def test_resolved_rule_keeps_only_role_id(env, monkeypatch):
+    """I1 : une règle résolue n'a plus de create_role_name (sinon web-api la refuse en 422)."""
+    async def scenario():
+        e = _notifier_env(env, monkeypatch)
+        member = e.guild.member(7)
+        await notifier_module.AchievementsNotifier(e.bot).notify(7, 3)
+        return e
+
+    e = run(scenario)
+    row = e.db.rules[0]
+    assert row["role_id"] is not None
+    assert row["create_role_name"] is None and row["create_role_color"] is None
+    rule = e.engine._rules[0]
+    assert rule.create_role_name is None and rule.create_role_color is None
 
 
 @pytest.mark.parametrize("homonym", [

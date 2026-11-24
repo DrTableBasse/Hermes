@@ -167,11 +167,14 @@ class RoleEngine(commands.Cog):
                 actor_id=self._bot_id(), actor_name=self._bot_name(),
                 target_id=role.id, target_name=role.name, details={"rule_id": rule.id},
             )
+        # Une règle résolue ne garde que role_id : « l'un ou l'autre » (I1, web-api le vérifie).
         await db_manager.execute(
-            "UPDATE role_rules SET role_id = $1, updated_at = NOW() WHERE id = $2 AND role_id IS NULL",
+            "UPDATE role_rules SET role_id = $1, create_role_name = NULL, create_role_color = NULL, "
+            "updated_at = NOW() WHERE id = $2 AND role_id IS NULL",
             role.id, rule.id,
         )
         rule.role_id = role.id
+        rule.create_role_name = rule.create_role_color = None
 
     def _bot_id(self) -> int | None:
         return getattr(getattr(self.bot, "user", None), "id", None)

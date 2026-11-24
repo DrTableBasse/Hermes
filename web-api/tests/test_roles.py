@@ -731,3 +731,15 @@ def test_apply_unresolved_rule_named_like_role_above_actor_is_403(client, fake_d
     session_with({"roles.manage"})
     assert client.post("/admin/role-rules/1/apply", json={"confirm": True}).status_code == 403
     assert _writes(bot) == []
+
+
+# ── I1 : règle de succès résolue par le bot ────────────────────────────────
+
+def test_patch_reconcile_on_resolved_achievement_rule(client, fake_db, bot, rules, session_with):
+    # Le bot a renseigné role_id et vidé create_role_name/create_role_color.
+    rules["add"](condition_type="achievement", condition_value="3", role_id=200)
+    session_with({"roles.manage"})
+    r = client.patch("/admin/role-rules/1", json={"reconcile": True, "preview_seen": True})
+    assert r.status_code == 200, r.json()
+    assert rules["store"][1]["reconcile"] is True
+    assert client.patch("/admin/role-rules/1", json={"active": False}).status_code == 200
