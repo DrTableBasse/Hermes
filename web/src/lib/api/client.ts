@@ -4,6 +4,16 @@
  */
 import type {
   AccessUpdateResult,
+  BulkRolesInput,
+  ManagedRole,
+  RoleInput,
+  RoleJob,
+  RoleRuleApplyInput,
+  RoleRuleInput,
+  RoleRulePreview,
+  RoleRuleUpdateResult,
+  RoleRuleWriteResult,
+  RolesOverview,
   ActiveQuest,
   AuditFacets,
   AuditFilters,
@@ -148,6 +158,27 @@ export const api = {
     auditFacets: () => request<AuditFacets>("/admin/audit/facets"),
     putAccess: (roleId: Snowflake, permissions: string[]) =>
       request<AccessUpdateResult>(`/admin/access/${seg(roleId)}`, send("PUT", { permissions })),
+    roles: () => request<RolesOverview>("/admin/roles"),
+    createRole: (data: RoleInput) => request<ManagedRole>("/admin/roles", send("POST", data)),
+    updateRole: (roleId: Snowflake, data: Partial<RoleInput>) =>
+      request<ManagedRole>(`/admin/roles/${seg(roleId)}`, send("PATCH", data)),
+    deleteRole: (roleId: Snowflake, confirmMembers: number) =>
+      request<Ok>(`/admin/roles/${seg(roleId)}`, send("DELETE", { confirm_members: confirmMembers })),
+    addMemberRole: (userId: Snowflake, roleId: Snowflake) =>
+      request<Ok>(`/admin/members/${seg(userId)}/roles/${seg(roleId)}`, send("POST")),
+    removeMemberRole: (userId: Snowflake, roleId: Snowflake) =>
+      request<Ok>(`/admin/members/${seg(userId)}/roles/${seg(roleId)}`, send("DELETE")),
+    bulkRoles: (roleId: Snowflake, data: BulkRolesInput) =>
+      request<{ job_id: string }>(`/admin/roles/${seg(roleId)}/bulk`, send("POST", data)),
+    job: (jobId: string) => request<RoleJob>(`/admin/jobs/${seg(jobId)}`),
+    createRoleRule: (data: RoleRuleInput) => request<RoleRuleWriteResult>("/admin/role-rules", send("POST", data)),
+    updateRoleRule: (id: number, data: Partial<RoleRuleInput> & { reconcile?: boolean; preview_seen?: boolean }) =>
+      request<RoleRuleUpdateResult>(`/admin/role-rules/${seg(id)}`, send("PATCH", data)),
+    deleteRoleRule: (id: number) =>
+      request<{ ok: boolean; reloaded: boolean }>(`/admin/role-rules/${seg(id)}`, send("DELETE")),
+    previewRoleRule: (id: number) => request<RoleRulePreview>(`/admin/role-rules/${seg(id)}/preview`),
+    applyRoleRule: (id: number, data: RoleRuleApplyInput) =>
+      request<{ job_id: string; remove_job_id: string | null }>(`/admin/role-rules/${seg(id)}/apply`, send("POST", data)),
     searchUsers: (q: string) => request<{ users: UserSearchResult[] }>(`/admin/users/search${query({ q })}`),
     settings: () => request<SettingsResponse>("/admin/settings"),
     putSetting: (key: string, value: string) =>

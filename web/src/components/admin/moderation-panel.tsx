@@ -11,8 +11,11 @@ import { WarnsList } from "./warns-list"
 /** Ancre de la fiche membre (une seule par page) : cible des liens du journal. */
 const INSPECTOR_ID = "fiche-membre"
 
-/** `canAct` faux (droit `moderation.act` absent) : consultation seule, aucune action de sanction. */
-export function ModerationPanel({ canAct }: { canAct: boolean }) {
+/**
+ * `canAct` faux (droit `moderation.act` absent) : consultation seule, aucune action de sanction.
+ * `canManageRoles` (droit `members.roles`) : la fiche d'un membre permet de lui donner ou retirer un rôle.
+ */
+export function ModerationPanel({ canAct, canManageRoles = false }: { canAct: boolean; canManageRoles?: boolean }) {
   const [target, setTarget] = useState<UserSearchResult | null>(null)
   // Membre ouvert dans la fiche : choisi dans la fiche ou depuis un lien du journal.
   const [inspected, setInspected] = useState<UserSearchResult | null>(null)
@@ -33,6 +36,7 @@ export function ModerationPanel({ canAct }: { canAct: boolean }) {
           onMember={setInspected}
           refreshKey={revision}
           onSanction={canAct ? setTarget : undefined}
+          canManageRoles={canManageRoles}
         />
         <WarnsList refreshKey={revision} canAct={canAct} />
       </div>

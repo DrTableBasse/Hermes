@@ -16,6 +16,8 @@ export const ADMIN_SECTIONS = [
   { href: "/admin/jeux", label: "Jeux", permission: "games.manage" },
   { href: "/admin/contenus", label: "Contenus", permission: "content.edit" },
   { href: "/admin/analytique", label: "Analytique", permission: "analytics.view" },
+  { href: "/admin/roles", label: "Rôles", permission: "roles.manage" },
+  { href: "/admin/regles", label: "Règles", permission: "roles.manage" },
   { href: "/admin/acces", label: "Accès", permission: "permissions.manage" },
 ] as const satisfies ReadonlyArray<{ href: string; label: string; permission: SitePermission }>
 

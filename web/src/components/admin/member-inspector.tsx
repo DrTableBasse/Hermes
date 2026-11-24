@@ -5,10 +5,10 @@ import { Avatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/ui/panel"
 import { api } from "@/lib/api/client"
-import type { UserSearchResult, UserStats, Warn } from "@/lib/api/types"
+import type { ManagedRole, UserSearchResult, UserStats, Warn } from "@/lib/api/types"
 import { formatNumber } from "@/lib/format"
 import { ConfirmButton } from "./confirm-button"
-import { adminErrorText } from "./form"
+import { adminErrorText, FIELD, LABEL } from "./form"
 import { UserSearchInput } from "./user-search-input"
 import { warnDate } from "./warns-list"
 
@@ -25,10 +25,12 @@ type Props = {
   refreshKey: number
   /** Absent sans le droit `moderation.act` : ni « Sanctionner » ni « Retirer ». */
   onSanction?: (user: UserSearchResult) => void
+  /** Droit `members.roles` : donner ou retirer un rôle au membre ouvert. */
+  canManageRoles?: boolean
 }
 
 /** Fiche d'un membre : statistiques, sanctions (supprimables après confirmation), succès. */
-export function MemberInspector({ id, member, onMember, refreshKey, onSanction }: Props) {
+export function MemberInspector({ id, member, onMember, refreshKey, onSanction, canManageRoles = false }: Props) {
   const ids = useId()
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [warnError, setWarnError] = useState<string | null>(null)
@@ -132,6 +134,13 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction }
               </ul>
             )}
           </div>
+          {canManageRoles && (
+            <MemberRoles
+              key={member.user_id}
+              userId={member.user_id}
+              name={data.profile.user.nickname ?? data.profile.user.username}
+            />
+          )}
           {data.profile.achievements.length > 0 && (
             <p className="m-0 text-sm text-muted">
               {data.profile.achievements.length} succès débloqué{data.profile.achievements.length > 1 ? "s" : ""} :{" "}
@@ -141,5 +150,99 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction }
         </div>
       )}
     </Panel>
+  )
+}
+
+type RolesLoad = { status: "loading" } | { status: "error"; text: string } | { status: "ok"; roles: ManagedRole[] }
+
+/**
+ * Donner ou retirer au membre un rôle gérable (sous l'acteur et sous Hermes). La fiche ne connaît pas
+ * les rôles actuels du membre : donner un rôle déjà porté, ou retirer un rôle absent, ne change rien.
+ */
+function MemberRoles({ userId, name }: { userId: string; name: string }) {
+  const ids = useId()
+  const [load, setLoad] = useState<RolesLoad>({ status: "loading" })
+  const [roleId, setRoleId] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [success, setSuccess] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    api.admin
+      .roles()
+      .then(data => alive && setLoad({ status: "ok", roles: data.roles.filter(r => r.editable) }))
+      .catch(e => alive && setLoad({ status: "error", text: adminErrorText(e) }))
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const role = load.status === "ok" ? load.roles.find(r => r.id === roleId) : undefined
+
+  async function change(add: boolean) {
+    if (!role) return
+    setBusy(true)
+    setSuccess("")
+    setError(null)
+    try {
+      await (add ? api.admin.addMemberRole(userId, role.id) : api.admin.removeMemberRole(userId, role.id))
+      setSuccess(`Rôle « ${role.name} » ${add ? "donné à" : "retiré à"} ${name}.`)
+    } catch (e) {
+      setError(adminErrorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <fieldset className="m-0 grid gap-2 border-0 p-0">
+      <legend className="mb-1 p-0 text-sm font-semibold text-muted">Rôles du membre</legend>
+      {load.status === "loading" && <p className="m-0 text-sm text-muted">Chargement des rôles…</p>}
+      {load.status === "error" && (
+        <p role="alert" className="m-0 text-sm text-orange">
+          {load.text}
+        </p>
+      )}
+      {load.status === "ok" && (
+        <>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="grid min-w-48 flex-1 gap-1.5">
+              <label htmlFor={`${ids}-role`} className={LABEL}>
+                Rôle
+              </label>
+              <select id={`${ids}-role`} className={FIELD} value={roleId} onChange={e => setRoleId(e.target.value)}>
+                <option value="">Choisir un rôle</option>
+                {load.roles.map(r => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button size="sm" disabled={!role || busy} onClick={() => void change(true)}>
+              Donner
+            </Button>
+            <ConfirmButton
+              question={`Retirer « ${role?.name ?? ""} » à ${name} ?`}
+              confirmLabel="Retirer"
+              disabled={!role || busy}
+              onConfirm={() => change(false)}
+            >
+              Retirer
+            </ConfirmButton>
+          </div>
+          <p className="m-0 text-xs text-muted">Seuls les rôles sous le vôtre et sous celui d’Hermes sont proposés.</p>
+          <p role="status" className="m-0 text-sm text-green">
+            {success}
+          </p>
+          {error && (
+            <p role="alert" className="m-0 text-sm text-orange">
+              {error}
+            </p>
+          )}
+        </>
+      )}
+    </fieldset>
   )
 }

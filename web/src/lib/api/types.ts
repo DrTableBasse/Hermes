@@ -849,3 +849,113 @@ export interface AnalyticsData {
   top_xp_weekly: Array<{ username: string; weekly_xp: number }>
   summary: { active_members: number; total_messages: number; warns_30d: number; quests_done_7d: number }
 }
+
+// ── Rôles et règles automatiques : /admin/roles, /admin/role-rules, /admin/jobs ─
+
+/** Rôle du serveur vu par la gestion des rôles (`GET /admin/roles`). */
+export interface ManagedRole {
+  id: Snowflake
+  name: string
+  color: number
+  position: number
+  /** Géré par une intégration : jamais modifiable ni attribuable. */
+  managed: boolean
+  /** Porteurs du rôle (bots compris). */
+  members: number
+  /** Strictement sous le rôle le plus haut du bot. */
+  below_bot: boolean
+  /** Non géré par une intégration, sous le bot, sous l'acteur (ou acteur propriétaire). */
+  editable: boolean
+}
+
+export interface RolesOverview {
+  roles: ManagedRole[]
+  actor: { top_position: number; is_owner: boolean; permissions: string[] }
+}
+
+export interface RoleInput {
+  name: string
+  color: number
+}
+
+/** Lot : exactement une source, `confirm_count` = nombre affiché. */
+export type BulkRolesInput = { action: "add" | "remove"; confirm_count: number } & (
+  | { user_ids: Snowflake[] }
+  | { from_role_id: Snowflake }
+)
+
+/** État d'un travail du bot ; `added`… présents pour l'application d'une règle. */
+export interface RoleJob {
+  state: "running" | "done" | "interrupted" | "failed"
+  done: number
+  total: number
+  errors: number
+  added?: number
+  removed?: number
+  skipped?: number
+  missing_role?: boolean
+}
+
+export type RoleRuleCondition =
+  | "voice_hours"
+  | "messages"
+  | "level"
+  | "grade"
+  | "achievement"
+  | "streak_days"
+  | "bumps"
+  | "invites"
+
+export interface RoleRule {
+  id: number
+  condition_type: RoleRuleCondition
+  condition_value: string
+  role_id: Snowflake | null
+  /** Ancien rôle mémorisé au dernier changement de rôle (seul retirable par « apply »). */
+  previous_role_id: Snowflake | null
+  create_role_name: string | null
+  create_role_color: number | null
+  remove_when_lost: boolean
+  exclusive_group: string | null
+  active: boolean
+  /** Faux : mode aperçu (seule l'évaluation à l'évènement agit). */
+  reconcile: boolean
+  role_name: string | null
+  /** Le rôle cible n'existe plus sur le serveur. */
+  missing_role: boolean
+  achievement_name?: string | null
+}
+
+export interface RoleRuleInput {
+  condition_type: RoleRuleCondition
+  condition_value: string
+  role_id?: Snowflake | null
+  create_role_name?: string | null
+  create_role_color?: number | null
+  remove_when_lost?: boolean
+  exclusive_group?: string | null
+  active?: boolean
+}
+
+export interface RoleRuleWriteResult {
+  rule: RoleRule
+  /** Faux : Hermes n'a pas rechargé ses règles (effet à son redémarrage). */
+  reloaded: boolean
+}
+
+export interface RoleRuleUpdateResult extends RoleRuleWriteResult {
+  /** Renseigné quand le rôle de la règle a changé. */
+  previous_role: { id: Snowflake; name: string; members: number } | null
+}
+
+export interface RoleRulePreview {
+  gain: Array<{ id: Snowflake; name: string }>
+  lose: Array<{ id: Snowflake; name: string }>
+  missing_role: boolean
+}
+
+export interface RoleRuleApplyInput {
+  confirm: true
+  remove_previous_role_id?: Snowflake
+  confirm_previous_members?: number
+}

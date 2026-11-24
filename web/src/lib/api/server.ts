@@ -12,6 +12,8 @@ import type {
   DiscordChannel,
   DiscordRole,
   QuestTemplate,
+  RoleRule,
+  RolesOverview,
   SettingsResponse,
   AchievementEntry,
   AchievementWithStatus,
@@ -309,6 +311,15 @@ export const getAdminAccess = (token: string) => apiGetOrNull<AccessOverview>("/
 
 /** Rôles du serveur. */
 export const getDiscordRoles = (token: string) => discordList<DiscordRole>("/admin/discord/roles", "roles", token)
+
+/** Rôles gérables et rang de l'acteur (`roles.manage` ou `members.roles`). */
+export const getAdminRoles = (token: string) => apiGetOrNull<RolesOverview>("/admin/roles", { token })
+
+/** Règles automatiques de rôles (`roles.manage`) ; `null` si illisibles. */
+export async function getRoleRules(token: string): Promise<RoleRule[] | null> {
+  const data = await apiGetOrNull<{ rules: RoleRule[] }>("/admin/role-rules", { token })
+  return data ? data.rules : null
+}
 
 export async function getAdminGames(token: string): Promise<AdminGame[] | null> {
   const data = await apiGetOrNull<{ games: AdminGame[] }>("/admin/games", { token })
