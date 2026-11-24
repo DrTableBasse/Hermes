@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field, StringConstraints
 
 import database as db
 from actor_rank import actor_rank, outranks
-from middleware.auth_middleware import get_current_user, require_any_permission, require_permission
+from middleware.auth_middleware import (get_current_user, has_permission, require_any_permission,
+                                       require_permission)
 from routes import admin
 
 router = APIRouter(prefix="/admin", tags=["roles"])
@@ -230,6 +231,25 @@ async def _member_role(action: str, method: str, user_id: int, role_id: int, use
                               {"actor_name": await _actor_name(user)}, details=details, target_id=user_id)
     await admin._log(action, actor_id, user_id, details)
     return result
+
+
+@router.get("/members/{user_id}/roles")
+async def member_roles(user_id: int, user: dict = Depends(get_current_user)):
+    """Rôles portés par un membre (R14), du plus haut au plus bas ; 404 s'il a quitté le serveur.
+
+    ``editable`` : l'acteur peut retirer ce rôle (``members.roles`` et anti-escalade). La fiche de
+    modération (``moderation.view``) les voit en lecture seule.
+    """
+    require_any_permission(user, "members.roles", "moderation.view")
+    held = set((await admin._bot("get", f"/discord/members/{user_id}/rank"))["role_ids"])
+    actor = await actor_rank(user)
+    can_give = has_permission(user, "members.roles")
+    roles = sorted((r for r in await _roles() if r["id"] in held), key=lambda r: -r["position"])
+    return {"roles": [
+        {**{k: r[k] for k in ("id", "name", "color", "position", "managed")},
+         "editable": can_give and _role_refusal(actor, r) is None}
+        for r in roles
+    ]}
 
 
 @router.post("/members/{user_id}/roles/{role_id}")

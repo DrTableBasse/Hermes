@@ -868,6 +868,17 @@ export interface ManagedRole {
   editable: boolean
 }
 
+/** Rôle porté par un membre (`GET /admin/members/{id}/roles`), du plus haut au plus bas. */
+export interface MemberRole {
+  id: Snowflake
+  name: string
+  color: number
+  position: number
+  managed: boolean
+  /** L'acteur peut le retirer (`members.roles`, sous lui et sous le bot, non géré par une intégration). */
+  editable: boolean
+}
+
 export interface RolesOverview {
   roles: ManagedRole[]
   actor: { top_position: number; is_owner: boolean; permissions: string[] }

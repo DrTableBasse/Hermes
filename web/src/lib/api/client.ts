@@ -6,6 +6,7 @@ import type {
   AccessUpdateResult,
   BulkRolesInput,
   ManagedRole,
+  MemberRole,
   RoleInput,
   RoleJob,
   RoleRuleApplyInput,
@@ -164,6 +165,7 @@ export const api = {
       request<ManagedRole>(`/admin/roles/${seg(roleId)}`, send("PATCH", data)),
     deleteRole: (roleId: Snowflake, confirmMembers: number) =>
       request<Ok>(`/admin/roles/${seg(roleId)}`, send("DELETE", { confirm_members: confirmMembers })),
+    memberRoles: (userId: Snowflake) => request<{ roles: MemberRole[] }>(`/admin/members/${seg(userId)}/roles`),
     addMemberRole: (userId: Snowflake, roleId: Snowflake) =>
       request<Ok>(`/admin/members/${seg(userId)}/roles/${seg(roleId)}`, send("POST")),
     removeMemberRole: (userId: Snowflake, roleId: Snowflake) =>

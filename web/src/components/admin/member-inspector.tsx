@@ -4,8 +4,8 @@ import { useEffect, useId, useState } from "react"
 import { Avatar } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Panel } from "@/components/ui/panel"
-import { api } from "@/lib/api/client"
-import type { ManagedRole, UserSearchResult, UserStats, Warn } from "@/lib/api/types"
+import { api, ApiError } from "@/lib/api/client"
+import type { ManagedRole, MemberRole, UserSearchResult, UserStats, Warn } from "@/lib/api/types"
 import { formatNumber } from "@/lib/format"
 import { ConfirmButton } from "./confirm-button"
 import { adminErrorText, FIELD, LABEL } from "./form"
@@ -25,7 +25,7 @@ type Props = {
   refreshKey: number
   /** Absent sans le droit `moderation.act` : ni « Sanctionner » ni « Retirer ». */
   onSanction?: (user: UserSearchResult) => void
-  /** Droit `members.roles` : donner ou retirer un rôle au membre ouvert. */
+  /** Droit `members.roles` : donner ou retirer un rôle au membre ouvert (sinon rôles en lecture seule). */
   canManageRoles?: boolean
 }
 
@@ -134,13 +134,12 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction, 
               </ul>
             )}
           </div>
-          {canManageRoles && (
-            <MemberRoles
-              key={member.user_id}
-              userId={member.user_id}
-              name={data.profile.user.nickname ?? data.profile.user.username}
-            />
-          )}
+          <MemberRoles
+            key={member.user_id}
+            userId={member.user_id}
+            name={data.profile.user.nickname ?? data.profile.user.username}
+            canManage={canManageRoles}
+          />
           {data.profile.achievements.length > 0 && (
             <p className="m-0 text-sm text-muted">
               {data.profile.achievements.length} succès débloqué{data.profile.achievements.length > 1 ? "s" : ""} :{" "}
@@ -153,15 +152,24 @@ export function MemberInspector({ id, member, onMember, refreshKey, onSanction, 
   )
 }
 
-type RolesLoad = { status: "loading" } | { status: "error"; text: string } | { status: "ok"; roles: ManagedRole[] }
+type RolesLoad =
+  | { status: "loading" }
+  | { status: "error"; text: string }
+  | { status: "gone" }
+  | { status: "ok"; held: MemberRole[]; givable: ManagedRole[] }
+
+/** Couleur Discord en CSS ; 0 = rôle sans couleur. */
+const swatch = (color: number) => (color ? `#${color.toString(16).padStart(6, "0")}` : "currentColor")
 
 /**
- * Donner ou retirer au membre un rôle gérable (sous l'acteur et sous Hermes). La fiche ne connaît pas
- * les rôles actuels du membre : donner un rôle déjà porté, ou retirer un rôle absent, ne change rien.
+ * Rôles portés par le membre (R14). Avec `members.roles` : « Retirer » sur les rôles gérables portés
+ * (après confirmation) et « Donner » parmi les rôles gérables non portés ; la liste est relue après
+ * chaque action. Sans ce droit : lecture seule.
  */
-function MemberRoles({ userId, name }: { userId: string; name: string }) {
+function MemberRoles({ userId, name, canManage }: { userId: string; name: string; canManage: boolean }) {
   const ids = useId()
   const [load, setLoad] = useState<RolesLoad>({ status: "loading" })
+  const [revision, setRevision] = useState(0)
   const [roleId, setRoleId] = useState("")
   const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState("")
@@ -169,25 +177,35 @@ function MemberRoles({ userId, name }: { userId: string; name: string }) {
 
   useEffect(() => {
     let alive = true
-    api.admin
-      .roles()
-      .then(data => alive && setLoad({ status: "ok", roles: data.roles.filter(r => r.editable) }))
-      .catch(e => alive && setLoad({ status: "error", text: adminErrorText(e) }))
+    Promise.all([
+      api.admin.memberRoles(userId),
+      canManage ? api.admin.roles().then(d => d.roles.filter(r => r.editable)) : Promise.resolve([] as ManagedRole[]),
+    ])
+      .then(([held, editable]) => {
+        if (!alive) return
+        const heldIds = new Set(held.roles.map(r => r.id))
+        setLoad({ status: "ok", held: held.roles, givable: editable.filter(r => !heldIds.has(r.id)) })
+      })
+      .catch(e => {
+        if (!alive) return
+        setLoad(e instanceof ApiError && e.status === 404 ? { status: "gone" } : { status: "error", text: adminErrorText(e) })
+      })
     return () => {
       alive = false
     }
-  }, [])
+  }, [userId, canManage, revision])
 
-  const role = load.status === "ok" ? load.roles.find(r => r.id === roleId) : undefined
+  const toGive = load.status === "ok" ? load.givable.find(r => r.id === roleId) : undefined
 
-  async function change(add: boolean) {
-    if (!role) return
+  async function change(role: { id: string; name: string }, add: boolean) {
     setBusy(true)
     setSuccess("")
     setError(null)
     try {
       await (add ? api.admin.addMemberRole(userId, role.id) : api.admin.removeMemberRole(userId, role.id))
       setSuccess(`Rôle « ${role.name} » ${add ? "donné à" : "retiré à"} ${name}.`)
+      setRoleId("")
+      setRevision(r => r + 1)
     } catch (e) {
       setError(adminErrorText(e))
     } finally {
@@ -199,6 +217,7 @@ function MemberRoles({ userId, name }: { userId: string; name: string }) {
     <fieldset className="m-0 grid gap-2 border-0 p-0">
       <legend className="mb-1 p-0 text-sm font-semibold text-muted">Rôles du membre</legend>
       {load.status === "loading" && <p className="m-0 text-sm text-muted">Chargement des rôles…</p>}
+      {load.status === "gone" && <p className="m-0 text-sm text-muted">Ce membre n’est plus sur le serveur.</p>}
       {load.status === "error" && (
         <p role="alert" className="m-0 text-sm text-orange">
           {load.text}
@@ -206,42 +225,62 @@ function MemberRoles({ userId, name }: { userId: string; name: string }) {
       )}
       {load.status === "ok" && (
         <>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="grid min-w-48 flex-1 gap-1.5">
-              <label htmlFor={`${ids}-role`} className={LABEL}>
-                Rôle
-              </label>
-              <select id={`${ids}-role`} className={FIELD} value={roleId} onChange={e => setRoleId(e.target.value)}>
-                <option value="">Choisir un rôle</option>
-                {load.roles.map(r => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <Button size="sm" disabled={!role || busy} onClick={() => void change(true)}>
-              Donner
-            </Button>
-            <ConfirmButton
-              question={`Retirer « ${role?.name ?? ""} » à ${name} ?`}
-              confirmLabel="Retirer"
-              disabled={!role || busy}
-              onConfirm={() => change(false)}
-            >
-              Retirer
-            </ConfirmButton>
-          </div>
-          <p className="m-0 text-xs text-muted">Seuls les rôles sous le vôtre et sous celui d’Hermes sont proposés.</p>
-          <p role="status" className="m-0 text-sm text-green">
-            {success}
-          </p>
-          {error && (
-            <p role="alert" className="m-0 text-sm text-orange">
-              {error}
-            </p>
+          {load.held.length === 0 ? (
+            <p className="m-0 text-sm text-muted">Aucun rôle.</p>
+          ) : (
+            <ul aria-label="Rôles portés" className="m-0 flex list-none flex-wrap gap-2 p-0">
+              {load.held.map(r => (
+                <li key={r.id} className="flex items-center gap-2 rounded-full border border-line py-1 pl-3 pr-1 text-sm">
+                  <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full" style={{ background: swatch(r.color) }} />
+                  {r.name}
+                  {canManage && r.editable && (
+                    <ConfirmButton
+                      question={`Retirer « ${r.name} » à ${name} ?`}
+                      confirmLabel="Retirer"
+                      disabled={busy}
+                      onConfirm={() => change(r, false)}
+                    >
+                      Retirer
+                    </ConfirmButton>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {canManage && (
+            <>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="grid min-w-48 flex-1 gap-1.5">
+                  <label htmlFor={`${ids}-role`} className={LABEL}>
+                    Rôle à donner
+                  </label>
+                  <select id={`${ids}-role`} className={FIELD} value={roleId} onChange={e => setRoleId(e.target.value)}>
+                    <option value="">Choisir un rôle</option>
+                    {load.givable.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button size="sm" disabled={!toGive || busy} onClick={() => toGive && void change(toGive, true)}>
+                  Donner
+                </Button>
+              </div>
+              <p className="m-0 text-xs text-muted">Seuls les rôles sous le vôtre et sous celui d’Hermes sont proposés.</p>
+            </>
           )}
         </>
+      )}
+      {canManage && (
+        <p role="status" className="m-0 text-sm text-green">
+          {success}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="m-0 text-sm text-orange">
+          {error}
+        </p>
       )}
     </fieldset>
   )

@@ -23,6 +23,7 @@ const client = vi.hoisted(() => ({
       job: vi.fn(),
       addMemberRole: vi.fn(),
       removeMemberRole: vi.fn(),
+      memberRoles: vi.fn(),
     },
   },
   ApiError: class ApiError extends Error {
@@ -361,30 +362,56 @@ describe("fiche d’un membre : rôles", () => {
     client.api.admin.getWarns.mockResolvedValue({ warns: [] })
   })
 
-  it("sans members.roles : aucune gestion des rôles", async () => {
+  const held = (...roles: Array<[string, string, boolean]>) => ({
+    roles: roles.map(([id, name, editable], i) => ({ id, name, color: 0x9b59b6, position: 20 - i, managed: false, editable })),
+  })
+
+  it("sans members.roles : rôles portés en lecture seule", async () => {
+    client.api.admin.memberRoles.mockResolvedValue(held(["900", "Chef", false], ["400", "Fortnite", false]))
     render(<MemberInspector member={CAM} onMember={vi.fn()} refreshKey={0} />)
-    await screen.findByText("Aucune sanction enregistrée.")
-    expect(screen.queryByRole("group", { name: "Rôles du membre" })).toBeNull()
+    const g = within(await screen.findByRole("group", { name: "Rôles du membre" }))
+    const list = within(await g.findByRole("list", { name: "Rôles portés" }))
+    expect(list.getAllByRole("listitem").map(li => li.textContent)).toEqual(["Chef", "Fortnite"])
+    expect(g.queryByRole("button")).toBeNull()
+    expect(g.queryByRole("combobox")).toBeNull()
     expect(client.api.admin.roles).not.toHaveBeenCalled()
   })
 
-  it("donner puis retirer un rôle gérable ; succès annoncé", async () => {
+  it("rôles portés : « Retirer » sur les seuls gérables, « Donner » propose les gérables non portés", async () => {
+    client.api.admin.memberRoles.mockResolvedValue(held(["900", "Chef", false], ["400", "Fortnite", true]))
     client.api.admin.addMemberRole.mockResolvedValue({ ok: true })
     client.api.admin.removeMemberRole.mockResolvedValue({ ok: true })
     render(<MemberInspector member={CAM} onMember={vi.fn()} refreshKey={0} canManageRoles />)
     const g = within(await screen.findByRole("group", { name: "Rôles du membre" }))
-    const select = (await g.findByRole("option", { name: "Fortnite" })).closest("select") as HTMLSelectElement
-    expect(within(select).getAllByRole("option").map(o => o.textContent)).toEqual(["Choisir un rôle", "Fortnite", "Rédacteur"])
-    fireEvent.change(select, { target: { value: "400" } })
+    const list = within(await g.findByRole("list", { name: "Rôles portés" }))
+    const chef = within(list.getByText("Chef").closest("li") as HTMLElement)
+    expect(chef.queryByRole("button")).toBeNull()
+    const select = (await g.findByRole("option", { name: "Rédacteur" })).closest("select") as HTMLSelectElement
+    expect(within(select).getAllByRole("option").map(o => o.textContent)).toEqual(["Choisir un rôle", "Rédacteur"])
+
+    fireEvent.change(select, { target: { value: "350" } })
     fireEvent.click(g.getByRole("button", { name: "Donner" }))
-    await waitFor(() => expect(g.getByRole("status").textContent).toBe("Rôle « Fortnite » donné à Cam."))
-    expect(client.api.admin.addMemberRole).toHaveBeenCalledWith("11", "400")
-    await confirm(g, "Retirer", "Retirer")
+    await waitFor(() => expect(g.getByRole("status").textContent).toBe("Rôle « Rédacteur » donné à Cam."))
+    expect(client.api.admin.addMemberRole).toHaveBeenCalledWith("11", "350")
+    expect(client.api.admin.memberRoles).toHaveBeenCalledTimes(2)
+
+    const fortnite = within(within(g.getByRole("list", { name: "Rôles portés" })).getByText("Fortnite").closest("li") as HTMLElement)
+    await confirm(fortnite, "Retirer", "Retirer")
     expect(client.api.admin.removeMemberRole).toHaveBeenCalledWith("11", "400")
     await waitFor(() => expect(g.getByRole("status").textContent).toBe("Rôle « Fortnite » retiré à Cam."))
+    expect(client.api.admin.memberRoles).toHaveBeenCalledTimes(3)
+  })
+
+  it("membre parti du serveur : signalé, rien à donner", async () => {
+    client.api.admin.memberRoles.mockRejectedValue(new client.ApiError(404, "Member not found"))
+    render(<MemberInspector member={CAM} onMember={vi.fn()} refreshKey={0} canManageRoles />)
+    const g = within(await screen.findByRole("group", { name: "Rôles du membre" }))
+    expect((await g.findByText("Ce membre n’est plus sur le serveur.")).textContent).toBeTruthy()
+    expect(g.queryByRole("button", { name: "Donner" })).toBeNull()
   })
 
   it("refus de l’API : motif affiché en alerte", async () => {
+    client.api.admin.memberRoles.mockResolvedValue(held(["900", "Chef", false]))
     const detail = "Ce rôle n'est pas sous le rôle le plus haut du bot"
     client.api.admin.addMemberRole.mockRejectedValue(new client.ApiError(403, detail))
     render(<MemberInspector member={CAM} onMember={vi.fn()} refreshKey={0} canManageRoles />)

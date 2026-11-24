@@ -875,3 +875,33 @@ def test_apply_reports_previous_role_removal_failure(client, fake_db, bot, rules
     assert r.json() == {"job_id": "job-apply", "remove_job_id": None, "remove_error": "Permission refusée"}
     failed, done = _audit(fake_db)
     assert failed["success"] is False and done["success"] is True
+
+
+# ── R14 n°1 : rôles portés par un membre ───────────────────────────────────
+
+def test_member_roles_requires_a_right(client, fake_db, bot, session_with):
+    session_with(set(PERMISSIONS) - {"members.roles", "moderation.view"})
+    assert client.get("/admin/members/42/roles").status_code == 403
+
+
+def test_member_roles_lists_held_roles_with_editable(client, fake_db, bot, session_with):
+    bot["ranks"]["42"] = {"top_position": 10, "is_owner": False, "role_ids": ["500", "200", "300"]}
+    session_with({"members.roles"})
+    r = client.get("/admin/members/42/roles")
+    assert r.status_code == 200
+    assert [(x["id"], x["name"], x["editable"]) for x in r.json()["roles"]] == [
+        ("500", "Chef", False), ("300", "Twitch", False), ("200", "Membre", True),
+    ]
+
+
+def test_member_roles_without_members_roles_is_read_only(client, fake_db, bot, session_with):
+    bot["ranks"]["42"] = {"top_position": 1, "is_owner": False, "role_ids": ["200"]}
+    session_with({"moderation.view"})
+    r = client.get("/admin/members/42/roles")
+    assert r.status_code == 200
+    assert [x["editable"] for x in r.json()["roles"]] == [False]
+
+
+def test_member_roles_unknown_member_is_404(client, fake_db, bot, session_with):
+    session_with({"members.roles"})
+    assert client.get("/admin/members/43/roles").status_code == 404
