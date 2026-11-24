@@ -253,7 +253,14 @@ async def update_command_permissions(name: str, body: CommandPermissionsUpdate,
         if role is not None and not outranks(actor, role["position"]):
             raise HTTPException(403, ROLE_ABOVE.format(role["name"]))
     if not added and not removed:
-        return {"command": name, "role_ids": old_ids, "changed": False, "reload_failed": False}
+        # Rien à écrire ni à journaliser, mais le rechargement est relancé : c'est le « Réessayer »
+        # d'après un ``reload_failed`` précédent.
+        try:
+            await _call("post", "/command-permissions/reload")
+            reload_failed = False
+        except HTTPException:
+            reload_failed = True
+        return {"command": name, "role_ids": old_ids, "changed": False, "reload_failed": reload_failed}
 
     actor_id = int(user["sub"])
     details = {"command": name, "before": _role_names(old_ids, by_id), "after": _role_names(new_ids, by_id),

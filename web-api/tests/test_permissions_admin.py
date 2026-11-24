@@ -397,6 +397,23 @@ def test_replace_list_in_transaction_reloads_and_logs(mod, bot, fake_db):
                               "added": ["Modo"], "removed": [], "reload_failed": False}
 
 
+def test_identical_put_still_reloads_without_new_audit(mod, bot, fake_db):
+    bot["allowed"] = [("blague", 200)]
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200"]})
+    assert r.status_code == 200
+    assert r.json() == {"command": "blague", "role_ids": ["200"], "changed": False, "reload_failed": False}
+    assert ("post", "/command-permissions/reload", None, None) in bot["calls"]
+    assert bot["tx"] == [] and _audit(fake_db) == []
+
+
+def test_identical_put_reports_reload_failure(mod, bot):
+    bot["allowed"] = [("blague", 200)]
+    bot["errors"][("post", "/command-permissions/reload")] = HTTPException(503, "Lecture impossible")
+    r = mod.put("/admin/permissions/commands/blague", json={"role_ids": ["200"]})
+    assert r.status_code == 200
+    assert r.json()["changed"] is False and r.json()["reload_failed"] is True
+
+
 def test_emptied_list_deletes_all_rows(mod, bot):
     bot["allowed"] = [("blague", 200)]
     r = mod.put("/admin/permissions/commands/blague", json={"role_ids": []})
