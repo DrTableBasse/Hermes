@@ -600,3 +600,22 @@ def test_leaving_a_category_needs_no_destination_check(env):
                                                         "actor_name": "Alice"})
     assert r.status_code == 200 and env.guild.child1.category_id is None
 
+
+# ── delete_channel : échec du mémo isolé (M5) ────────────────────────────────
+
+def test_delete_memo_failure_is_isolated_logged_and_reported(env, monkeypatch, caplog):
+    async def boom(cid):
+        raise RuntimeError("base indisponible")
+
+    monkeypatch.setattr(channels_api, "delete_template", boom)
+    with caplog.at_level("ERROR"):
+        r = env.client.request("DELETE", "/discord/channels/105",
+                               json={"actor_id": "42", "actor_name": "Alice"})
+    assert r.status_code == 200 and r.json() == {"ok": True, "memo_failed": ["105"]}
+    assert env.guild.empty_cat not in env.guild.channels
+    assert any("105" in rec.getMessage() for rec in caplog.records)
+
+
+def test_delete_without_memo_failure_has_empty_memo_failed(env):
+    r = env.client.request("DELETE", "/discord/channels/105", json={"actor_id": "42", "actor_name": "Alice"})
+    assert r.json() == {"ok": True, "memo_failed": []}

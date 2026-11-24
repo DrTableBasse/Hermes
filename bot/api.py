@@ -920,8 +920,15 @@ async def delete_channel(channel_id: int, req: ChannelDeleteRequest):
         raise HTTPException(status_code=409, detail="Videz d'abord la catégorie : elle contient "
                                                     f"{len(channel.channels)} salon(s)")
     await channel.delete(reason=_site_reason(req.actor_name))
-    await channels_api.delete_template(channel_id)
-    return {"ok": True}
+    memo_failed = []
+    try:
+        await channels_api.delete_template(channel_id)
+    except Exception:
+        # Discord fait foi : le salon est supprimé ; le mémo orphelin est seulement signalé.
+        logging.getLogger(__name__).exception(
+            "Oubli du modèle impossible après suppression du salon %s (acteur %s)", channel_id, req.actor_id)
+        memo_failed.append(str(channel_id))
+    return {"ok": True, "memo_failed": memo_failed}
 
 
 @app.post("/discord/channels/staff-resync/preview", dependencies=[Depends(_require_token)])
