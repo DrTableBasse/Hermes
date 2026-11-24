@@ -512,6 +512,11 @@ async def update_rule(rule_id: int, body: RuleUpdate, user: dict = Depends(get_c
     if "role_id" in changes and changes["role_id"] is not None:
         rule["role_id"] = int(changes["role_id"])
     role_changed = rule["role_id"] != existing["role_id"]
+    # I4 : nouvelle cible ou nouvelle condition = nouvel aperçu à consulter (§4.4), même si la
+    # requête redemande reconcile (l'aperçu vu portait sur l'ancienne règle).
+    if any(rule[k] != existing[k] for k in ("role_id", "create_role_name", "condition_type", "condition_value",
+                                       "exclusive_group")):
+        rule["reconcile"] = False
     roles = await _roles()
     await _check_rule(rule, rule_id=rule_id, role_changed=role_changed, roles=roles,
                       actor=await actor_rank(user), previous_role_id=existing["role_id"],

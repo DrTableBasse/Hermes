@@ -795,3 +795,35 @@ def test_group_mixing_condition_types_is_422(client, fake_db, bot, rules, sessio
     r = client.patch("/admin/role-rules/2", json={"condition_type": "messages"})
     assert r.status_code == 422
     assert rules["store"][2]["condition_type"] == "level"
+
+
+# ── I4 : changer la cible d'une règle appliquée la repasse en aperçu ───────
+
+@pytest.mark.parametrize("change", [
+    {"role_id": "150"}, {"condition_type": "messages"}, {"condition_value": "6"},
+    {"exclusive_group": "paliers"},
+])
+def test_patch_target_or_condition_resets_reconcile(client, fake_db, bot, rules, session_with, change):
+    rules["add"](condition_type="level", condition_value="5", role_id=200, reconcile=True)
+    bot["roles"].append({"id": "150", "name": "Nouveau", "color": 0, "position": 2, "managed": False,
+                         "members": 0, "below_bot": True})
+    session_with({"roles.manage"})
+    r = client.patch("/admin/role-rules/1", json=change)
+    assert r.status_code == 200, r.json()
+    assert rules["store"][1]["reconcile"] is False
+    assert r.json()["rule"]["reconcile"] is False
+
+
+def test_patch_other_fields_keeps_reconcile(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="level", condition_value="5", role_id=200, reconcile=True)
+    session_with({"roles.manage"})
+    assert client.patch("/admin/role-rules/1", json={"condition_value": "5", "active": False}).status_code == 200
+    assert rules["store"][1]["reconcile"] is True
+
+
+def test_patch_changing_target_cannot_keep_reconcile(client, fake_db, bot, rules, session_with):
+    rules["add"](condition_type="level", condition_value="5", role_id=200, reconcile=True)
+    session_with({"roles.manage"})
+    r = client.patch("/admin/role-rules/1", json={"condition_value": "6", "reconcile": True, "preview_seen": True})
+    assert r.status_code == 200
+    assert rules["store"][1]["reconcile"] is False
