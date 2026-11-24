@@ -67,7 +67,7 @@ def test_proprietaire_peut_tout():
 
 def test_activer_sans_posseder_refuse():
     err = escalation_error(KICK, False, 0, BAN)
-    assert err and "Bannir des membres" in err and "accorder" in err
+    assert err == "Vous ne pouvez pas accorder la permission « Bannir des membres » : vous ne la possédez pas."
 
 
 def test_retirer_sans_posseder_refuse():

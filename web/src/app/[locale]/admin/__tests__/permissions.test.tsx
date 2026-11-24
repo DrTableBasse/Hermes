@@ -258,7 +258,7 @@ describe("onglet Discord", () => {
 
   it("refus de l’API (403 escalade) : message de l’API affiché, case conservée", async () => {
     client.api.admin.putRolePermissions.mockRejectedValue(
-      new client.ApiError(403, "Tu ne peux pas accorder la permission « Gérer les messages » : tu ne la possèdes pas."),
+      new client.ApiError(403, "Vous ne pouvez pas accorder la permission « Gérer les messages » : vous ne la possédez pas."),
     )
     await renderPage()
     fireEvent.click(box("Gérer les messages"))
@@ -267,7 +267,7 @@ describe("onglet Discord", () => {
       fireEvent.click(screen.getByRole("button", { name: "Confirmer l’enregistrement" }))
     })
     expect(screen.getByRole("alert").textContent).toBe(
-      "Tu ne peux pas accorder la permission « Gérer les messages » : tu ne la possèdes pas.",
+      "Vous ne pouvez pas accorder la permission « Gérer les messages » : vous ne la possédez pas.",
     )
     expect(box("Gérer les messages").checked).toBe(true)
   })

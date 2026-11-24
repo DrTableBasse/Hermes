@@ -109,5 +109,5 @@ def escalation_error(actor_perms: int, is_owner: bool, before: int, after: int) 
         return None
     for flag in sorted(value_to_flags((before ^ after) & ~actor_perms)):
         verbe = "accorder" if after & _BITS[flag] else "retirer"
-        return f"Tu ne peux pas {verbe} la permission « {_LABELS[flag]} » : tu ne la possèdes pas."
+        return f"Vous ne pouvez pas {verbe} la permission « {_LABELS[flag]} » : vous ne la possédez pas."
     return None

@@ -168,7 +168,7 @@ def test_catalog_matches_bot_families_keys_and_labels():
     assert bot_families == mine
     # Même règle d'anti-escalade, texte compris.
     for marker in ("Seul le propriétaire du serveur peut accorder la permission « Administrateur ».",
-                   "Tu ne peux pas {verbe} la permission « {_LABELS[flag]} » : tu ne la possèdes pas."):
+                   "Vous ne pouvez pas {verbe} la permission « {_LABELS[flag]} » : vous ne la possédez pas."):
         assert marker in source
 
 
@@ -236,16 +236,16 @@ def test_read_discord_owner_edits_everyone_but_not_managed_or_above_bot(mod, bot
 def test_focus1_moderator_cannot_grant_ban_he_lacks(mod, bot, fake_db):
     r = mod.put("/admin/permissions/discord/200", json={"permissions": ["send_messages", "ban_members"]})
     assert r.status_code == 403
-    assert r.json()["detail"] == ("Tu ne peux pas accorder la permission « Bannir des membres » : "
-                                  "tu ne la possèdes pas.")
+    assert r.json()["detail"] == ("Vous ne pouvez pas accorder la permission « Bannir des membres » : "
+                                  "vous ne la possédez pas.")
     assert _patches(bot) == [] and _audit(fake_db) == []
 
 
 def test_focus2_cannot_remove_administrator_from_role_below(mod, bot, fake_db):
     r = mod.put("/admin/permissions/discord/300", json={"permissions": ["kick_members"]})
     assert r.status_code == 403
-    assert r.json()["detail"] == ("Tu ne peux pas retirer la permission « Administrateur » : "
-                                  "tu ne la possèdes pas.")
+    assert r.json()["detail"] == ("Vous ne pouvez pas retirer la permission « Administrateur » : "
+                                  "vous ne la possédez pas.")
     assert _patches(bot) == []
 
 
