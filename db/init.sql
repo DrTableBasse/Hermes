@@ -674,6 +674,12 @@ CREATE TABLE IF NOT EXISTS channel_templates (
     applied_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS command_permissions (
+    command_name TEXT   NOT NULL,
+    role_id      BIGINT NOT NULL,
+    PRIMARY KEY (command_name, role_id)
+);
+
 -- Clés alignées sur GAMES de bot/cogs/fun/game_lfg.py ; War Dogs n'y figure pas.
 INSERT INTO site_games (key, name, color, position) VALUES
     ('war-dogs',  'War Dogs',          '#A12D2F', 1),
