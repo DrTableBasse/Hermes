@@ -213,7 +213,7 @@ def test_create_channel_bot_error_relayed_and_logged(client, mod, bot, fake_db):
 def test_update_channel_always_sends_actor_id_and_keeps_explicit_null_parent(client, mod, bot, fake_db):
     r = client.patch("/admin/channels/21", json={"parent_id": None})
     assert r.status_code == 200
-    assert bot["calls"][0][:3] == ("patch", "/discord/channels/21",
+    assert _writes(bot)[0][:3] == ("patch", "/discord/channels/21",
                                    {"parent_id": None, "actor_id": "1", "actor_name": "Bob"})
     [row] = _audit(fake_db)
     assert (row["kind"], row["action"], row["details"]) == ("channel", "channel_update",
@@ -222,7 +222,7 @@ def test_update_channel_always_sends_actor_id_and_keeps_explicit_null_parent(cli
 
 def test_update_channel_absent_parent_is_not_sent(client, mod, bot):
     client.patch("/admin/channels/10", json={"name": "discussion"})
-    assert bot["calls"][0][2] == {"name": "discussion", "actor_id": "1", "actor_name": "Bob"}
+    assert _writes(bot)[0][2] == {"name": "discussion", "actor_id": "1", "actor_name": "Bob"}
 
 
 @pytest.mark.parametrize("body", [{}, {"name": None}, {"position": -1}, {"position": None}])
@@ -232,8 +232,8 @@ def test_update_channel_invalid_is_422(client, mod, bot, body):
 
 
 def test_update_channel_not_visible_403_relayed(client, mod, bot, fake_db):
-    bot["errors"][("patch", "/discord/channels/30")] = HTTPException(403, "Vous ne voyez pas ce salon")
-    r = client.patch("/admin/channels/30", json={"name": "x"})
+    bot["errors"][("patch", "/discord/channels/10")] = HTTPException(403, "Vous ne voyez pas ce salon")
+    r = client.patch("/admin/channels/10", json={"name": "x"})
     assert r.status_code == 403 and r.json()["detail"] == "Vous ne voyez pas ce salon"
     assert _audit(fake_db)[0]["success"] is False
 
@@ -326,6 +326,7 @@ def test_staff_template_reserved_to_admins(client, mod, bot, fake_db, step):
 
 def test_staff_template_allowed_for_admin(client, fake_db, bot, session_with):
     session_with(is_admin=True)
+    bot["ranks"]["1"] = {"top_position": 0, "is_owner": True}  # salon 30 invisible : propriétaire exempté
     r = client.post("/admin/channels/30/template/preview", json={"template": "staff"})
     assert r.status_code == 200
     assert bot["calls"][-1][2] == {"template": "staff", "roles": [], "sync_children": False, "actor_id": "1"}
@@ -334,12 +335,12 @@ def test_staff_template_allowed_for_admin(client, fake_db, bot, session_with):
 def test_public_on_hidden_staff_channel_by_member_who_cannot_see_it_is_403(client, mod, bot, fake_db):
     """Review Focus 1 : le bot calcule la visibilité ; son 403 est relayé, rien n'est appliqué."""
     hidden = HTTPException(403, "Vous ne voyez pas ce salon dans Discord")
-    bot["errors"][("post", "/discord/channels/30/template/preview")] = hidden
-    r = client.post("/admin/channels/30/template/preview", json={"template": "public"})
+    bot["errors"][("post", "/discord/channels/10/template/preview")] = hidden
+    r = client.post("/admin/channels/10/template/preview", json={"template": "public"})
     assert r.status_code == 403 and r.json()["detail"] == "Vous ne voyez pas ce salon dans Discord"
-    r = client.post("/admin/channels/30/template/apply", json={"template": "public", "token": "tok-1"})
+    r = client.post("/admin/channels/10/template/apply", json={"template": "public", "token": "tok-1"})
     assert r.status_code == 403
-    assert "/discord/channels/30/template/apply" not in _paths(bot)
+    assert "/discord/channels/10/template/apply" not in _paths(bot)
     [row] = _audit(fake_db)
     assert (row["kind"], row["action"], row["success"]) == ("permission", "channel_template_apply", False)
 
@@ -473,3 +474,31 @@ def test_staff_resync_without_staff_roles_422_relayed(client, fake_db, bot, sess
         422, "Aucun rôle staff n'est réglé (staff_roles)")
     r = client.post("/admin/channels/staff-resync/preview")
     assert r.status_code == 422 and "staff_roles" in r.json()["detail"]
+
+
+# ── Aucun nom de salon invisible dans les réponses ──────────────────────────
+
+@pytest.mark.parametrize("method,path,body", [
+    ("patch", "/admin/channels/30", {"name": "y"}),
+    ("delete", "/admin/channels/30", {"confirm_name": "faux"}),
+    ("post", "/admin/channels/30/template/preview", {"template": "public"}),
+    ("post", "/admin/channels/30/template/apply", {"template": "public", "token": "tok-1"}),
+])
+def test_invisible_channel_is_404_without_name(mod, client, bot, method, path, body):
+    r = client.request(method.upper(), path, json=body)
+    assert r.status_code == 404 and r.json()["detail"] == "Salon introuvable"
+    assert "staff-only" not in r.text
+    assert _writes(bot) == [] and not any(p.endswith("/preview") for p in _paths(bot))
+
+
+def test_missing_channel_gives_same_404(mod, client, bot):
+    r = client.request("DELETE", "/admin/channels/999", json={"confirm_name": "x"})
+    assert r.status_code == 404 and r.json()["detail"] == "Salon introuvable"
+
+
+def test_staff_resync_error_relayed_without_name(mod, client, bot, session_with):
+    session_with({"channels.manage"}, is_admin=True)
+    bot["errors"][("post", "/discord/channels/staff-resync/preview")] = HTTPException(
+        403, "Vous ne voyez pas l'un des salons concernés dans Discord.")
+    r = client.post("/admin/channels/staff-resync/preview")
+    assert r.status_code == 403 and "staff-only" not in r.text

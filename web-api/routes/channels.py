@@ -91,7 +91,12 @@ async def _tree(user: dict) -> dict:
 
 
 async def _channel(user: dict, channel_id: int) -> dict:
-    channel = next((c for c in (await _tree(user))["channels"] if c["id"] == str(channel_id)), None)
+    """Salon de l'arbre visible pour l'acteur (propriétaire exempté) ; un salon invisible est
+    indiscernable d'un identifiant inexistant : 404, sans jamais citer son nom."""
+    tree = await _tree(user)
+    owner = (await actor_rank(user))["is_owner"]
+    channel = next((c for c in tree["channels"]
+                    if c["id"] == str(channel_id) and (owner or c.get("visible_to_actor"))), None)
     if channel is None:
         raise HTTPException(404, "Salon introuvable")
     return channel
@@ -236,6 +241,7 @@ async def update_channel(channel_id: int, body: ChannelUpdate, user: dict = Depe
         raise HTTPException(422, "Le nom ne peut pas être vide")
     if "position" in changes and changes["position"] is None:
         raise HTTPException(422, "Position invalide")
+    await _channel(user, channel_id)
     details = {"changes": changes}
     result = await _write("channel_update", user, "patch", f"/discord/channels/{channel_id}",
                           details=details, target_id=channel_id, target_name=str(channel_id),
@@ -285,6 +291,7 @@ async def staff_resync_apply(body: StaffResyncApply, user: dict = Depends(get_cu
 async def template_preview(channel_id: int, body: TemplatePreview, user: dict = Depends(get_current_user)):
     require_permission(user, "channels.manage")
     await _check_template(user, body)
+    await _channel(user, channel_id)
     return await _call("post", f"/discord/channels/{channel_id}/template/preview",
                        json=_template_payload(user, body), timeout=PREVIEW_TIMEOUT)
 
@@ -294,6 +301,7 @@ async def template_apply(channel_id: int, body: TemplateApply, user: dict = Depe
     """Applique le modèle prévisualisé ; 409 « l'aperçu n'est plus à jour » si l'état a changé."""
     require_permission(user, "channels.manage")
     await _check_template(user, body)
+    await _channel(user, channel_id)
     return await _apply_previewed(
         "channel_template_apply", user, body.token,
         preview_path=f"/discord/channels/{channel_id}/template/preview",

@@ -680,7 +680,7 @@ def _require_view(guild: discord.Guild, actor: discord.Member, channels: list) -
     for channel in channels:
         if not channels_api.can_view(guild, actor, channel):
             raise HTTPException(status_code=403,
-                                detail=f"Vous ne voyez pas le salon « {channel.name} » dans Discord")
+                                detail="Vous ne voyez pas l'un des salons concernés dans Discord.")
 
 
 def _is_owner(guild: discord.Guild, actor: discord.Member) -> bool:

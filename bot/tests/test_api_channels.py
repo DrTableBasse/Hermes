@@ -302,9 +302,9 @@ def test_discord_forbidden_is_translated(env):
 
 def test_public_on_hidden_staff_channel_by_member_who_cannot_see_is_403(env):
     r = preview(env, 104, "public", actor=43)
-    assert r.status_code == 403 and "staff" in r.json()["detail"]
+    assert r.status_code == 403 and "staff" not in r.text
     r = apply(env, 104, "public", "nimporte", actor=43)
-    assert r.status_code == 403 and env.guild.staff.edits == []
+    assert r.status_code == 403 and env.guild.staff.edits == [] and "staff" not in r.text
 
 
 def test_owner_is_exempt_from_visibility(env):
@@ -517,3 +517,33 @@ def test_delete_refused_when_actor_does_not_see_channel(env):
     env.guild.staff.hidden_from.add(999)
     r = env.client.request("DELETE", "/discord/channels/104", json={"actor_id": "999", "actor_name": "P"})
     assert r.status_code == 200  # propriétaire exempté
+
+
+# ── Aucun nom de salon invisible dans les réponses ───────────────────────────
+
+def test_hidden_channel_name_never_in_403_bodies(env):
+    c = env.client
+    r = c.patch("/discord/channels/104", json={"name": "x", "actor_id": "43", "actor_name": "Bob"})
+    assert r.status_code == 403 and "staff" not in r.text
+    r = c.request("DELETE", "/discord/channels/104", json={"actor_id": "43", "actor_name": "Bob"})
+    assert r.status_code == 403 and "staff" not in r.text
+    assert preview(env, 104, "public", actor=43).status_code == 403
+    assert "staff" not in preview(env, 104, "public", actor=43).text
+
+
+def test_sync_with_hidden_child_refused_without_name(env):
+    env.guild.child2.hidden_from.add(43)
+    r = preview(env, 100, "public", actor=43, sync=True)
+    assert r.status_code == 403 and "vocal-jeux" not in r.text
+    r = apply(env, 100, "public", "nimporte", actor=43, sync=True)
+    assert r.status_code == 403 and "vocal-jeux" not in r.text
+
+
+def test_staff_resync_hidden_staff_channel_refused_without_name(env):
+    token = preview(env, 104, "staff", actor=999).json()["token"]
+    assert apply(env, 104, "staff", token, actor=999).status_code == 200
+    r = env.client.post("/discord/channels/staff-resync/preview", json={"actor_id": "43"})
+    assert r.status_code == 403 and "staff" not in r.text.replace("Vous ne voyez pas", "")
+    r = env.client.post("/discord/channels/staff-resync/apply",
+                        json={"actor_id": "43", "actor_name": "Bob", "token": "x"})
+    assert r.status_code == 403 and "staff" not in r.text.replace("Vous ne voyez pas", "")
