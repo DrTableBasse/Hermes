@@ -665,6 +665,15 @@ ALTER TABLE site_games ADD COLUMN IF NOT EXISTS provisioned  BOOLEAN NOT NULL DE
 ALTER TABLE site_games ADD COLUMN IF NOT EXISTS archived     BOOLEAN NOT NULL DEFAULT FALSE;
 CREATE UNIQUE INDEX IF NOT EXISTS site_games_command_name_key ON site_games (command_name);
 
+-- Modèles d'accès appliqués aux salons (migration 024)
+CREATE TABLE IF NOT EXISTS channel_templates (
+    channel_id BIGINT PRIMARY KEY,
+    template   VARCHAR(20) NOT NULL,
+    roles      BIGINT[] NOT NULL DEFAULT '{}',
+    applied_by BIGINT,
+    applied_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Clés alignées sur GAMES de bot/cogs/fun/game_lfg.py ; War Dogs n'y figure pas.
 INSERT INTO site_games (key, name, color, position) VALUES
     ('war-dogs',  'War Dogs',          '#A12D2F', 1),
